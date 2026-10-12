@@ -38,50 +38,83 @@ const propertyManagerPages = new Set([
   'manager-dashboard', 'houses', 'tenants', 'invoices', 'payments', 'maintenance', 'visitors', 'reports', 'notifications',
 ]);
 
+const defaultPageByRole: Record<string, string> = {
+  admin: 'dashboard',
+  gatekeeper: 'gk-dashboard',
+  caretaker: 'caretaker-dashboard',
+  property_manager: 'manager-dashboard',
+  tenant: 'tenant-dashboard',
+};
+
+const pagesByRole: Record<string, Set<string>> = {
+  admin: new Set([
+    'dashboard', 'houses', 'tenants', 'caretakers', 'property-managers', 'invoices',
+    'payments', 'agreements', 'maintenance', 'reports', 'settings', 'admin-chat',
+    'visitors', 'notifications', 'user-activity',
+  ]),
+  gatekeeper: new Set(['gk-dashboard', 'visitors']),
+  caretaker: new Set([
+    'caretaker-dashboard', 'invoices', 'caretaker-visitors', 'caretaker-register-visitor',
+    'notifications', 'caretaker-profile',
+  ]),
+  property_manager: propertyManagerPages,
+  tenant: new Set([
+    'tenant-dashboard', 'tenant-payments', 'tenant-invoices', 'tenant-maintenance',
+    'tenant-agreement', 'tenant-chat', 'notifications',
+  ]),
+};
+
 function AppContent() {
   const { session, profile, tenantRecord, tenantChecked, loading } = useAuth();
   const { appLogoUrl } = useTheme();
   const [currentPage, setCurrentPage] = useState('');
+  const profileId = profile?.id;
+  const profileRole = profile?.role;
 
   useEffect(() => {
-    if (!profile) return;
-    const initialPage = profile.role === 'admin'
-      ? 'dashboard'
-      : profile.role === 'gatekeeper'
-        ? 'gk-dashboard'
-        : profile.role === 'caretaker'
-          ? 'caretaker-dashboard'
-          : profile.role === 'property_manager'
-            ? 'manager-dashboard'
-            : 'tenant-dashboard';
-    setCurrentPage(initialPage);
-    window.history.replaceState({ appPage: initialPage }, '');
-  }, [profile]);
+    if (!profileId || !profileRole) return;
+    const initialPage = defaultPageByRole[profileRole] ?? 'tenant-dashboard';
+    const historyState = window.history.state as {
+      appPage?: unknown;
+      userId?: unknown;
+      role?: unknown;
+    } | null;
+    const canRestorePage = historyState?.userId === profileId
+      && historyState.role === profileRole
+      && typeof historyState.appPage === 'string'
+      && pagesByRole[profileRole]?.has(historyState.appPage);
+    const page = canRestorePage ? historyState.appPage as string : initialPage;
+
+    setCurrentPage(page);
+    window.history.replaceState({ appPage: page, userId: profileId, role: profileRole }, '');
+  }, [profileId, profileRole]);
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profileId || !profileRole) return;
     const handlePopState = (event: PopStateEvent) => {
-      if (event.state && typeof event.state.appPage === 'string') {
-        setCurrentPage(profile.role === 'property_manager' && !propertyManagerPages.has(event.state.appPage)
-          ? 'manager-dashboard'
-          : event.state.appPage);
-      }
+      const page = event.state?.appPage;
+      const isSameUser = event.state?.userId === profileId && event.state?.role === profileRole;
+      setCurrentPage(
+        isSameUser && typeof page === 'string' && pagesByRole[profileRole]?.has(page)
+          ? page
+          : defaultPageByRole[profileRole] ?? 'tenant-dashboard',
+      );
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [profile]);
+  }, [profileId, profileRole]);
 
   useEffect(() => {
-    if (!profile || !currentPage || !['tenant', 'property_manager', 'caretaker'].includes(profile.role)) return;
+    if (!profileId || !profileRole || !currentPage || !['tenant', 'property_manager', 'caretaker'].includes(profileRole)) return;
     supabase.from('user_activity_events').insert({
-      actor_id: profile.id,
-      actor_role: profile.role,
+      actor_id: profileId,
+      actor_role: profileRole,
       event_type: 'page_view',
       page_key: currentPage,
     }).then(({ error }) => {
       if (error) console.error('Unable to record page activity:', error.message);
     });
-  }, [profile, currentPage]);
+  }, [profileId, profileRole, currentPage]);
 
   if (loading || (profile?.role === 'tenant' && !tenantChecked)) {
     return (
@@ -122,7 +155,7 @@ function AppContent() {
 
   const navigate = (page: string) => {
     if (profile.role === 'property_manager' && !propertyManagerPages.has(page)) return;
-    window.history.pushState({ appPage: page }, '');
+    window.history.pushState({ appPage: page, userId: profile.id, role: profile.role }, '');
     setCurrentPage(page);
   };
 

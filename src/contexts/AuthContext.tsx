@@ -27,18 +27,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
+    if (error) {
+      console.error('Unable to refresh account profile:', error.message);
+      return;
+    }
     setProfile(data);
     if (data?.role === 'tenant') {
-      const { data: tenant } = await supabase
+      const { data: tenant, error: tenantError } = await supabase
         .from('tenants')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
+      if (tenantError) {
+        console.error('Unable to refresh tenant details:', tenantError.message);
+        setTenantChecked(true);
+        return;
+      }
       setTenantRecord(tenant);
     } else {
       setTenantRecord(null);
