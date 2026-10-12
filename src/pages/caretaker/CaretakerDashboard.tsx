@@ -115,7 +115,7 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       {/* Welcome */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -127,11 +127,12 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
           subtitle={profile?.assigned_property_name ?? t('noPropertyAssigned')}
         />
       </motion.div>
+      <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
       {profile && <StaffIdentityCard profile={profile} assignedProperties={assignedHouses} showIdentityDocument={false} />}
       {assignmentError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{assignmentError}</p>}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4">
         {statCards.map((card, i) => {
           const Icon = card.icon;
           return (
@@ -140,15 +141,15 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: i * 0.05 }}
-              className={`${panelClass} p-4 sm:p-5`}
+              className={`${panelClass} p-3 sm:p-5`}
             >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl ${card.color} flex items-center justify-center shrink-0`}>
-                  <Icon className="w-5 h-5 text-white" />
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${card.color} flex items-center justify-center shrink-0`}>
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">{card.value}</p>
-                  <p className="text-xs text-slate-500">{card.label}</p>
+                <div className="min-w-0">
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900">{card.value}</p>
+                  <p className="text-[11px] leading-4 sm:text-xs text-slate-500">{card.label}</p>
                 </div>
               </div>
             </motion.div>
@@ -161,7 +162,7 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.15 }}
-        className={`${panelClass} p-4 sm:p-5`}
+        className={`${panelClass} p-3 sm:p-5`}
       >
         <h3 className="text-sm font-semibold text-slate-900 mb-3">{t('quickActions')}</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -173,7 +174,7 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => onNavigate(action.page)}
-                className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all"
+                className="flex flex-col items-center gap-1.5 p-2.5 sm:gap-2 sm:p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all"
               >
                 <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${action.color} flex items-center justify-center shadow-sm`}>
                   <Icon className="w-5 h-5 text-white" />
@@ -190,7 +191,7 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.2 }}
-        className={`${panelClass} p-4 sm:p-5`}
+        className={`${panelClass} p-3 sm:p-5`}
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-900">{t('recentVisitorRegistrations')}</h3>
@@ -237,6 +238,7 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
           </div>
         )}
       </motion.div>
+      </div>
     </div>
   );
 }

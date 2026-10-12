@@ -39,7 +39,7 @@ export default function DashboardWelcomeHero({ title, subtitle, action }: Dashbo
   }).format(now);
 
   return (
-    <section className="relative isolate min-h-[190px] overflow-hidden rounded-3xl bg-slate-950 shadow-[0_12px_32px_rgba(15,23,42,0.14)] sm:min-h-[220px]">
+    <section className="relative isolate min-h-[160px] overflow-hidden rounded-3xl bg-slate-950 shadow-[0_12px_32px_rgba(15,23,42,0.14)] sm:min-h-[220px]">
       {imageVisible && (
         <img
           src={imageSrc}
@@ -54,14 +54,14 @@ export default function DashboardWelcomeHero({ title, subtitle, action }: Dashbo
       )}
       <div className="absolute inset-0 -z-10 bg-gradient-to-r from-slate-950/85 via-slate-950/60 to-slate-950/20" />
       <div className="absolute inset-0 -z-10 bg-gradient-to-t from-slate-950/25 via-transparent to-slate-950/5" />
-      <div className="flex min-h-[190px] flex-col justify-between gap-6 p-5 sm:min-h-[220px] sm:flex-row sm:items-end sm:p-8">
+      <div className="flex min-h-[160px] flex-col justify-between gap-3 p-4 sm:min-h-[220px] sm:flex-row sm:items-end sm:gap-6 sm:p-8">
         <div className="max-w-2xl">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/85 backdrop-blur-sm">
+          <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/85 backdrop-blur-sm sm:mb-4">
             <Building2 className="h-3.5 w-3.5" strokeWidth={1.8} />
             <span>{appName}</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">{title}</h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-white/75 sm:text-base">{subtitle}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-4xl">{title}</h1>
+          <p className="mt-1 max-w-xl text-sm leading-5 text-white/75 sm:mt-2 sm:text-base sm:leading-6">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {action}

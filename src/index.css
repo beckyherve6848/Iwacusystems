@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600&family=Roboto:wght@300;400;500;700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -139,6 +139,7 @@
     white-space: nowrap;
     vertical-align: baseline;
   }
+
 }
 
 .staff-identity-panel {
@@ -479,6 +480,18 @@
   margin-bottom: 0.25rem;
   color: #64748b;
   font-size: 0.75rem;
+}
+
+@media (max-width: 639px) {
+  .staff-identity-panel {
+    justify-items: center;
+    gap: 0.65rem;
+  }
+
+  .staff-id-card {
+    width: min(100%, 320px);
+    padding: 0.75rem 0.9rem 0.55rem 1rem;
+  }
 }
 
 @media print {

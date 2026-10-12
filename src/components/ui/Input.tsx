@@ -11,20 +11,22 @@ const fieldBase: React.CSSProperties = {
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  labelClassName?: string;
   error?: string;
   icon?: React.ReactNode;
+  wrapperClassName?: string;
 }
 
-export default function Input({ label, error, icon, className = '', id, style, onFocus, onBlur, ...props }: InputProps) {
+export default function Input({ label, labelClassName = '', error, icon, className = '', wrapperClassName = '', id, style, onFocus, onBlur, ...props }: InputProps) {
   const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
-        <label htmlFor={inputId} className="text-sm font-medium text-slate-700">
+        <label htmlFor={inputId} className={`text-sm font-medium text-slate-700 ${labelClassName}`}>
           {label}
         </label>
       )}
-      <div className="relative">
+      <div className={`relative ${wrapperClassName}`}>
         {icon && (
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
             {icon}

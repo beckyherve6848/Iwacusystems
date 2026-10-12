@@ -1,9 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { Mail, Lock, Eye, EyeOff, User, Phone, Globe, ShieldCheck, Home, Users, TrendingUp } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import Input from '@/components/ui/Input';
 import TurnstileCaptcha from '@/components/auth/TurnstileCaptcha';
+
+const authInputStyle: React.CSSProperties = {
+  background: '#e5e7eb',
+  borderColor: '#cbd5e1',
+};
 
 interface AuthPageProps {
   onSuccess: () => void;
@@ -135,7 +141,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
             height: min(calc(100dvh - 80px), 820px);
           }
           .auth-form-panel {
-            min-height: min(560px, calc(100dvh - 32px));
+            min-height: min(560px, calc(100vh - 32px));
             max-height: calc(100dvh - 32px);
             overflow-y: auto;
             overscroll-behavior-y: contain;
@@ -177,15 +183,15 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
         }
         .glass-reflection {
           position: absolute;
-          top: -50%; left: -50%;
-          width: 60%; height: 200%;
+          top: 0; left: -50%;
+          width: 60%; height: 100%;
           background: linear-gradient(110deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
           pointer-events: none;
         }
       `}</style>
 
       {/* Full-screen background */}
-      <div className="min-h-screen relative overflow-x-clip lg:overflow-hidden" style={{ background: '#000000' }}>
+      <div className="min-h-screen min-h-[100dvh] relative overflow-x-clip lg:overflow-hidden" style={{ background: '#000000' }}>
         {loginBackgroundUrl && !bgFailed && (
           <img
             src={loginBackgroundUrl}
@@ -206,7 +212,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
         }} />
 
         {/* Two-panel layout */}
-        <div className="auth-layout relative z-10 min-h-screen flex flex-col lg:flex-row items-center justify-center gap-6 p-6 lg:p-10">
+        <div className="auth-layout relative z-10 min-h-screen min-h-[100dvh] flex flex-col lg:flex-row items-center justify-center gap-6 p-3 sm:p-4 lg:p-10">
 
           {/* ─── LEFT PANEL: Branding (55%) ─── */}
           <div
@@ -281,7 +287,6 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
           <div
             className="auth-form-panel w-full max-w-[460px] lg:w-[42%] xl:w-[48%] xl:max-w-[700px] flex flex-col relative overflow-x-clip"
             style={{
-              minHeight: 'min(560px, calc(100vh - 32px))',
               borderRadius: '32px',
               background: 'rgba(22,22,22,0.55)',
               backdropFilter: 'blur(40px)',
@@ -324,10 +329,15 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               </div>
             </div>
 
-            <div ref={formRef} className="auth-form-card relative z-10 flex-1 flex flex-col p-8 xl:p-10 pt-16">
+            <motion.div
+              ref={formRef}
+              layout="size"
+              transition={{ layout: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
+              className="auth-form-card relative z-10 flex-1 flex flex-col p-5 sm:p-6 xl:p-10 pt-6 sm:pt-9 lg:pt-16"
+            >
 
               {/* Mobile logo */}
-              <div className="flex items-center gap-3 mb-8 lg:hidden">
+              <div className="flex items-center gap-3 mb-4 lg:hidden">
                 <img src={appLogoUrl} alt={`${appName} logo`} className="h-10 w-10 object-contain" />
                 <div>
                   <p className="text-white font-bold text-lg">{appName}</p>
@@ -337,20 +347,30 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
               {/* Header */}
               <div className="flex items-center gap-2 mb-3">
-                <ShieldCheck className="w-4 h-4 text-white/50" strokeWidth={1.5} />
+                <User className="w-4 h-4 text-white/50" strokeWidth={1.5} />
                 <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/50">
                   {mode === 'login' ? (language === 'fr' ? 'Accès Sécurisé' : 'Secure Access') : (language === 'fr' ? 'Nouveau Compte' : 'New Account')}
                 </span>
               </div>
-              <h2 className="text-3xl font-black text-white mb-1.5 tracking-tight">
-                {mode === 'login' ? t('welcomeBack') : t('createAccount')}
-              </h2>
-              <p className="text-white/40 text-sm mb-7">
-                {mode === 'login' ? t('signInSubtitle') : t('registerSubtitle')}
-              </p>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={mode}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <h2 className="text-3xl font-normal text-white mb-1.5 tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    {mode === 'login' ? t('welcomeBack') : t('createAccount')}
+                  </h2>
+                  <p className="text-white/40 text-sm mb-5 sm:mb-7">
+                    {mode === 'login' ? t('signInSubtitle') : t('registerSubtitle')}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
 
               {/* Segmented control */}
-              <div className="flex rounded-xl p-1 mb-6 relative"
+              <div className="flex rounded-xl p-1 mb-4 sm:mb-6 relative"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 {(['login', 'register'] as const).map(m => (
                   <button
@@ -379,38 +399,89 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               </div>
 
               {/* Form */}
-              <form onSubmit={handleSubmit} autoComplete="off" className="flex flex-col gap-3.5">
-                {mode === 'register' && (
-                  <div className="input-glow rounded-xl transition-all">
-                    <Input label={t('fullName')} placeholder={language === 'fr' ? 'Votre nom complet' : 'Enter your full name'} value={form.fullName} onChange={set('fullName')} icon={<User className="w-4 h-4" />} autoComplete="off" maxLength={120} required />
-                  </div>
-                )}
-                <div className="input-glow rounded-xl transition-all">
-                  <Input label={t('email')} type="email" placeholder={language === 'fr' ? 'Entrez votre e-mail' : 'Enter email'} value={form.email} onChange={set('email')} icon={<Mail className="w-4 h-4" />} autoComplete="off" readOnly={!emailInputEnabled} onFocus={() => setEmailInputEnabled(true)} required />
-                </div>
-                {mode === 'register' && (
-                  <div className="input-glow rounded-xl transition-all">
-                    <Input label={t('phone')} type="tel" placeholder="+257 68 000 000" value={form.phone} onChange={set('phone')} icon={<Phone className="w-4 h-4" />} autoComplete="tel" maxLength={40} required />
-                  </div>
-                )}
-                <div className="relative input-glow rounded-xl transition-all">
-                  <Input label={t('password')} type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Votre mot de passe' : 'Enter your password'} value={form.password} onChange={set('password')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!passwordInputEnabled} onFocus={() => setPasswordInputEnabled(true)} minLength={mode === 'register' ? 8 : undefined} required />
-                  <button type="button" onClick={() => setShowPass(s => !s)} className="absolute right-3 bottom-3 text-white/40 hover:text-white/80 transition-colors z-10">
+              <motion.form
+                layout="size"
+                transition={{ layout: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
+                onSubmit={handleSubmit}
+                autoComplete="off"
+                className="flex flex-col gap-3.5 max-[639px]:gap-3"
+              >
+                <AnimatePresence initial={false}>
+                  {mode === 'register' && (
+                    <motion.div
+                      key="full-name"
+                      layout
+                      initial={{ opacity: 0, height: 0, y: -6 }}
+                      animate={{ opacity: 1, height: 'auto', y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: -6 }}
+                      transition={{ duration: 0.22, ease: 'easeInOut' }}
+                      className="overflow-hidden"
+                    >
+                      <Input label={t('fullName')} placeholder={language === 'fr' ? 'Votre nom complet' : 'Enter your full name'} value={form.fullName} onChange={set('fullName')} icon={<User className="w-4 h-4" />} autoComplete="off" maxLength={120} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <motion.div layout>
+                  <Input label={t('email')} labelClassName="text-white/60 font-medium" type="email" placeholder={language === 'fr' ? 'Entrez votre e-mail' : 'Enter email'} value={form.email} onChange={set('email')} icon={<Mail className="w-4 h-4" />} autoComplete="off" readOnly={!emailInputEnabled} onFocus={() => setEmailInputEnabled(true)} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                </motion.div>
+                <AnimatePresence initial={false}>
+                  {mode === 'register' && (
+                    <motion.div
+                      key="phone"
+                      layout
+                      initial={{ opacity: 0, height: 0, y: -6 }}
+                      animate={{ opacity: 1, height: 'auto', y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: -6 }}
+                      transition={{ duration: 0.22, ease: 'easeInOut' }}
+                      className="overflow-hidden"
+                    >
+                      <Input label={t('phone')} type="tel" placeholder="+257 68 000 000" value={form.phone} onChange={set('phone')} icon={<Phone className="w-4 h-4" />} autoComplete="tel" maxLength={40} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <motion.div layout className="relative">
+                  <Input label={t('password')} labelClassName="text-white/60 font-medium" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Votre mot de passe' : 'Enter your password'} value={form.password} onChange={set('password')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!passwordInputEnabled} onFocus={() => setPasswordInputEnabled(true)} minLength={mode === 'register' ? 8 : undefined} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(s => !s)}
+                    aria-label={showPass
+                      ? language === 'fr' ? 'Masquer le mot de passe' : 'Hide password'
+                      : language === 'fr' ? 'Afficher le mot de passe' : 'Show password'}
+                    aria-pressed={showPass}
+                    className="absolute right-1 bottom-0.5 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                  >
                     {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
-                </div>
-                {mode === 'register' && (
-                  <div className="relative input-glow rounded-xl transition-all">
-                    <Input label={t('confirmPassword')} type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Confirmez votre mot de passe' : 'Confirm your password'} value={form.confirmPassword} onChange={set('confirmPassword')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!confirmPasswordInputEnabled} onFocus={() => setConfirmPasswordInputEnabled(true)} required />
-                    <button type="button" onClick={() => setShowPass(s => !s)} className="absolute right-3 bottom-3 text-white/40 hover:text-white/80 transition-colors z-10">
+                </motion.div>
+                <AnimatePresence initial={false}>
+                  {mode === 'register' && (
+                    <motion.div
+                      key="confirm-password"
+                      layout
+                      initial={{ opacity: 0, height: 0, y: -6 }}
+                      animate={{ opacity: 1, height: 'auto', y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: -6 }}
+                      transition={{ duration: 0.22, ease: 'easeInOut' }}
+                      className="relative overflow-hidden"
+                    >
+                    <Input label={t('confirmPassword')} labelClassName="text-white/60 font-medium" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Confirmez votre mot de passe' : 'Confirm your password'} value={form.confirmPassword} onChange={set('confirmPassword')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!confirmPasswordInputEnabled} onFocus={() => setConfirmPasswordInputEnabled(true)} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(s => !s)}
+                      aria-label={showPass
+                        ? language === 'fr' ? 'Masquer le mot de passe' : 'Hide password'
+                        : language === 'fr' ? 'Afficher le mot de passe' : 'Show password'}
+                      aria-pressed={showPass}
+                      className="absolute right-1 bottom-0.5 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                    >
                       {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {error && (
-                  <div className="rounded-xl px-4 py-3 text-sm text-white/70"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className="mt-1 text-sm text-red-400" role="alert">
                     {error}
                   </div>
                 )}
@@ -488,7 +559,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                     : (mode === 'login' ? t('signIn') : t('createAccount'))
                   }
                 </button>
-              </form>
+              </motion.form>
 
               {/* Footer */}
               <div className="mt-auto pt-6">
@@ -496,7 +567,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   &copy; {new Date().getFullYear()} {appName} &mdash; {language === 'fr' ? 'Tous droits réservés' : 'All rights reserved'}
                 </p>
               </div>
-            </div>
+            </motion.div>
           </div>
           <a
             href="https://devburundi.com"

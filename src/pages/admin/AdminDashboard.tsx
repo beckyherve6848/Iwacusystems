@@ -35,16 +35,16 @@ function StatCard({ icon: Icon, label, value, sub, onClick, iconStyle }: {
   return (
     <div
       onClick={onClick}
-      className={`min-w-0 bg-white border border-[#eaeaea] rounded-2xl p-4 sm:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all group ${onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''}`}
+      className={`min-w-0 bg-white border border-[#eaeaea] rounded-2xl p-3 sm:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all group ${onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''}`}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${iconStyle}`}>
-          <Icon className="w-5 h-5" strokeWidth={1.75} />
+      <div className="flex items-start justify-between mb-3 sm:mb-4">
+        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center ${iconStyle}`}>
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.75} />
         </div>
         {onClick && <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-slate-700 transition-colors" />}
       </div>
-      <p className={`min-w-0 text-xl sm:text-2xl font-bold text-slate-900 mb-1 leading-tight ${typeof value === 'string' ? 'money-value' : ''}`}>{value}</p>
-      <p className="text-[13px] sm:text-sm leading-5 font-medium text-slate-500">{label}</p>
+      <p className={`min-w-0 text-lg sm:text-2xl font-bold text-slate-900 mb-1 leading-tight ${typeof value === 'string' ? 'money-value' : ''}`}>{value}</p>
+      <p className="text-xs sm:text-sm leading-4 sm:leading-5 font-medium text-slate-500">{label}</p>
       {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
     </div>
   );
@@ -90,7 +90,7 @@ function AdminOverviewDiagram({
   language: string;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] sm:p-6">
+    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] sm:p-6">
       <div className="mb-4">
         <h2 className="text-base font-semibold text-slate-900">{centerLabel}</h2>
         <p className="mt-1 text-xs text-slate-500">
@@ -352,11 +352,12 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       <DashboardWelcomeHero title={t('dashboard')} subtitle={t('welcomeBackMsg')} />
 
+      <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
       {pendingRegistrationError && (
-        <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:p-4">
           Unable to check pending registrations: {pendingRegistrationError}
         </div>
       )}
@@ -365,9 +366,9 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         <button
           type="button"
           onClick={() => onNavigate('tenants')}
-          className="flex w-full items-center gap-4 rounded-2xl border border-red-300 bg-red-50 p-4 text-left shadow-sm transition-colors hover:bg-red-100 sm:p-5"
+          className="flex w-full items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-3 text-left shadow-sm transition-colors hover:bg-red-100 sm:gap-4 sm:p-5"
         >
-          <img src={appLogoUrl} alt={`${appName} logo`} className="h-12 w-12 shrink-0 rounded-xl bg-white p-1 object-contain" />
+          <img src={appLogoUrl} alt={`${appName} logo`} className="h-10 w-10 shrink-0 rounded-xl bg-white p-1 object-contain sm:h-12 sm:w-12" />
           <span className="min-w-0 flex-1">
             <span className="block font-semibold text-red-800">
               {t('pendingRegistrations')} ({pendingRegistrationCount})
@@ -410,7 +411,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-        <div className={`lg:col-span-2 p-4 sm:p-5 ${panelClass}`}>
+        <div className={`lg:col-span-2 p-3 sm:p-5 ${panelClass}`}>
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('monthlyIncome')}</h3>
@@ -420,7 +421,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           <LineChart data={stats.monthlyIncome} noDataLabel={t('noDataYet')} fmtCurrency={fmt} />
         </div>
 
-        <div className={`p-4 sm:p-5 ${panelClass}`}>
+        <div className={`p-3 sm:p-5 ${panelClass}`}>
           <h3 className="text-slate-900 font-semibold text-sm sm:text-base mb-1">{t('paymentStatus')}</h3>
           <p className="text-slate-400 text-xs mb-4">{t('currentBreakdown')}</p>
           {stats.paymentStatusCounts.length === 0 ? (
@@ -453,7 +454,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       {/* Recent Activity Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
         {/* Recent Payments */}
-        <div className={`p-4 sm:p-5 ${panelClass}`}>
+        <div className={`p-3 sm:p-5 ${panelClass}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('recentPayments')}</h3>
             <button onClick={() => onNavigate('payments')} className="text-xs font-medium text-slate-900 hover:underline">{t('viewAll')}</button>
@@ -481,7 +482,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         </div>
 
         {/* Recent Visitors */}
-        <div className={`p-4 sm:p-5 ${panelClass}`}>
+        <div className={`p-3 sm:p-5 ${panelClass}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('recentVisitors')}</h3>
             <button onClick={() => onNavigate('visitors')} className="text-xs font-medium text-slate-900 hover:underline">{t('viewAll')}</button>
@@ -506,7 +507,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         </div>
 
         {/* Recent Maintenance */}
-        <div className={`p-4 sm:p-5 ${panelClass}`}>
+        <div className={`p-3 sm:p-5 ${panelClass}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('maintenanceRequests')}</h3>
             <button onClick={() => onNavigate('maintenance')} className="text-xs font-medium text-slate-900 hover:underline">{t('viewAll')}</button>
@@ -533,6 +534,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
             ))}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

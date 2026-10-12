@@ -1,5 +1,12 @@
-const CACHE_NAME = 'iwacusystem-shell-v2';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/iwacu-mark-192.png', '/iwacu-mark-512.png'];
+const CACHE_NAME = 'iwacusystem-shell-v3';
+const APP_SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/iwacu-mark-192.png',
+  '/iwacu-mark-512.png',
+  '/iwacu-app-icon-192.png',
+  '/iwacu-app-icon-512.png',
+];
 
 self.addEventListener('install', event => {
   event.waitUntil(

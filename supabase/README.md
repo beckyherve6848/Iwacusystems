@@ -33,7 +33,7 @@ VITE_TURNSTILE_SITE_KEY=your-cloudflare-turnstile-site-key
 
 Never put a `service_role` or secret key in a `VITE_` variable. Vite exposes `VITE_` values to the browser.
 
-For production authentication, configure Cloudflare Turnstile in Supabase Auth's CAPTCHA/bot-protection settings and add the matching public site key as `VITE_TURNSTILE_SITE_KEY` to the frontend deployment environment. Keep the Turnstile secret in Supabase only. Production sign-in and registration are blocked when this site key is missing.
+For production authentication, configure Cloudflare Turnstile in Supabase Auth's CAPTCHA/bot-protection settings and add the matching public site key as `VITE_TURNSTILE_SITE_KEY` to the frontend deployment environment before building. Production builds fail if the site key is missing or still set to the `.env.example` placeholder; sign-in and registration are also blocked at runtime without it. Keep the matching Turnstile secret in Supabase only, enable CAPTCHA verification for password sign-in and sign-up, and verify the production Supabase settings before launch.
 
 ## Apply the migrations
 

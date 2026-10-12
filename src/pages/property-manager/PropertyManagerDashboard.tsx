@@ -113,30 +113,31 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <DashboardWelcomeHero
         title={`${labels.title}${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
         subtitle={labels.subtitle}
       />
+      <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
       {profile && <StaffIdentityCard profile={profile} assignedProperties={assignedProperties} showIdentityDocument={false} />}
-      <section aria-label={labels.title} className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+      <section aria-label={labels.title} className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         {cards.map(card => {
           const Icon = card.icon;
           return (
-            <article key={card.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-5">
-              <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-full ${card.color}`}>
-                <Icon className="h-5 w-5" strokeWidth={1.8} />
+            <article key={card.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-5">
+              <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-full sm:mb-4 sm:h-10 sm:w-10 ${card.color}`}>
+                <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.8} />
               </div>
-              <p className={`break-words font-bold tracking-tight text-slate-900 ${card.money ? 'money-value text-base sm:text-lg' : 'text-2xl'}`}>
+              <p className={`break-words font-bold tracking-tight text-slate-900 ${card.money ? 'money-value text-sm sm:text-lg' : 'text-xl sm:text-2xl'}`}>
                 {loading ? '—' : card.value}
               </p>
-              <p className="mt-1 text-xs font-medium leading-5 text-slate-500 sm:text-sm">{card.label}</p>
+              <p className="mt-1 text-[11px] font-medium leading-4 text-slate-500 sm:text-sm sm:leading-5">{card.label}</p>
             </article>
           );
         })}
       </section>
-      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-5">
         <h2 className="font-semibold text-slate-900">{language === 'fr' ? 'Accès rapide' : 'Quick access'}</h2>
         <div className="mt-4 flex flex-wrap gap-2">
           {[
@@ -149,6 +150,7 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
           ))}
         </div>
       </section>
+      </div>
     </div>
   );
 }
