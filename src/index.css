@@ -1,0 +1,837 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: light;
+    font-family: 'Montserrat', system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: #f7f8fa;
+    color: #111827;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+
+  *::-webkit-scrollbar { width: 6px; height: 6px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+  *::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+}
+
+@layer utilities {
+  .hover\:bg-white\/2:hover { background-color: rgba(255,255,255,0.02); }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .gold-text {
+    background: linear-gradient(135deg, #fdb022 0%, #f59e0b 50%, #d97706 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .panel {
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    border-radius: 0.875rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .animate-slide-in {
+    animation: slide-in 0.2s ease-out;
+  }
+
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(1rem); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.3s ease-out;
+  }
+
+  .app-loading-screen {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
+
+  .loading-orbit {
+    position: relative;
+    width: 88px;
+    height: 88px;
+  }
+
+  .loading-orbit-dots {
+    position: absolute;
+    inset: 0;
+    animation: loading-orbit 1.8s linear infinite;
+  }
+
+  .loading-orbit-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    margin: -2.5px;
+    border-radius: 50%;
+    background: #ef1c24;
+  }
+
+  .loading-logo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+    transform: translate(-50%, -50%);
+  }
+
+  @keyframes loading-orbit {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-orbit-dots {
+    animation-duration: 8s;
+  }
+}
+
+@media (max-width: 639px) {
+  html {
+    font-size: 15px;
+  }
+
+  .money-value {
+    display: inline-block;
+    max-width: 100%;
+    font-size: clamp(0.65rem, 3.3vw, 0.78em);
+    line-height: 1.25;
+    white-space: nowrap;
+    vertical-align: baseline;
+  }
+}
+
+.staff-identity-panel {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+}
+
+.staff-id-card {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  width: min(100%, 560px);
+  aspect-ratio: 1.586;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #111827;
+  border-radius: 1rem;
+  padding: 1rem 1.2rem 0.75rem 1.35rem;
+  color: #111827;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(17 24 39 / 10%);
+  isolation: isolate;
+  font-family: 'Montserrat', 'Roboto', Arial, sans-serif;
+}
+
+.staff-id-card::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0.4rem;
+  background: #b91c1c;
+  content: '';
+  pointer-events: none;
+}
+
+.staff-id-card::after {
+  display: none;
+}
+
+.staff-id-card__header,
+.staff-id-card__brand,
+.staff-id-card__body,
+.staff-id-card__footer {
+  display: flex;
+  align-items: center;
+}
+
+.staff-id-card__header {
+  min-height: 2.7rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 2px solid #b91c1c;
+  padding-bottom: 0.55rem;
+}
+
+.staff-id-card__brand {
+  min-width: 0;
+  gap: 0.45rem;
+}
+
+.staff-id-card__brand-logo {
+  display: block;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  image-rendering: high-quality;
+  object-fit: contain;
+  object-position: center;
+}
+
+.staff-id-card__brand-name {
+  overflow: hidden;
+  color: #111827;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.staff-id-card__heading {
+  min-width: 0;
+  text-align: right;
+}
+
+.staff-id-card__heading h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  line-height: 1.2;
+}
+
+.staff-id-card__heading span {
+  color: #b91c1c;
+  font-size: 0.51rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+}
+
+.staff-id-card__header-accent {
+  display: block;
+  width: 0.5rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+  border-radius: 1rem;
+  background: #b91c1c;
+}
+
+.staff-id-card__body {
+  min-height: 0;
+  flex: 1;
+  align-items: stretch;
+  gap: 0.7rem;
+  padding: 0.75rem 0 0.5rem;
+}
+
+.staff-id-card__portrait-wrap {
+  width: 23%;
+  flex: 0 0 23%;
+  aspect-ratio: 1;
+  align-self: center;
+  transform: translateY(-0.25rem);
+}
+
+.staff-id-card__portrait {
+  display: flex;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d1d5db;
+  border-radius: 0.3rem;
+  object-fit: cover;
+}
+
+.staff-id-card__portrait--empty {
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #b91c1c;
+  background: #f3f4f6;
+}
+
+.staff-id-card__portrait--empty span {
+  font-size: 2.5rem;
+  font-weight: 800;
+}
+
+.staff-id-card__portrait--empty small {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.staff-id-card__details {
+  min-width: 0;
+  flex: 1;
+}
+
+.staff-id-card__role {
+  overflow: hidden;
+  margin: 0 0 0.12rem;
+  color: #b91c1c;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.staff-id-card__name {
+  overflow: hidden;
+  margin: 0;
+  color: #111827;
+  font-size: 0.98rem;
+  font-weight: 750;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-id-card__staff-number {
+  display: flex;
+  align-items: baseline;
+  gap: 0.38rem;
+  margin-top: 0.22rem;
+}
+
+.staff-id-card__staff-number span,
+.staff-id-card__facts dt {
+  color: #64748b;
+  font-size: 0.54rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.staff-id-card__staff-number strong {
+  color: #111827;
+  font-size: 0.69rem;
+  letter-spacing: 0.06em;
+}
+
+.staff-id-card__facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.28rem 0.7rem;
+  margin: 0.42rem 0 0;
+}
+
+.staff-id-card__facts > div {
+  min-width: 0;
+}
+
+.staff-id-card__facts dt {
+  overflow: hidden;
+  font-size: 0.48rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-id-card__facts dd {
+  overflow: hidden;
+  margin: 0.07rem 0 0;
+  color: #111827;
+  font-size: 0.64rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-id-card__fact--wide {
+  grid-column: 1 / -1;
+}
+
+.staff-id-card__property {
+  border-left: 2px solid #b91c1c;
+  padding-left: 0.5rem;
+}
+
+.staff-id-card__property dd {
+  font-weight: 800;
+}
+
+.staff-id-card__qr {
+  display: flex;
+  width: 17%;
+  flex: 0 0 17%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  align-self: center;
+  color: #374151;
+  text-align: center;
+}
+
+.staff-id-card__qr img {
+  display: block;
+  width: 100%;
+  max-width: 5.3rem;
+  aspect-ratio: 1;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  image-rendering: pixelated;
+}
+
+.staff-id-card__qr span,
+.staff-id-card__qr small {
+  font-size: 0.4rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+}
+
+.staff-id-card__footer {
+  min-height: 2.5rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid #d1d5db;
+  color: #374151;
+  font-size: 0.43rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+}
+
+.staff-id-card__lost {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.08rem;
+  line-height: 1.15;
+}
+
+.staff-id-card__lost span {
+  white-space: normal;
+}
+
+.staff-id-card__footer-id {
+  flex: 0 0 auto;
+}
+
+.staff-identity-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+}
+
+.staff-id-card__print-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #b91c1c;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.8rem;
+  color: #fff;
+  background: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.staff-id-card__print-button:hover {
+  background: #991b1b;
+}
+
+.staff-id-card__document > span {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 18mm 16mm;
+  }
+
+  @page staff-id-card-page {
+    size: 85.6mm 54mm;
+    margin: 0;
+  }
+
+  html, body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.printing-document * {
+    visibility: hidden !important;
+  }
+
+  body.printing-document > * {
+    display: none !important;
+  }
+
+  body.printing-document .print-selected,
+  body.printing-document .print-selected * {
+    visibility: visible !important;
+  }
+
+  body.printing-document .print-selected {
+    display: block !important;
+    position: static !important;
+    display: block !important;
+    float: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    color: #111 !important;
+    background: white !important;
+    border-radius: 0 !important;
+  }
+
+  body.printing-staff-card .staff-id-card.print-selected {
+    page: staff-id-card-page;
+    box-sizing: border-box !important;
+    width: 85.6mm !important;
+    min-width: 85.6mm !important;
+    max-width: 85.6mm !important;
+    height: 54mm !important;
+    min-height: 54mm !important;
+    max-height: 54mm !important;
+    aspect-ratio: auto !important;
+    overflow: hidden !important;
+    border: 0.3mm solid #111827 !important;
+    border-radius: 3mm !important;
+    padding: 2.5mm 3mm 1.5mm 4mm !important;
+    color: #111827 !important;
+    background: #fff !important;
+    font-family: 'Montserrat', 'Roboto', Arial, sans-serif !important;
+    box-shadow: none !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  body.printing-staff-card .staff-id-card__header {
+    min-height: 7mm !important;
+    gap: 1mm !important;
+    padding-bottom: 1.2mm !important;
+    border-bottom: 0.5mm solid #b91c1c !important;
+  }
+
+  body.printing-staff-card .staff-id-card__brand {
+    gap: 1mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__brand-logo {
+    width: 10mm !important;
+    height: 10mm !important;
+    image-rendering: auto !important;
+  }
+
+  body.printing-staff-card .staff-id-card__brand-name {
+    font-size: 1.8mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__heading h2 {
+    font-size: 2.3mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__heading span {
+    font-size: 1.3mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__header-accent {
+    width: 1.5mm !important;
+    height: 7mm !important;
+    background: #b91c1c !important;
+  }
+
+  body.printing-staff-card .staff-id-card__body {
+    gap: 1.5mm !important;
+    padding: 1.7mm 0 1mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__portrait-wrap {
+    width: 18mm !important;
+    flex-basis: 18mm !important;
+    height: 18mm !important;
+    aspect-ratio: 1 !important;
+    align-self: center !important;
+    transform: translateY(-1mm) !important;
+  }
+
+  body.printing-staff-card .staff-id-card__portrait {
+    width: 18mm !important;
+    height: 18mm !important;
+    aspect-ratio: 1 !important;
+    border-radius: 1.5mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__portrait--empty span {
+    font-size: 8mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__portrait--empty small {
+    font-size: 1.3mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__role {
+    margin-bottom: 0.2mm !important;
+    font-size: 1.45mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__name {
+    font-size: 2.5mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__qr {
+    width: 14mm !important;
+    flex-basis: 14mm !important;
+    gap: 0.4mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__qr img {
+    width: 13mm !important;
+    max-width: 13mm !important;
+    border: 0.2mm solid #e5e7eb !important;
+    image-rendering: pixelated !important;
+  }
+
+  body.printing-staff-card .staff-id-card__qr small,
+  body.printing-staff-card .staff-id-card__qr span {
+    font-size: 0.9mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__staff-number {
+    gap: 1mm !important;
+    margin-top: 0.5mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__staff-number span,
+  body.printing-staff-card .staff-id-card__facts dt {
+    font-size: 1.3mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__staff-number strong {
+    font-size: 1.8mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__facts {
+    gap: 0.7mm 2mm !important;
+    margin-top: 1mm !important;
+  }
+
+  body.printing-staff-card .staff-id-card__facts dt {
+    line-height: 1.1 !important;
+  }
+
+  body.printing-staff-card .staff-id-card__facts dd {
+    margin-top: 0.15mm !important;
+    font-size: 1.65mm !important;
+    line-height: 1.15 !important;
+  }
+
+  body.printing-staff-card .staff-id-card__footer {
+    min-height: 8mm !important;
+    gap: 1mm !important;
+    font-size: 0.95mm !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  body.printing-staff-card .staff-id-card__lost {
+    gap: 0.2mm !important;
+    max-width: 70mm !important;
+    line-height: 1.2 !important;
+  }
+
+  body.printing-staff-card .staff-id-card__property {
+    border-left: 0.5mm solid #b91c1c !important;
+    padding-left: 1.2mm !important;
+  }
+
+  body.printing-document .print-selected *,
+  body.printing-document .print-selected *::before,
+  body.printing-document .print-selected *::after {
+    box-shadow: none !important;
+  }
+
+  body.printing-document .no-print {
+    display: none !important;
+  }
+
+  body.printing-document .print-selected img {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  body.printing-receipt #receipt-content {
+    padding: 0 !important;
+    font-size: 10pt !important;
+  }
+
+  body.printing-receipt #receipt-content .text-green-700 { color: #15803d !important; }
+  body.printing-receipt #receipt-content .text-red-600 { color: #dc2626 !important; }
+
+  body.printing-invoice .invoice-document {
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    font-size: 10pt !important;
+    line-height: 1.45 !important;
+    color: #0f172a !important;
+  }
+
+  body.printing-invoice .invoice-header,
+  body.printing-invoice .invoice-parties,
+  body.printing-invoice .invoice-items,
+  body.printing-invoice .invoice-notes,
+  body.printing-invoice .invoice-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.printing-invoice .invoice-document .invoice-panel {
+    background: #f8fafc !important;
+    border-color: #dbe2ea !important;
+  }
+
+  body.printing-invoice .invoice-document .invoice-items thead tr {
+    background: #f1f5f9 !important;
+  }
+
+  body.printing-invoice .invoice-document .invoice-total-row {
+    border-top: 2px solid #b91c1c !important;
+    background: #fff7f7 !important;
+  }
+
+  body.printing-invoice .invoice-document .invoice-status {
+    border: 1px solid #d1d5db !important;
+  }
+
+  body.printing-invoice .invoice-document .invoice-status.bg-emerald-50 {
+    color: #166534 !important;
+    background: #ecfdf5 !important;
+  }
+
+  body.printing-invoice .invoice-document .invoice-status.bg-amber-50 {
+    color: #92400e !important;
+    background: #fffbeb !important;
+  }
+
+  body.printing-invoice .invoice-document .text-red-700 {
+    color: #b91c1c !important;
+  }
+
+  body.printing-invoice .invoice-document .border-red-600 {
+    border-color: #b91c1c !important;
+  }
+
+  body.printing-agreement .agreement-print-document {
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    font-size: 10.5pt !important;
+    line-height: 1.55 !important;
+  }
+
+  body.printing-agreement .agreement-print-document > div:first-child,
+  body.printing-agreement .agreement-print-document > div:nth-child(2),
+  body.printing-agreement .agreement-print-document table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.printing-agreement .agreement-print-document pre {
+    white-space: pre-wrap !important;
+    overflow: visible !important;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    orphans: 3;
+    widows: 3;
+  }
+
+  body.printing-agreement .agreement-print-document > div:nth-last-child(2),
+  body.printing-agreement .agreement-print-document > div:last-child {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.printing-report .report-print-area {
+    box-sizing: border-box !important;
+    border: 0 !important;
+    overflow: visible !important;
+    font-size: 9pt !important;
+  }
+
+  body.printing-report .report-document-header {
+    display: flex !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.printing-report .report-print-area .overflow-x-auto,
+  body.printing-report .report-print-area .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  body.printing-report .report-print-area table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+  }
+
+  body.printing-report .report-print-area thead {
+    display: table-header-group;
+  }
+
+  body.printing-report .report-print-area tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.printing-report .report-print-area th,
+  body.printing-report .report-print-area td {
+    padding: 5px 6px !important;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid #ddd !important;
+  }
+}

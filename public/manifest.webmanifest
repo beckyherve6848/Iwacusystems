@@ -1,0 +1,29 @@
+{
+  "id": "/",
+  "name": "Iwacusystem - Property Management Burundi",
+  "short_name": "Iwacusystem",
+  "description": "Property management platform for landlords, tenants, and property managers in Burundi.",
+  "lang": "fr-BI",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/iwacu-mark-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/iwacu-mark-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
