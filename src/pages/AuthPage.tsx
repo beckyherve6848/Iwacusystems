@@ -127,7 +127,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
           100% { transform: translateX(200%) rotate(25deg); }
         }
         .auth-form-card { animation: fadeSlideUp 0.6s ease forwards; }
-        .auth-brand-copy { position: relative; top: 16px; }
+        .auth-brand-copy { position: relative; top: 64px; }
+        .auth-brand-heading {
+          font-family: 'Kaushan Script', cursive;
+          font-weight: 400;
+          letter-spacing: normal;
+          line-height: 1.2;
+        }
         @media (min-width: 1024px) {
           .auth-layout {
             height: 100vh;
@@ -158,6 +164,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
         @media (min-width: 1024px) and (max-height: 700px) {
           .auth-brand-content { padding: 24px 28px 0; }
           .auth-brand-logo { margin-bottom: 24px; }
+          .auth-brand-copy { top: 32px; }
           .auth-brand-heading { font-size: 36px; line-height: 1; }
           .auth-brand-description { font-size: 14px; line-height: 1.4; }
           .auth-brand-stats { padding: 0 28px 24px; }
@@ -252,10 +259,10 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                 <h1 className="auth-brand-heading text-5xl xl:text-6xl font-black text-white leading-[1.05] mb-4 tracking-tight">
                   {language === 'fr' ? <>Gérez vos<br />Propriétés<br /><span className="text-white/50">en toute confiance</span></> : <>Manage<br />Properties<br /><span className="text-white/50">with Confidence</span></>}
                 </h1>
-                <p className="auth-brand-description text-white/50 text-base leading-relaxed" style={{ maxWidth: 380 }}>
+                <p className="auth-brand-description border-l-2 border-red-600 pl-3 text-white/50 text-base italic leading-relaxed" style={{ maxWidth: 380 }}>
                   {language === 'fr'
-                    ? "Une solution complète pour les propriétaires, gardiens et locataires — tout en un seul endroit."
-                    : 'A complete solution for landlords, gatekeepers, and tenants — all in one place.'}
+                    ? "Une solution complète pour les propriétaires, gardiens et locataires, tout en un seul endroit."
+                    : 'A complete solution for landlords, gatekeepers, and tenants, all in one place.'}
                 </p>
               </div>
             </div>
@@ -573,7 +580,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
             href="https://devburundi.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="absolute bottom-3 left-6 lg:left-10 z-20 text-[11px] text-white/40 transition-colors hover:text-white/80"
+            className="absolute bottom-3 left-1/2 z-20 w-max max-w-[calc(100%-2rem)] -translate-x-1/2 text-center text-[11px] text-white/40 transition-colors hover:text-red-500 active:text-red-500 focus-visible:text-red-500 lg:left-[27.5%]"
           >
             Powered by Devburundi Digital and Marketing Agency
           </a>
