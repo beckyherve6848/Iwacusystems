@@ -97,7 +97,7 @@ const SEARCH_PAGES: Record<string, Array<{ page: string; labelKey: string }>> = 
 export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: TopNavProps) {
   const { profile } = useAuth();
   const {
-    language, setLanguage, t, currency, setCurrency,
+    language, setLanguage, t, currency, setCurrency, appLogoUrl,
     currencyRatesAvailable, currencyRatesLoading, currencyRatesError, refreshCurrencyRates,
   } = useTheme();
   const roleLabel = profile?.role === 'admin'
@@ -522,18 +522,13 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
         {/* Divider */}
         <div className="w-px h-6 mx-1 hidden sm:block" style={{ background: '#e5e7eb' }} />
 
-        {/* Avatar */}
+        {/* App logo */}
         <div className="flex items-center gap-2 sm:gap-2.5 pl-1 sm:pl-2">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden cursor-pointer shrink-0"
-            style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)', border: '1.5px solid rgba(255,255,255,0.15)' }}
+            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full"
+            style={{ background: '#000000', border: '1.5px solid rgba(255,255,255,0.15)' }}
           >
-            {profile?.photo_url
-              ? <img src={profile.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
-              : <span className="text-sm font-bold text-white">
-                  {profile?.full_name?.charAt(0).toUpperCase()}
-                </span>
-            }
+            <img src={appLogoUrl} alt="" className="h-full w-full rounded-full object-contain" />
           </div>
           <div className="hidden md:block">
             <p className="text-sm font-semibold text-slate-900 leading-tight">{profile?.full_name}</p>
