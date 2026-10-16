@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
-  Send, Search, MessageCircle, ArrowLeft,
-  Smile, CheckCheck, Copy, Reply, Trash2,
-  MessagesSquare, X,
+  Send, Search, ArrowLeft, UserRound,
+  Smile, CheckCheck, CheckSquare, Copy, Reply, Trash2,
+  MessagesSquare, X, UserPlus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -11,12 +11,17 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import Modal from '@/components/ui/Modal';
+import { useChatPresence } from '@/hooks/useChatPresence';
+import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 
 interface Conversation {
   id: string;
-  tenant_id: string;
+  tenant_id: string | null;
+  manager_id: string | null;
+  conversation_type: 'tenant_admin' | 'manager_admin' | 'manager_tenant';
   updated_at: string;
-  tenants: { id: string; full_name: string; tenant_code: string; phone: string; houses: { house_number: string } | null } | null;
+  tenants: { id: string; user_id: string | null; full_name: string; tenant_code: string; phone: string; photo_url: string | null; photoUrl?: string; houses: { house_number: string } | null } | null;
+  managers: { id: string; full_name: string; email: string; staff_id: string | null; profile_photo_path: string | null; photoUrl?: string } | null;
 }
 
 interface ChatMessage {
@@ -26,33 +31,60 @@ interface ChatMessage {
   body: string;
   reply_to_id?: string | null;
   read_at: string | null;
+  admin_read_at?: string | null;
   created_at: string;
 }
 
 type FilterChip = 'all' | 'unread';
+interface ChatContact {
+  id: string;
+  name: string;
+  detail: string;
+  kind: 'tenant' | 'manager';
+}
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, language: string, t: (key: string) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
+  if (mins < 1) return t('chatNow');
+  if (mins < 60) return `${mins}${t('minuteShort')}`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  return new Date(iso).toLocaleDateString();
+  if (hrs < 24) return `${hrs}${t('hourShort')}`;
+  return new Date(iso).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB');
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function formatTime(iso: string, language: string): string {
+  return new Date(iso).toLocaleTimeString(language === 'fr' ? 'fr-FR' : 'en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-function getDateLabel(iso: string): string {
+function presenceLabel(iso: string | null | undefined, language: string, t: (key: string) => string): string {
+  if (!iso) return t('offline');
+  const seenAt = new Date(iso);
+  if (Date.now() - seenAt.getTime() < 90_000) return t('online');
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const seenDay = new Date(seenAt.getFullYear(), seenAt.getMonth(), seenAt.getDate());
+  const time = formatTime(iso, language);
+  if (seenDay.getTime() === today.getTime()) return `${t('presenceLastSeenToday')} ${time}`;
+  if (seenDay.getTime() === yesterday.getTime()) return `${t('presenceLastSeenYesterday')} ${time}`;
+  const date = seenAt.toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: seenAt.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+  });
+  return `${t('presenceLastSeenAt')} ${date}, ${time}`;
+}
+
+function getDateLabel(iso: string, language: string, t: (key: string) => string): string {
   const d = new Date(iso);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
   const msgDate = new Date(d); msgDate.setHours(0, 0, 0, 0);
-  if (msgDate.getTime() === today.getTime()) return 'Today';
-  if (msgDate.getTime() === yesterday.getTime()) return 'Yesterday';
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+  if (msgDate.getTime() === today.getTime()) return t('chatToday');
+  if (msgDate.getTime() === yesterday.getTime()) return t('chatYesterday');
+  return d.toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB', { month: 'short', day: 'numeric', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
 }
 
 function avatarColor(name: string): string {
@@ -68,16 +100,14 @@ function avatarColor(name: string): string {
   return colors[hash % colors.length];
 }
 
-function initials(name: string): string {
-  const parts = (name || '?').trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name?.[0]?.toUpperCase() ?? '?';
-}
-
 export default function AdminChatPage() {
-  const { user } = useAuth();
-  const { t } = useTheme();
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const isPropertyManager = profile?.role === 'property_manager';
+  const isCaretaker = profile?.role === 'caretaker';
+  const { t, language, appLogoUrl } = useTheme();
   const { toasts, addToast, removeToast } = useToast();
+  const reportPresenceError = useCallback((message: string) => addToast(message, 'error'), [addToast]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -86,6 +116,8 @@ export default function AdminChatPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedConversationIds, setSelectedConversationIds] = useState<string[]>([]);
   const [filter, setFilter] = useState<FilterChip>('all');
   const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -93,19 +125,70 @@ export default function AdminChatPage() {
   const [confirmDeleteConversation, setConfirmDeleteConversation] = useState(false);
   const [deletingConversation, setDeletingConversation] = useState(false);
   const [unreadMap, setUnreadMap] = useState<Record<string, number>>({});
+  const [myPhotoUrl, setMyPhotoUrl] = useState<string | undefined>(profile?.photo_url);
+  const [contactSearch, setContactSearch] = useState('');
+  const [contacts, setContacts] = useState<ChatContact[]>([]);
+  const [searchingContacts, setSearchingContacts] = useState(false);
+  const [showNewConversation, setShowNewConversation] = useState(false);
+  const [creatingConversation, setCreatingConversation] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastScrolledMessageId = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const readUpdatesInFlight = useRef(new Set<string>());
+  const chatPresence = useChatPresence(activeId, user?.id, reportPresenceError);
+  const activePresenceLabel = (() => {
+    const peers = chatPresence.filter(participant => participant.user_id !== user?.id);
+    const onlinePeer = peers.find(participant =>
+      participant.chat_last_seen_at
+      && Date.now() - new Date(participant.chat_last_seen_at).getTime() < 90_000
+    );
+    const lastSeenPeer = peers.reduce<typeof peers[number] | undefined>((latest, participant) => {
+      if (!participant.chat_last_seen_at) return latest;
+      if (!latest?.chat_last_seen_at) return participant;
+      return new Date(participant.chat_last_seen_at).getTime() > new Date(latest.chat_last_seen_at).getTime()
+        ? participant
+        : latest;
+    }, undefined);
+    return presenceLabel(onlinePeer?.chat_last_seen_at ?? lastSeenPeer?.chat_last_seen_at, language, t);
+  })();
+
+  useEffect(() => {
+    let active = true;
+    if (profile?.photo_url) {
+      setMyPhotoUrl(profile.photo_url);
+      return () => { active = false; };
+    }
+    if (!profile?.profile_photo_path) {
+      setMyPhotoUrl(undefined);
+      return () => { active = false; };
+    }
+    supabase.storage.from('identity-documents')
+      .createSignedUrl(profile.profile_photo_path, 3600)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          addToast(error.message, 'error');
+          return;
+        }
+        setMyPhotoUrl(data.signedUrl);
+      })
+      .catch((caught: unknown) => {
+        if (!active) return;
+        addToast(caught instanceof Error ? caught.message : 'Unable to load your chat profile photo.', 'error');
+      });
+    return () => { active = false; };
+  }, [addToast, profile?.photo_url, profile?.profile_photo_path]);
 
   const loadConversations = useCallback(async () => {
     const { data, error } = await supabase
       .from('chat_conversations')
-      .select('id, tenant_id, updated_at, tenants(id, full_name, tenant_code, phone, houses(house_number))')
+      .select('id, tenant_id, manager_id, conversation_type, updated_at, tenants(id, user_id, full_name, tenant_code, phone, photo_url, houses(house_number)), managers:profiles!chat_conversations_manager_id_fkey(id, full_name, email, staff_id, profile_photo_path)')
       .order('updated_at', { ascending: false });
     if (error) { addToast(error.message, 'error'); return; }
-    const normalized = (data ?? []).map(c => ({
+    const records = (data ?? []).map(c => ({
       ...c,
+      managers: Array.isArray(c.managers) ? c.managers[0] ?? null : c.managers,
       tenants: Array.isArray(c.tenants)
         ? c.tenants[0]
           ? {
@@ -114,6 +197,36 @@ export default function AdminChatPage() {
             }
           : null
         : c.tenants,
+    }));
+    const photoPaths = [...new Set(records
+      .flatMap(conversation => [
+        conversation.managers?.profile_photo_path,
+        conversation.tenants?.photo_url?.startsWith('tenants/') ? conversation.tenants.photo_url : null,
+      ])
+      .filter((path): path is string => Boolean(path)))];
+    const signedPhotos: Record<string, string> = {};
+    if (photoPaths.length > 0) {
+      const { data: signedUrls, error: photoError } = await supabase.storage
+        .from('identity-documents')
+        .createSignedUrls(photoPaths, 3600);
+      if (photoError) addToast(photoError.message, 'error');
+      (signedUrls ?? []).forEach(photo => {
+        if (photo.path && photo.signedUrl) signedPhotos[photo.path] = photo.signedUrl;
+      });
+    }
+    const normalized = records.map(conversation => ({
+      ...conversation,
+      managers: conversation.managers
+        ? { ...conversation.managers, photoUrl: signedPhotos[conversation.managers.profile_photo_path ?? ''] }
+        : null,
+      tenants: conversation.tenants
+        ? {
+            ...conversation.tenants,
+            photoUrl: conversation.tenants.photo_url?.startsWith('tenants/')
+              ? signedPhotos[conversation.tenants.photo_url]
+              : conversation.tenants.photo_url ?? undefined,
+          }
+        : null,
     }));
     setConversations(normalized as Conversation[]);
     setLoading(false);
@@ -124,8 +237,7 @@ export default function AdminChatPage() {
     if (!user) return;
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('conversation_id, id')
-      .is('read_at', null)
+      .select('conversation_id, sender_id, read_at, admin_read_at, chat_conversations(conversation_type)')
       .neq('sender_id', user.id);
     if (error) {
       addToast(error.message, 'error');
@@ -133,13 +245,187 @@ export default function AdminChatPage() {
     }
     const map: Record<string, number> = {};
     (data ?? []).forEach(m => {
-      map[m.conversation_id] = (map[m.conversation_id] ?? 0) + 1;
+      const conversation = Array.isArray(m.chat_conversations) ? m.chat_conversations[0] : m.chat_conversations;
+      const isUnread = conversation?.conversation_type === 'manager_tenant'
+        ? !m.admin_read_at
+        : !m.read_at;
+      if (isUnread) map[m.conversation_id] = (map[m.conversation_id] ?? 0) + 1;
     });
     setUnreadMap(map);
   }, [user, addToast]);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
   useEffect(() => { loadUnreadCounts(); }, [loadUnreadCounts]);
+
+  useEffect(() => {
+    if (!showNewConversation) return;
+    const query = contactSearch.trim();
+    if (!query) {
+      setContacts([]);
+      setSearchingContacts(false);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setSearchingContacts(true);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query);
+      const tenantNameQuery = supabase.from('tenants')
+        .select('id, full_name, tenant_code, phone')
+        .ilike('full_name', `%${query}%`)
+        .limit(10);
+      const tenantCodeQuery = supabase.from('tenants')
+        .select('id, full_name, tenant_code, phone')
+        .ilike('tenant_code', `%${query}%`)
+        .limit(10);
+      const tenantQueries = [tenantNameQuery, tenantCodeQuery];
+      if (isUuid) {
+        tenantQueries.push(supabase.from('tenants')
+          .select('id, full_name, tenant_code, phone')
+          .eq('id', query)
+          .limit(10));
+      }
+      const [tenantNameResult, tenantCodeResult, ...tenantIdResults] = await Promise.all(tenantQueries);
+      const tenantIdResult = tenantIdResults[0];
+      const tenantMatches = [
+        ...(tenantNameResult.data ?? []),
+        ...(tenantCodeResult.data ?? []),
+        ...(tenantIdResult?.data ?? []),
+      ];
+      const tenantResultsById = new Map(
+        tenantMatches.map(tenant => [tenant.id, tenant])
+      );
+      let results: ChatContact[] = [...tenantResultsById.values()].map(tenant => ({
+        id: tenant.id,
+        name: tenant.full_name,
+        detail: `${tenant.tenant_code}${tenant.phone ? ` · ${tenant.phone}` : ''}`,
+        kind: 'tenant',
+      }));
+      if (isAdmin) {
+        const managerNameQuery = supabase.from('profiles')
+          .select('id, full_name, email, staff_id')
+          .eq('role', 'property_manager')
+          .ilike('full_name', `%${query}%`)
+          .limit(10);
+        const managerEmailQuery = supabase.from('profiles')
+          .select('id, full_name, email, staff_id')
+          .eq('role', 'property_manager')
+          .ilike('email', `%${query}%`)
+          .limit(10);
+        const managerStaffIdQuery = supabase.from('profiles')
+          .select('id, full_name, email, staff_id')
+          .eq('role', 'property_manager')
+          .ilike('staff_id', `%${query}%`)
+          .limit(10);
+        const managerQueries = [managerNameQuery, managerEmailQuery, managerStaffIdQuery];
+        if (isUuid) {
+          managerQueries.push(supabase.from('profiles')
+            .select('id, full_name, email, staff_id')
+            .eq('role', 'property_manager')
+            .eq('id', query)
+            .limit(10));
+        }
+        const [managerNameResult, managerEmailResult, managerStaffIdResult, ...managerIdResults] = await Promise.all(managerQueries);
+        const managerIdResult = managerIdResults[0];
+        if (!cancelled) {
+          [
+            managerNameResult.error,
+            managerEmailResult.error,
+            managerStaffIdResult.error,
+            managerIdResult?.error,
+          ]
+            .filter((error): error is NonNullable<typeof error> => Boolean(error))
+            .forEach(error => addToast(error.message, 'error'));
+        }
+        const managersById = new Map(
+          [
+            ...(managerNameResult.data ?? []),
+            ...(managerEmailResult.data ?? []),
+            ...(managerStaffIdResult.data ?? []),
+            ...(managerIdResult?.data ?? []),
+          ].map(manager => [manager.id, manager])
+        );
+        results = results.concat([...managersById.values()].map(manager => ({
+          id: manager.id,
+          name: manager.full_name,
+          detail: manager.staff_id ? `${manager.staff_id} · ${manager.email}` : manager.email,
+          kind: 'manager' as const,
+        })));
+      }
+      if (!cancelled) {
+        [
+          tenantNameResult.error,
+          tenantCodeResult.error,
+          tenantIdResult?.error,
+        ]
+          .filter((error): error is NonNullable<typeof error> => Boolean(error))
+          .forEach(error => addToast(error.message, 'error'));
+        setContacts(results);
+        setSearchingContacts(false);
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [addToast, contactSearch, isAdmin, showNewConversation]);
+
+  const activeConv = conversations.find(c => c.id === activeId);
+
+  const openOrCreateConversation = async (contact: ChatContact) => {
+    if (!user || creatingConversation) return;
+    const conversationType = contact.kind === 'manager'
+      ? 'manager_admin'
+      : isAdmin ? 'tenant_admin' : 'manager_tenant';
+    const lookup = supabase.from('chat_conversations')
+      .select('id')
+      .eq('conversation_type', conversationType);
+    const existingQuery = contact.kind === 'manager'
+      ? lookup.eq('manager_id', contact.id)
+      : isAdmin
+        ? lookup.eq('tenant_id', contact.id)
+        : lookup.eq('manager_id', user.id).eq('tenant_id', contact.id);
+    const { data: existing, error: lookupError } = await existingQuery.maybeSingle();
+    if (lookupError) {
+      addToast(lookupError.message, 'error');
+      return;
+    }
+    let conversationId = existing?.id;
+    if (!conversationId) {
+      setCreatingConversation(true);
+      const { data, error } = await supabase.from('chat_conversations')
+        .insert({
+          conversation_type: conversationType,
+          tenant_id: contact.kind === 'tenant' ? contact.id : null,
+          manager_id: contact.kind === 'manager' || !isAdmin ? (contact.kind === 'manager' ? contact.id : user.id) : null,
+        })
+        .select('id')
+        .single();
+      setCreatingConversation(false);
+      if (error) {
+        addToast(error.message, 'error');
+        return;
+      }
+      conversationId = data.id;
+    }
+    setShowNewConversation(false);
+    setContactSearch('');
+    setContacts([]);
+    await loadConversations();
+    setActiveId(conversationId);
+    setMessages([]);
+    setReplyTo(null);
+    setMobileView('chat');
+  };
+
+  const openLandlordConversation = async () => {
+    if (!user) return;
+    await openOrCreateConversation({
+      id: user.id,
+      name: t('landlord'),
+      detail: '',
+      kind: 'manager',
+    });
+  };
 
   useEffect(() => {
     const channel = supabase
@@ -175,53 +461,57 @@ export default function AdminChatPage() {
   }, [activeId, addToast]);
 
   useEffect(() => {
-    if (!activeId) return;
     const channel = supabase
-      .channel(`admin-chat-${activeId}`)
+      .channel(`chat-${activeId}`)
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${activeId}` },
-        (payload) => {
-          setMessages(prev => {
-            if (prev.some(m => m.id === payload.new.id)) return prev;
-            return [...prev, payload.new as ChatMessage];
-          });
-          loadConversations();
+        payload => {
+          setMessages(previous => previous.some(message => message.id === payload.new.id)
+            ? previous
+            : [...previous, payload.new as ChatMessage]);
         })
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${activeId}` },
-        (payload) => {
-          setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new as ChatMessage : m));
+        payload => {
+          setMessages(previous => previous.map(message => message.id === payload.new.id
+            ? payload.new as ChatMessage
+            : message));
         })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [activeId, loadConversations]);
+  }, [activeId]);
 
   useEffect(() => {
     if (!activeId || !user) return;
-    const unread = messages.filter(m =>
-      m.sender_id !== user.id && !m.read_at && !readUpdatesInFlight.current.has(m.id)
+    const unreadMessages = messages.filter(message =>
+      message.sender_id !== user.id
+      && !(isAdmin && activeConv?.conversation_type === 'manager_tenant' ? message.admin_read_at : message.read_at)
+      && !readUpdatesInFlight.current.has(message.id)
     );
-    if (unread.length === 0) return;
-    const messageIds = unread.map(message => message.id);
-    messageIds.forEach(id => readUpdatesInFlight.current.add(id));
-
-    void (async () => {
-      const readAt = new Date().toISOString();
+    if (unreadMessages.length === 0) return;
+    const markRead = async () => {
+      const messageIds = unreadMessages.map(message => message.id);
+      messageIds.forEach(id => readUpdatesInFlight.current.add(id));
       try {
-        const { data, error } = await supabase
-          .from('chat_messages')
-          .update({ read_at: readAt })
-          .in('id', messageIds)
-          .is('read_at', null)
-          .select('id, read_at');
+        const readAt = new Date().toISOString();
+        const update = supabase.from('chat_messages')
+          .update(isAdmin && activeConv?.conversation_type === 'manager_tenant'
+            ? { admin_read_at: readAt }
+            : { read_at: readAt })
+          .in('id', messageIds);
+        const { data, error } = await update.select('id, read_at, admin_read_at');
         if (error) {
           addToast(error.message, 'error');
           return;
         }
-
-        const updated = new Map((data ?? []).map(message => [message.id, message.read_at]));
+        const updated = new Map((data ?? []).map(message => [message.id,
+          isAdmin && activeConv?.conversation_type === 'manager_tenant'
+            ? message.admin_read_at
+            : message.read_at]));
         setMessages(previous => previous.map(message => updated.has(message.id)
-          ? { ...message, read_at: updated.get(message.id) ?? readAt }
+          ? isAdmin && activeConv?.conversation_type === 'manager_tenant'
+            ? { ...message, admin_read_at: updated.get(message.id) ?? readAt }
+            : { ...message, read_at: updated.get(message.id) ?? readAt }
           : message));
         await loadUnreadCounts();
       } catch (error) {
@@ -229,14 +519,20 @@ export default function AdminChatPage() {
       } finally {
         messageIds.forEach(id => readUpdatesInFlight.current.delete(id));
       }
-    })();
-  }, [messages, activeId, user, addToast, loadUnreadCounts]);
+    };
+    void markRead();
+  }, [messages, activeId, activeConv?.conversation_type, isAdmin, user, addToast, loadUnreadCounts]);
 
+  const lastMessageId = messages[messages.length - 1]?.id;
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    if (!lastMessageId) {
+      lastScrolledMessageId.current = null;
+      return;
     }
-  }, [messages]);
+    if (lastScrolledMessageId.current === lastMessageId) return;
+    lastScrolledMessageId.current = lastMessageId;
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [activeId, lastMessageId]);
 
   const handleSend = async () => {
     const body = input.trim();
@@ -267,29 +563,43 @@ export default function AdminChatPage() {
   };
 
   const deleteConversation = async () => {
-    if (!activeId || deletingConversation) return;
+    const conversationIds = selectionMode
+      ? selectedConversationIds
+      : activeId ? [activeId] : [];
+    if (!isAdmin || conversationIds.length === 0 || deletingConversation) return;
     setDeletingConversation(true);
-    const conversationId = activeId;
-    const { error } = await supabase.from('chat_conversations').delete().eq('id', conversationId);
-    if (error) {
-      addToast(error.message, 'error');
-    } else {
-      setConversations(previous => previous.filter(conversation => conversation.id !== conversationId));
+    try {
+      const { error } = await supabase
+        .from('chat_conversations')
+        .delete()
+        .in('id', conversationIds);
+      if (error) {
+        addToast(error.message, 'error');
+        return;
+      }
+      setConversations(previous => previous.filter(conversation => !conversationIds.includes(conversation.id)));
       setUnreadMap(previous => {
         const next = { ...previous };
-        delete next[conversationId];
+        conversationIds.forEach(id => delete next[id]);
         return next;
       });
-      setMessages([]);
-      setActiveId(null);
-      setReplyTo(null);
-      setInput('');
-      setShowEmoji(false);
-      setMobileView('list');
+      if (activeId && conversationIds.includes(activeId)) {
+        setMessages([]);
+        setActiveId(null);
+        setReplyTo(null);
+        setInput('');
+        setShowEmoji(false);
+        setMobileView('list');
+      }
+      setSelectedConversationIds([]);
+      setSelectionMode(false);
       setConfirmDeleteConversation(false);
-      addToast(t('conversationDeleted'), 'success');
+      addToast(conversationIds.length === 1 ? t('conversationDeleted') : t('conversationsDeleted'), 'success');
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : t('conversationDeleteFailed'), 'error');
+    } finally {
+      setDeletingConversation(false);
     }
-    setDeletingConversation(false);
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -298,13 +608,14 @@ export default function AdminChatPage() {
 
   const handleCopy = (msg: ChatMessage) => {
     navigator.clipboard?.writeText(msg.body);
-    addToast('Message copied', 'success');
+    addToast(t('messageCopied'), 'success');
   };
 
   const handleDelete = async (msg: ChatMessage) => {
+    if (!isAdmin) return;
     const { error } = await supabase.from('chat_messages').delete().eq('id', msg.id);
     if (error) addToast(error.message, 'error');
-    else { setMessages(prev => prev.filter(m => m.id !== msg.id)); addToast('Message deleted', 'success'); }
+    else { setMessages(prev => prev.filter(m => m.id !== msg.id)); addToast(t('messageDeleted'), 'success'); }
   };
 
   const unreadCount = useCallback((convId: string) => {
@@ -321,25 +632,35 @@ export default function AdminChatPage() {
 
   const filtered = useMemo(() => {
     let list = conversations;
-    if (search) {
-      list = list.filter(c => {
-        const name = c.tenants?.full_name ?? '';
-        return name.toLowerCase().includes(search.toLowerCase()) ||
-          (c.tenants?.tenant_code ?? '').toLowerCase().includes(search.toLowerCase());
-      });
-    }
     if (filter === 'unread') {
       list = list.filter(c => unreadCount(c.id) > 0);
+    }
+    const normalizedSearch = search.trim().toLowerCase();
+    if (normalizedSearch) {
+      list = list.filter(conversation => [
+        conversation.id,
+        conversation.tenant_id,
+        conversation.manager_id,
+        conversation.tenants?.id,
+        conversation.tenants?.user_id,
+        conversation.tenants?.full_name,
+        conversation.tenants?.tenant_code,
+        conversation.tenants?.phone,
+        conversation.tenants?.houses?.house_number,
+        conversation.managers?.id,
+        conversation.managers?.full_name,
+        conversation.managers?.email,
+        conversation.managers?.staff_id,
+      ].some(value => value?.toLowerCase().includes(normalizedSearch)));
     }
     return list;
   }, [conversations, search, filter, unreadCount]);
 
-  const activeConv = conversations.find(c => c.id === activeId);
   const groupedMessages = useMemo(() => {
     const groups: { date: string; messages: ChatMessage[] }[] = [];
     let currentDate = '';
     messages.forEach(m => {
-      const label = getDateLabel(m.created_at);
+      const label = getDateLabel(m.created_at, language, t);
       if (label !== currentDate) {
         groups.push({ date: label, messages: [m] });
         currentDate = label;
@@ -348,60 +669,157 @@ export default function AdminChatPage() {
       }
     });
     return groups;
-  }, [messages]);
+  }, [messages, language, t]);
 
   const emojis = ['😀','😂','😊','😍','🤔','👍','👎','🙏','👏','🔥','💯','✅','❤️','🎉',' 😅','🤝','👋'];
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-2">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">{t('callCenter')}</h1>
-        <p className="text-slate-500 text-sm mt-0.5">{t('chatWithAdmin')}</p>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-[#25D366]">
+          <WhatsAppIcon className="h-7 w-7 text-[#25D366]" />
+          {t(isAdmin || isPropertyManager ? 'chatCenter' : 'callCenter')}
+        </h1>
+        <p className="text-slate-500 text-sm mt-0.5">
+          {isAdmin ? t('chatWithAdmin') : isCaretaker ? t('chatWithLandlord') : t('chatWithLandlordAndTenants')}
+        </p>
       </div>
 
       <div
-        className="flex overflow-hidden"
+        className="flex min-h-0 min-w-0 overflow-hidden"
         style={{
-          background: '#ffffff',
-          border: '1px solid #e9ecef',
+          background: 'rgba(17, 27, 33, 0.78)',
+          border: '1px solid rgba(255,255,255,0.14)',
           borderRadius: '1.125rem',
-          height: 'calc(100dvh - 250px)',
-          minHeight: '420px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          height: 'calc(100dvh - 190px)',
+          boxShadow: '0 24px 70px rgba(15,23,42,0.22), inset 0 1px 0 rgba(255,255,255,0.12)',
+          backdropFilter: 'blur(24px) saturate(160%)',
         }}
       >
         {/* ─── Conversation List ─── */}
-        <div className={`flex-col border-r border-slate-200 ${mobileView === 'list' ? 'flex w-full md:w-[340px]' : 'hidden md:flex md:w-[340px]'}`}>
+        <div className={`min-h-0 min-w-0 flex-col border-r border-white/10 bg-[#111b21]/80 backdrop-blur-xl ${mobileView === 'list' ? 'flex w-full md:w-[340px] md:shrink-0' : 'hidden md:flex md:w-[340px] md:shrink-0'}`}>
           {/* Search */}
           <div className="px-4 pt-4 pb-2">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search tenants..."
-                className="w-full bg-slate-50 text-slate-900 text-sm rounded-xl pl-10 pr-3 py-2.5 outline-none transition-all focus:bg-white"
-                style={{ border: '1px solid #e9ecef' }}
-                onFocus={e => { e.currentTarget.style.borderColor = '#f59e0b'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.1)'; }}
-                onBlur={e => { e.currentTarget.style.borderColor = '#e9ecef'; e.currentTarget.style.boxShadow = 'none'; }}
-              />
+            {!isCaretaker && (
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder={isAdmin ? t('searchPeopleToChat') : t('searchTenants')}
+                    className="w-full rounded-xl bg-white/[0.07] py-2.5 pl-10 pr-3 text-sm text-white outline-none transition-all placeholder:text-slate-400 focus:bg-white/[0.11]"
+                    style={{ border: '1px solid rgba(255,255,255,0.14)', backdropFilter: 'blur(16px)' }}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37,211,102,0.12)'; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  />
+                </div>
+                {isAdmin && (
+                  <div className="flex shrink-0 items-center gap-1 md:hidden">
+                    {selectionMode ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteConversation(true)}
+                          disabled={selectedConversationIds.length === 0}
+                          aria-label={`${t('deleteSelectedConversations')} (${selectedConversationIds.length})`}
+                          title={`${t('deleteSelectedConversations')} (${selectedConversationIds.length})`}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-slate-400 transition-colors hover:bg-red-950/50 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectionMode(false);
+                            setSelectedConversationIds([]);
+                          }}
+                          aria-label={t('cancel')}
+                          title={t('cancel')}
+                          className="flex h-10 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSelectionMode(true)}
+                        aria-label={t('selectConversations')}
+                        title={t('selectConversations')}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-slate-400 transition-colors hover:bg-[#202c33] hover:text-white"
+                      >
+                        <CheckSquare className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mt-2 flex gap-2">
+              {!isAdmin && (
+                <button
+                  type="button"
+                  onClick={openLandlordConversation}
+                  className="flex-1 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800"
+                >
+                  {t('chatWithLandlord')}
+                </button>
+              )}
+              {!isCaretaker && <button
+                type="button"
+                onClick={() => setShowNewConversation(open => !open)}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-[#34434a] px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-[#202c33]"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                {t('startNewConversation')}
+              </button>}
             </div>
+            {showNewConversation && (
+              <div className="mt-3 rounded-xl border border-[#34434a] bg-[#202c33] p-3">
+                <input
+                  autoFocus
+                  value={contactSearch}
+                  onChange={event => setContactSearch(event.target.value)}
+                  placeholder={t('searchPeopleToChat')}
+                  className="w-full rounded-lg border border-[#46545b] bg-[#111b21] px-3 py-2 text-sm text-white outline-none placeholder:text-slate-400 focus:border-emerald-500"
+                />
+                {searchingContacts && <p className="py-2 text-xs text-slate-500">{t('searchLoading')}</p>}
+                <div className="mt-1 max-h-40 overflow-y-auto">
+                  {contacts.map(contact => (
+                    <button
+                      key={`${contact.kind}-${contact.id}`}
+                      type="button"
+                      disabled={creatingConversation}
+                      onClick={() => void openOrCreateConversation(contact)}
+                      className="block w-full rounded-lg px-2 py-2 text-left hover:bg-[#26353d] disabled:opacity-50"
+                    >
+                      <span className="block truncate text-sm font-medium text-slate-100">{contact.name}</span>
+                      <span className="block truncate text-xs text-slate-400">{contact.detail} · {contact.kind === 'tenant' ? t('tenants') : t('propertyManagers')}</span>
+                    </button>
+                  ))}
+                  {!searchingContacts && contactSearch.trim().length > 0 && contacts.length === 0 && (
+                    <p className="py-2 text-xs text-slate-500">{t('searchNoResults')}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Filter chips */}
           <div className="flex items-center gap-2 px-4 pb-3 overflow-x-auto">
             {([
               { key: 'all', label: t('allConversations') },
-              { key: 'unread', label: t('unread'), badge: unreadTotal },
+              { key: 'unread', label: t('unreadLabel'), badge: unreadTotal },
             ] as { key: FilterChip; label: string; badge?: number }[]).map(chip => (
               <button
                 key={chip.key}
                 onClick={() => setFilter(chip.key)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
                   filter === chip.key
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-[#202c33] text-slate-300 hover:bg-[#26353d]'
                 }`}
               >
                 {chip.label}
@@ -421,39 +839,68 @@ export default function AdminChatPage() {
           </div>
 
           {/* Conversation items */}
-          <div className="flex-1 overflow-y-auto pb-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
             {loading && (
               <div className="flex items-center justify-center py-8">
                 <div className="w-6 h-6 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
               </div>
             )}
             {!loading && filtered.length === 0 && (
-              <div className="px-4 py-8 text-center text-slate-400 text-sm">{t('noConversations')}</div>
+              <div className="px-4 py-8 text-center text-slate-500 text-sm">{t('noConversations')}</div>
             )}
             <AnimatePresence mode="popLayout">
               {filtered.map(c => {
                 const isActive = c.id === activeId;
                 const cnt = unreadCount(c.id);
                 const lastMsg = lastMessageFor(c.id);
-                const name = c.tenants?.full_name ?? 'Unknown';
+                const isLandlordConversation = c.conversation_type === 'manager_admin' && !isAdmin;
+                const isManagerAvatar = c.conversation_type === 'manager_admin' && isAdmin;
+                const avatarName = isLandlordConversation
+                  ? t('landlord')
+                  : isManagerAvatar
+                    ? c.managers?.full_name ?? t('userActivityUnknownUser')
+                    : c.tenants?.full_name ?? t('userActivityUnknownUser');
+                const name = avatarName;
+                const avatarUrl = isManagerAvatar
+                  ? c.managers?.photoUrl
+                  : c.tenants?.photoUrl;
+                const subtitle = c.conversation_type === 'manager_tenant'
+                  ? isAdmin
+                    ? `${c.managers?.full_name ?? t('propertyManager')} · ${c.tenants?.tenant_code ?? '—'}`
+                    : `${c.tenants?.tenant_code ?? '—'} · ${c.tenants?.houses?.house_number ?? '—'}`
+                  : c.conversation_type === 'manager_admin'
+                    ? isAdmin ? t('managerConversation') : t('landlord')
+                    : `${c.tenants?.tenant_code ?? '—'} · ${c.tenants?.houses?.house_number ?? '—'}`;
                 return (
-                  <motion.button
-                    key={c.id}
-                    layout
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
+                  <div key={c.id} className={`flex items-center ${selectedConversationIds.includes(c.id) ? 'bg-emerald-950/30' : ''}`}>
+                    {isAdmin && selectionMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedConversationIds.includes(c.id)}
+                        onChange={event => setSelectedConversationIds(previous =>
+                          event.target.checked
+                            ? [...previous, c.id]
+                            : previous.filter(id => id !== c.id)
+                        )}
+                        aria-label={`${t('selectConversation')}: ${name}`}
+                        className="ml-3 h-4 w-4 shrink-0 cursor-pointer accent-emerald-500"
+                      />
+                    )}
+                    <motion.button
                     onClick={() => {
+                      if (selectionMode && isAdmin) {
+                        setSelectedConversationIds(previous => previous.includes(c.id)
+                          ? previous.filter(id => id !== c.id)
+                          : [...previous, c.id]);
+                        return;
+                      }
                       setMessages([]);
                       setReplyTo(null);
                       setActiveId(c.id);
                       setMobileView('chat');
                     }}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all relative ${
-                      isActive ? 'bg-emerald-50/70' : 'hover:bg-slate-50'
+                    className={`relative flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-all ${
+                      isActive ? 'bg-[#202c33]' : 'hover:bg-[#1b272d]'
                     }`}
                     style={{
                       borderLeft: isActive ? '3px solid #059669' : '3px solid transparent',
@@ -461,24 +908,28 @@ export default function AdminChatPage() {
                   >
                     {/* Avatar with online dot */}
                     <div className="relative shrink-0">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${avatarColor(name)} text-white text-sm font-semibold shadow-sm`}>
-                        {initials(name)}
+                      <div className={`w-10 h-10 overflow-hidden rounded-full flex items-center justify-center ${avatarUrl ? 'bg-slate-100' : `bg-gradient-to-br ${avatarColor(avatarName)}`} text-white text-sm font-semibold shadow-sm`}>
+                        {avatarUrl
+                          ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                          : isManagerAvatar
+                            ? <img src={appLogoUrl} alt="" className="h-5 w-5 object-contain" />
+                            : isLandlordConversation
+                              ? <img src={appLogoUrl} alt="" className="h-5 w-5 object-contain" />
+                              : <UserRound className="h-5 w-5 text-white" />}
                       </div>
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
+                        <p className="text-sm font-semibold text-slate-100 truncate">{name}</p>
                         <span className="text-[10px] text-slate-400 shrink-0 font-medium">
-                          {lastMsg ? timeAgo(lastMsg.created_at) : timeAgo(c.updated_at)}
+                          {lastMsg ? timeAgo(lastMsg.created_at, language, t) : timeAgo(c.updated_at, language, t)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-0.5">
                         <p className="text-xs text-slate-400 truncate flex items-center gap-1">
-                          <span className="font-medium text-slate-500">{c.tenants?.tenant_code ?? '—'}</span>
-                          <span>·</span>
-                          <span>{c.tenants?.houses?.house_number ?? '—'}</span>
+                          <span className="font-medium text-slate-400">{subtitle}</span>
                         </p>
                         {cnt > 0 && (
                           <motion.span
@@ -492,11 +943,12 @@ export default function AdminChatPage() {
                       </div>
                       {lastMsg && (
                         <p className="text-xs text-slate-400 truncate mt-0.5">
-                          {lastMsg.sender_id === user?.id ? 'You: ' : ''}{lastMsg.body}
+                          {lastMsg.sender_id === user?.id ? `${t('you')}: ` : ''}{lastMsg.body}
                         </p>
                       )}
                     </div>
-                  </motion.button>
+                    </motion.button>
+                  </div>
                 );
               })}
             </AnimatePresence>
@@ -504,7 +956,7 @@ export default function AdminChatPage() {
         </div>
 
         {/* ─── Chat Panel ─── */}
-        <div className={`flex-1 flex-col ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
+        <div className={`min-h-0 min-w-0 flex-1 flex-col ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'}`}>
           <AnimatePresence mode="wait">
             {!activeId ? (
               /* ─── Empty State ─── */
@@ -514,14 +966,14 @@ export default function AdminChatPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3 }}
-                className="flex flex-col items-center justify-center h-full text-center px-8"
+                className="flex h-full min-h-0 flex-1 flex-col items-center justify-center text-center px-8"
               >
-                <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-5 bg-slate-50 border border-slate-100">
-                  <MessagesSquare className="w-10 h-10 text-slate-300" strokeWidth={1.5} />
+                <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-5 bg-[#202c33] border border-[#34434a]">
+                <MessagesSquare className="w-10 h-10 text-slate-500" strokeWidth={1.5} />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-700 mb-1.5">Select a conversation</h3>
+                <h3 className="text-lg font-semibold text-slate-100 mb-1.5">{t('selectChatConversation')}</h3>
                 <p className="text-sm text-slate-400 max-w-xs">
-                  Choose a tenant to start chatting with Administration.
+                  {t('chooseTenantToChat')}
                 </p>
               </motion.div>
             ) : (
@@ -531,52 +983,68 @@ export default function AdminChatPage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.25 }}
-                className="flex flex-col h-full"
+                className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
               >
                 {/* ─── Chat Header ─── */}
-                <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-100 bg-white/80 backdrop-blur-sm">
-                  <button
-                    onClick={() => setMobileView('list')}
-                    className="md:hidden p-1.5 -ml-1 text-slate-400 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-
+                <div className="relative z-10 flex shrink-0 items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-white/10 bg-[#111b21]/70 backdrop-blur-xl">
                   <div className="relative shrink-0">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${avatarColor(activeConv?.tenants?.full_name ?? '?')} text-white text-sm font-semibold shadow-sm`}>
-                      {initials(activeConv?.tenants?.full_name ?? '?')}
-                    </div>
+                    {(() => {
+                      const managerAvatar = activeConv?.conversation_type === 'manager_admin' && isAdmin;
+                      const avatarName = managerAvatar
+                        ? activeConv?.managers?.full_name ?? '?'
+                        : activeConv?.tenants?.full_name ?? '?';
+                      const avatarUrl = managerAvatar
+                        ? activeConv?.managers?.photoUrl
+                        : activeConv?.tenants?.photoUrl;
+                      return (
+                        <div className={`w-10 h-10 overflow-hidden rounded-full flex items-center justify-center ${avatarUrl ? 'bg-slate-100' : `bg-gradient-to-br ${avatarColor(avatarName)}`} text-white text-sm font-semibold shadow-sm`}>
+                          {avatarUrl
+                            ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                            : managerAvatar
+                              ? <img src={appLogoUrl} alt="" className="h-5 w-5 object-contain" />
+                              : <UserRound className="h-5 w-5 text-white" />}
+                        </div>
+                      );
+                    })()}
+                    {activePresenceLabel === t('online') && (
+                      <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-slate-900 font-semibold text-sm truncate">
-                        {activeConv?.tenants?.full_name ?? 'Unknown'}
+                      <p className="text-white font-semibold text-sm truncate">
+                        {activeConv?.conversation_type === 'manager_admin'
+                          ? isAdmin ? activeConv.managers?.full_name ?? t('userActivityUnknownUser') : t('landlord')
+                          : activeConv?.conversation_type === 'manager_tenant' && isAdmin
+                            ? `${activeConv.tenants?.full_name ?? t('userActivityUnknownUser')} · ${activeConv.managers?.full_name ?? t('propertyManager')}`
+                            : activeConv?.tenants?.full_name ?? t('userActivityUnknownUser')}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-xs text-slate-400 font-medium">{activeConv?.tenants?.tenant_code}</span>
-                      <span className="text-slate-300 text-xs">·</span>
-                      <span className="text-xs text-slate-400">{activeConv?.tenants?.houses?.house_number ?? '—'}</span>
+                      <span className={`h-1.5 w-1.5 rounded-full ${activePresenceLabel === t('online') ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                      <span className={`text-xs ${activePresenceLabel === t('online') ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        {activePresenceLabel}
+                      </span>
                     </div>
                   </div>
-                  <button
+                  {isAdmin && <button
                     type="button"
                     onClick={() => setConfirmDeleteConversation(true)}
                     aria-label={t('deleteConversation')}
                     title={t('deleteConversation')}
-                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-red-950/50 hover:text-red-400"
                   >
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </button>}
                 </div>
 
                 {/* ─── Messages Area ─── */}
-                <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-1 sm:px-6" style={{ backgroundColor: '#efeae2', backgroundImage: 'radial-gradient(rgba(15, 23, 42, 0.035) 0.7px, transparent 0.7px)', backgroundSize: '14px 14px' }}>
+                <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-1 sm:px-6" style={{ backgroundColor: '#0b141a', backgroundImage: "url('/chat-wallpaper.png')", backgroundSize: '420px auto', backgroundPosition: 'center top', backgroundRepeat: 'repeat' }}>
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center">
                       <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3 bg-slate-50 border border-slate-100">
-                        <MessageCircle className="w-7 h-7 text-slate-300" strokeWidth={1.5} />
+                        <WhatsAppIcon className="h-8 w-8 text-[#25D366]" />
                       </div>
                       <p className="text-slate-400 text-sm max-w-xs">{t('messageEmpty')}</p>
                     </div>
@@ -586,20 +1054,29 @@ export default function AdminChatPage() {
                     <div key={gi}>
                       {/* Date separator */}
                       <div className="flex items-center justify-center my-4">
-                        <span className="px-3 py-1 rounded-full text-[10px] font-semibold text-slate-500 bg-white border border-slate-100 shadow-sm">
+                        <span className="px-3 py-1 rounded-full text-[10px] font-semibold text-slate-200 bg-[#172329]/75 border border-white/15 shadow-lg backdrop-blur-xl">
                           {group.date}
                         </span>
                       </div>
 
                       {group.messages.map((m, mi) => {
                         const mine = m.sender_id === user?.id;
-                        const prevMsg = group.messages[mi - 1];
-                        const showAvatar = !mine && (!prevMsg || prevMsg.sender_id !== m.sender_id);
+                        const showAvatar = true;
+                        const senderPhotoUrl = mine
+                          ? myPhotoUrl
+                          : m.sender_id === activeConv?.manager_id
+                            ? activeConv?.managers?.photoUrl
+                            : m.sender_id === activeConv?.tenants?.user_id
+                              ? activeConv?.tenants?.photoUrl
+                              : undefined;
+                        const isTenantSender = m.sender_id === activeConv?.tenants?.user_id;
                         const quotedMessage = m.reply_to_id
                           ? messages.find(message => message.id === m.reply_to_id)
                           : null;
-                        const isUnread = !m.read_at && m.sender_id !== user?.id;
-                        const isPrevUnread = group.messages[mi - 1] && !group.messages[mi - 1].read_at && group.messages[mi - 1].sender_id !== user?.id;
+                        const readAt = isAdmin && activeConv?.conversation_type === 'manager_tenant' ? m.admin_read_at : m.read_at;
+                        const previousReadAt = isAdmin && activeConv?.conversation_type === 'manager_tenant' ? group.messages[mi - 1]?.admin_read_at : group.messages[mi - 1]?.read_at;
+                        const isUnread = !readAt && m.sender_id !== user?.id;
+                        const isPrevUnread = group.messages[mi - 1] && !previousReadAt && group.messages[mi - 1].sender_id !== user?.id;
                         const showUnreadDivider = isUnread && !isPrevUnread;
 
                         return (
@@ -608,7 +1085,7 @@ export default function AdminChatPage() {
                             {showUnreadDivider && (
                               <div className="flex items-center gap-3 my-3">
                                 <div className="flex-1 h-px bg-emerald-200" />
-                                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Unread</span>
+                                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">{t('unreadLabel')}</span>
                                 <div className="flex-1 h-px bg-emerald-200" />
                               </div>
                             )}
@@ -619,23 +1096,27 @@ export default function AdminChatPage() {
                               onMouseLeave={() => setHoveredMsg(null)}
                               className={`flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'} mb-1`}
                             >
-                              {/* Incoming avatar */}
-                              {!mine && showAvatar && (
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center bg-gradient-to-br ${avatarColor(activeConv?.tenants?.full_name ?? '?')} text-white text-[10px] font-semibold shrink-0 mb-0.5`}>
-                                  {initials(activeConv?.tenants?.full_name ?? '?')}
-                                </div>
+                              {!mine && (
+                                showAvatar
+                                  ? <div className={`mb-0.5 flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full ${senderPhotoUrl ? 'bg-slate-100' : 'bg-black'}`}>
+                                      {senderPhotoUrl
+                                        ? <img src={senderPhotoUrl} alt="" className="h-full w-full object-cover" />
+                                        : isTenantSender
+                                          ? <UserRound className="h-3.5 w-3.5 text-white" />
+                                          : <img src={appLogoUrl} alt="" className="h-4 w-4 object-contain" />}
+                                    </div>
+                                  : <div className="w-6 shrink-0" />
                               )}
-                              {!mine && !showAvatar && <div className="w-7 shrink-0" />}
 
                               {/* Message bubble */}
                               <motion.div
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.2 }}
-                                className={`group relative max-w-[75%] sm:max-w-[65%] px-4 py-2.5 ${
+                                className={`group relative max-w-[78%] sm:max-w-[65%] px-2.5 py-1 ${
                                   mine
-                                    ? 'bg-[#d9fdd3] text-slate-800 rounded-2xl rounded-br-md'
-                                    : 'bg-white text-slate-800 rounded-2xl rounded-bl-md'
+                                    ? 'bg-[#d9fdd3] text-slate-800 rounded-[12px] rounded-br-[4px]'
+                                    : 'bg-white text-slate-800 rounded-[12px] rounded-bl-[4px]'
                                 }`}
                                 style={{
                                   boxShadow: mine
@@ -651,14 +1132,14 @@ export default function AdminChatPage() {
                                   </div>
                                 )}
 
-                                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{m.body}</p>
+                                <p className="text-[13px] leading-[1.35] whitespace-pre-wrap break-words">{m.body}</p>
 
                                 {/* Timestamp + read status */}
                                 <div className={`flex items-center gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
                                   <span className="text-[10px] text-slate-500">
-                                    {formatTime(m.created_at)}
+                                    {formatTime(m.created_at, language)}
                                   </span>
-                                  {mine && (
+                                  {mine && isAdmin && (
                                     <span className={m.read_at ? 'text-sky-600' : 'text-slate-400'}>
                                       <CheckCheck className="w-3.5 h-3.5" />
                                     </span>
@@ -687,7 +1168,7 @@ export default function AdminChatPage() {
                                       <button
                                         onClick={() => handleCopy(m)}
                                         className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                        title="Copy"
+                                        title={t('copyMessage')}
                                       >
                                         <Copy className="w-3.5 h-3.5" />
                                       </button>
@@ -695,7 +1176,7 @@ export default function AdminChatPage() {
                                         <button
                                           onClick={() => handleDelete(m)}
                                           className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                          title="Delete"
+                                          title={t('delete')}
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
                                         </button>
@@ -704,6 +1185,17 @@ export default function AdminChatPage() {
                                   )}
                                 </AnimatePresence>
                               </motion.div>
+                              {mine && (
+                                showAvatar
+                                  ? <div className={`mb-0.5 flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full ${senderPhotoUrl ? 'bg-slate-100' : 'bg-black'}`}>
+                                      {senderPhotoUrl
+                                        ? <img src={senderPhotoUrl} alt="" className="h-full w-full object-cover" />
+                                        : isTenantSender
+                                          ? <UserRound className="h-3.5 w-3.5 text-white" />
+                                          : <img src={appLogoUrl} alt="" className="h-4 w-4 object-contain" />}
+                                    </div>
+                                  : <div className="w-6 shrink-0" />
+                              )}
                             </div>
                           </div>
                         );
@@ -721,12 +1213,12 @@ export default function AdminChatPage() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="px-4 sm:px-6 py-2 border-t border-slate-100 bg-slate-50 flex items-center gap-3"
+                      className="px-4 sm:px-6 py-2 border-t border-white/10 bg-[#172329]/70 backdrop-blur-xl flex items-center gap-3"
                     >
                       <Reply className="w-4 h-4 text-slate-400 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-semibold text-slate-500">{t('replyingTo')}</p>
-                        <p className="text-xs text-slate-600 truncate">{replyTo.body}</p>
+                        <p className="text-[10px] font-semibold text-slate-400">{t('replyingTo')}</p>
+                        <p className="text-xs text-slate-200 truncate">{replyTo.body}</p>
                       </div>
                       <button onClick={() => setReplyTo(null)} className="p-1 text-slate-400 hover:text-slate-900 rounded-lg">
                         <X className="w-4 h-4" />
@@ -742,14 +1234,14 @@ export default function AdminChatPage() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden border-t border-slate-100"
+                      className="overflow-hidden border-t border-white/10"
                     >
-                      <div className="px-4 py-3 flex flex-wrap gap-1 bg-slate-50">
+                      <div className="px-4 py-3 flex flex-wrap gap-1 bg-[#172329]/75 backdrop-blur-xl">
                         {emojis.map((e, i) => (
                           <button
                             key={i}
                             onClick={() => { setInput(v => v + e); setShowEmoji(false); }}
-                            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white transition-colors text-lg"
+                            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-lg"
                           >
                             {e}
                           </button>
@@ -760,13 +1252,13 @@ export default function AdminChatPage() {
                 </AnimatePresence>
 
                 {/* ─── Message Input ─── */}
-                <div className="px-3 sm:px-4 py-3 border-t border-slate-100 bg-white">
+                <div className="relative z-10 px-3 sm:px-4 py-3 border-t border-white/10 bg-[#111b21]/65 backdrop-blur-2xl">
                   <div className="flex items-end gap-2">
                     {/* Emoji button */}
                     <button
                       onClick={() => setShowEmoji(o => !o)}
                       className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                        showEmoji ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        showEmoji ? 'text-emerald-400 bg-[#202c33]' : 'text-slate-400 hover:text-white hover:bg-[#202c33]'
                       }`}
                     >
                       <Smile className="w-5 h-5" />
@@ -780,10 +1272,10 @@ export default function AdminChatPage() {
                       placeholder={t('typeMessage')}
                       rows={1}
                       maxLength={4000}
-                      className="flex-1 bg-slate-50 text-slate-900 text-sm rounded-2xl px-4 py-2.5 resize-none outline-none transition-all max-h-32"
-                      style={{ border: '1px solid #e9ecef', minHeight: '42px' }}
-                      onFocus={e => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.12)'; }}
-                      onBlur={e => { e.currentTarget.style.borderColor = '#e9ecef'; e.currentTarget.style.boxShadow = 'none'; }}
+                      className="flex-1 bg-white/[0.08] text-white placeholder:text-slate-400 text-sm rounded-2xl px-4 py-2.5 resize-none outline-none transition-all max-h-32 backdrop-blur-xl"
+                      style={{ border: '1px solid rgba(255,255,255,0.18)', minHeight: '42px' }}
+                      onFocus={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37,211,102,0.15)'; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; e.currentTarget.style.boxShadow = 'none'; }}
                     />
 
                     {/* Send button */}
@@ -793,8 +1285,8 @@ export default function AdminChatPage() {
                       disabled={sending || !input.trim() || !activeId}
                       className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{
-                        background: input.trim() ? '#128c7e' : '#a7cfc8',
-                        boxShadow: input.trim() ? '0 2px 8px rgba(18,140,126,0.25)' : 'none',
+                        background: input.trim() ? '#25D366' : '#a8e8bd',
+                        boxShadow: input.trim() ? '0 2px 8px rgba(37,211,102,0.28)' : 'none',
                       }}
                     >
                       <Send className="w-4 h-4" />
@@ -806,13 +1298,34 @@ export default function AdminChatPage() {
           </AnimatePresence>
         </div>
       </div>
+      <button
+        type="button"
+        onClick={() => {
+          if (mobileView === 'chat') {
+            setMobileView('list');
+          } else {
+            window.dispatchEvent(new Event('app:open-sidebar'));
+          }
+        }}
+        aria-label={t('returnToConversations')}
+        title={t('returnToConversations')}
+        className="mx-auto flex h-8 w-10 items-center justify-center rounded-full border border-white/20 bg-[#202c33] text-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-colors hover:bg-[#34434a] active:bg-[#111b21] md:hidden"
+      >
+        <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />
+      </button>
       <Modal
         open={confirmDeleteConversation}
         onClose={() => setConfirmDeleteConversation(false)}
-        title={t('deleteConversation')}
+        title={selectionMode && selectedConversationIds.length > 1
+          ? t('deleteConversations')
+          : t('deleteConversation')}
         size="sm"
       >
-        <p className="text-sm text-slate-600">{t('deleteConversationConfirm')}</p>
+        <p className="text-sm text-slate-600">
+          {selectionMode && selectedConversationIds.length > 1
+            ? t('deleteConversationsConfirm')
+            : t('deleteConversationConfirm')}
+        </p>
         <div className="mt-5 flex justify-end gap-3">
           <button
             type="button"

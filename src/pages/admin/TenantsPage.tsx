@@ -27,7 +27,7 @@ const emptyForm = {
   security_deposit: '', num_family_members: '0',
   car_make: '', car_model: '', car_registration: '', car_color: '',
   emergency_contact_name: '', emergency_contact_phone: '',
-  status: 'active', notes: '', photo_url: '',
+  status: 'active', notes: '',
 };
 
 async function synchronizeHouseAssignment(houseId: string): Promise<string | null> {
@@ -92,10 +92,11 @@ export default function TenantsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [viewTenant, setViewTenant] = useState<Tenant | null>(null);
+  const [tenantPhotoUrls, setTenantPhotoUrls] = useState<Record<string, string>>({});
   const [form, setForm] = useState({ ...emptyForm });
+  const [tenantPhoto, setTenantPhoto] = useState<File | null>(null);
   const [identityDocument, setIdentityDocument] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [removeAccountTenant, setRemoveAccountTenant] = useState<Tenant | null>(null);
@@ -105,6 +106,7 @@ export default function TenantsPage() {
   const { toasts, addToast, removeToast } = useToast();
   const { language, t, fmt } = useTheme();
   const { profile } = useAuth();
+  const text = (english: string, french: string) => language === 'fr' ? french : english;
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
@@ -132,9 +134,30 @@ export default function TenantsPage() {
     q = q.range(from, from + PER_PAGE - 1);
 
     const { data, count, error } = await q;
-    if (!error) { setTenants(data ?? []); setTotal(count ?? 0); }
+    if (!error) {
+      const records = data ?? [];
+      const photoRefs = records
+        .map(tenant => tenant.photo_url)
+        .filter((photoRef): photoRef is string => Boolean(photoRef?.startsWith('tenants/')));
+      const photoUrlByPath: Record<string, string> = {};
+      if (photoRefs.length) {
+        const { data: signedPhotos, error: photoError } = await supabase.storage
+          .from('identity-documents')
+          .createSignedUrls([...new Set(photoRefs)], 3600);
+        if (photoError) addToast(`Unable to load tenant profile photos: ${photoError.message}`, 'error');
+        (signedPhotos ?? []).forEach(photo => {
+          if (photo.path && photo.signedUrl) photoUrlByPath[photo.path] = photo.signedUrl;
+        });
+      }
+      setTenantPhotoUrls(Object.fromEntries(records.map(tenant => [
+        tenant.id,
+        photoUrlByPath[tenant.photo_url ?? ''] ?? tenant.photo_url ?? '',
+      ])));
+      setTenants(records);
+      setTotal(count ?? 0);
+    }
     setLoading(false);
-  }, [page, search, filterStatus]);
+  }, [addToast, page, search, filterStatus]);
 
   const loadPending = useCallback(async () => {
     // Get all profiles with role=tenant that don't have a matching tenants.user_id
@@ -187,6 +210,7 @@ export default function TenantsPage() {
 
   const openAdd = () => {
     setForm({ ...emptyForm });
+    setTenantPhoto(null);
     setIdentityDocument(null);
     setFamilyMembers([]);
     setEditingId(null);
@@ -195,6 +219,7 @@ export default function TenantsPage() {
   };
 
   const openSetupFromPending = (user: PendingUser) => {
+    setTenantPhoto(null);
     setForm({
       ...emptyForm,
       full_name: user.full_name,
@@ -209,6 +234,7 @@ export default function TenantsPage() {
 
   const openEdit = async (t: Tenant) => {
     setIdentityDocument(null);
+    setTenantPhoto(null);
     setForm({
       full_name: t.full_name, phone: t.phone, email: t.email,
       gender: t.gender ?? '', national_id: t.national_id ?? '',
@@ -220,7 +246,7 @@ export default function TenantsPage() {
       car_registration: t.car_registration ?? '', car_color: t.car_color ?? '',
       emergency_contact_name: t.emergency_contact_name ?? '',
       emergency_contact_phone: t.emergency_contact_phone ?? '',
-      status: t.status, notes: t.notes ?? '', photo_url: t.photo_url ?? '',
+      status: t.status, notes: t.notes ?? '',
     });
     const { data: family } = await supabase.from('tenant_family').select('*').eq('tenant_id', t.id);
     setFamilyMembers(family?.map(f => ({ full_name: f.full_name, relationship: f.relationship ?? '' })) ?? []);
@@ -236,14 +262,14 @@ export default function TenantsPage() {
 
   const handleSave = async () => {
     if (!form.full_name.trim() || !form.phone.trim() || !form.email.trim()) {
-      addToast('Name, phone and email are required', 'error'); return;
+      addToast(text('Name, phone and email are required', 'Le nom, le téléphone et l’adresse e-mail sont obligatoires.'), 'error'); return;
     }
     setSaving(true);
     const previousHouseId = editingId
       ? tenants.find(tenant => tenant.id === editingId)?.house_id ?? null
       : null;
     let followUpError: string | null = null;
-    const payload: any = {
+    const payload = {
       full_name: form.full_name.trim(), phone: form.phone.trim(), email: form.email.trim(),
       gender: form.gender || null, national_id: form.national_id || null,
       house_id: form.house_id || null, move_in_date: form.move_in_date || null,
@@ -255,13 +281,9 @@ export default function TenantsPage() {
       car_registration: form.car_registration || null, car_color: form.car_color || null,
       emergency_contact_name: form.emergency_contact_name || null,
       emergency_contact_phone: form.emergency_contact_phone || null,
-      status: form.status, notes: form.notes || null, photo_url: form.photo_url || null,
+      status: form.status, notes: form.notes || null,
+      ...(editingUserId ? { user_id: editingUserId } : {}),
     };
-
-    // Link to existing user account if set up from pending
-    if (editingUserId) {
-      payload.user_id = editingUserId;
-    }
 
     let tenantId = editingId;
     if (editingId) {
@@ -276,7 +298,7 @@ export default function TenantsPage() {
           house_id: form.house_id, tenant_id: tenantId,
           check_in_date: form.move_in_date, status: 'active',
         });
-        if (occupancyError) followUpError = `Tenant was saved, but occupancy history could not be recorded: ${occupancyError.message}`;
+        if (occupancyError) followUpError = `${text('Tenant was saved, but occupancy history could not be recorded', 'Le locataire a été enregistré, mais l’historique d’occupation n’a pas pu être sauvegardé')}: ${occupancyError.message}`;
       }
     }
 
@@ -284,7 +306,35 @@ export default function TenantsPage() {
     for (const houseId of affectedHouseIds) {
       const syncError = await synchronizeHouseAssignment(houseId);
       if (syncError && !followUpError) {
-        followUpError = `Tenant was saved, but house occupancy could not be updated: ${syncError}`;
+        followUpError = `${text('Tenant was saved, but house occupancy could not be updated', 'Le locataire a été enregistré, mais le statut d’occupation de la maison n’a pas pu être mis à jour')}: ${syncError}`;
+      }
+    }
+
+    if (tenantId && tenantPhoto) {
+      const previousPhotoPath = editingId
+        ? tenants.find(tenant => tenant.id === editingId)?.photo_url
+        : null;
+      const path = `tenants/${tenantId}/photo-${crypto.randomUUID()}.${imageFileExtension(tenantPhoto)}`;
+      const { error: photoUploadError } = await supabase.storage.from('identity-documents')
+        .upload(path, tenantPhoto, { contentType: tenantPhoto.type, upsert: false });
+      if (photoUploadError) {
+        addToast(`${text('Tenant profile was saved, but the photo could not be uploaded', 'Le profil du locataire a été enregistré, mais la photo n’a pas pu être téléversée')}: ${photoUploadError.message}`, 'error');
+        setSaving(false);
+        return;
+      }
+      const { error: photoPathError } = await supabase.from('tenants')
+        .update({ photo_url: path, updated_at: new Date().toISOString() })
+        .eq('id', tenantId);
+      if (photoPathError) {
+        const { error: cleanupError } = await supabase.storage.from('identity-documents').remove([path]);
+        if (cleanupError) addToast(`${text('The uploaded tenant photo could not be cleaned up', 'La photo téléversée du locataire n’a pas pu être supprimée')}: ${cleanupError.message}`, 'error');
+        addToast(`${text('Tenant profile was saved, but the photo could not be attached', 'Le profil du locataire a été enregistré, mais la photo n’a pas pu être associée')}: ${photoPathError.message}`, 'error');
+        setSaving(false);
+        return;
+      }
+      if (previousPhotoPath?.startsWith(`tenants/${tenantId}/photo-`)) {
+        const { error: removeError } = await supabase.storage.from('identity-documents').remove([previousPhotoPath]);
+        if (removeError) addToast(`${text('The new photo was saved, but the replaced photo could not be removed', 'La nouvelle photo a été enregistrée, mais l’ancienne photo n’a pas pu être supprimée')}: ${removeError.message}`, 'error');
       }
     }
 
@@ -304,7 +354,7 @@ export default function TenantsPage() {
       const { error: uploadError } = await supabase.storage.from('identity-documents')
         .upload(path, identityDocument, { contentType: identityDocument.type, upsert: false });
       if (uploadError) {
-        addToast(`Tenant profile was saved, but the ID/Passport document could not be uploaded: ${uploadError.message}`, 'error');
+        addToast(`${text('Tenant profile was saved, but the ID/Passport document could not be uploaded', 'Le profil du locataire a été enregistré, mais le document d’identité/passeport n’a pas pu être téléversé')}: ${uploadError.message}`, 'error');
         setSaving(false);
         return;
       }
@@ -313,20 +363,20 @@ export default function TenantsPage() {
         .eq('id', tenantId);
       if (pathError) {
         await supabase.storage.from('identity-documents').remove([path]);
-        addToast(`The ID/Passport document was uploaded, but could not be attached to the tenant profile: ${pathError.message}`, 'error');
+        addToast(`${text('The ID/Passport document was uploaded, but could not be attached to the tenant profile', 'Le document d’identité/passeport a été téléversé, mais n’a pas pu être associé au profil du locataire')}: ${pathError.message}`, 'error');
         setSaving(false);
         return;
       }
       if (previousPath) {
         const { error: removeError } = await supabase.storage.from('identity-documents').remove([previousPath]);
         if (removeError) {
-          addToast(`The new PDF was saved, but the replaced file could not be removed: ${removeError.message}`, 'error');
+          addToast(`${text('The new PDF was saved, but the replaced file could not be removed', 'Le nouveau PDF a été enregistré, mais l’ancien fichier n’a pas pu être supprimé')}: ${removeError.message}`, 'error');
         }
       }
     }
 
     if (followUpError) addToast(followUpError, 'error');
-    else addToast(editingId ? 'Tenant updated' : 'Tenant profile created', 'success');
+    else addToast(editingId ? text('Tenant updated', 'Locataire mis à jour') : text('Tenant profile created', 'Profil du locataire créé'), 'success');
     setModalOpen(false);
     load();
     loadPending();
@@ -339,11 +389,15 @@ export default function TenantsPage() {
     setDeleting(true);
     const tid = deleteTenant.id;
     const uid = deleteTenant.user_id;
-    if (deleteTenant.national_id_document_path) {
+    const tenantFiles = [
+      deleteTenant.national_id_document_path,
+      deleteTenant.photo_url?.startsWith(`tenants/${tid}/photo-`) ? deleteTenant.photo_url : null,
+    ].filter((path): path is string => Boolean(path));
+    if (tenantFiles.length) {
       const { error } = await supabase.storage.from('identity-documents')
-        .remove([deleteTenant.national_id_document_path]);
+        .remove(tenantFiles);
       if (error) {
-        addToast(`Unable to remove tenant ID document: ${error.message}`, 'error');
+        addToast(`${text('Unable to remove tenant profile files', 'Impossible de supprimer les fichiers du profil du locataire')}: ${error.message}`, 'error');
         setDeleting(false);
         return;
       }
@@ -357,14 +411,14 @@ export default function TenantsPage() {
     // Delete the tenant record itself
     const { error: tenantDeleteError } = await supabase.from('tenants').delete().eq('id', tid);
     if (tenantDeleteError) {
-      addToast(`Unable to delete tenant: ${tenantDeleteError.message}`, 'error');
+      addToast(`${text('Unable to delete tenant', 'Impossible de supprimer le locataire')}: ${tenantDeleteError.message}`, 'error');
       setDeleting(false);
       return;
     }
     let followUpError: string | null = null;
     if (deleteTenant.house_id) {
       const syncError = await synchronizeHouseAssignment(deleteTenant.house_id);
-      if (syncError) followUpError = `Tenant was deleted, but house occupancy could not be updated: ${syncError}`;
+      if (syncError) followUpError = `${text('Tenant was deleted, but house occupancy could not be updated', 'Le locataire a été supprimé, mais le statut d’occupation de la maison n’a pas pu être mis à jour')}: ${syncError}`;
     }
     // Delete auth profile & account so they cannot log in
     if (uid) {
@@ -372,7 +426,7 @@ export default function TenantsPage() {
       await supabase.from('profiles').delete().eq('id', uid);
     }
     if (followUpError) addToast(followUpError, 'error');
-    else addToast('Tenant and all related data deleted', 'success');
+    else addToast(text('Tenant and all related data deleted', 'Le locataire et toutes les données associées ont été supprimés'), 'success');
     setDeleteTenant(null);
     setDeleting(false);
     load();
@@ -431,31 +485,31 @@ export default function TenantsPage() {
 
       {/* Pending Registrations */}
       {profile?.role !== 'property_manager' && pendingUsers.length > 0 && (
-        <div className="bg-amber-950/40 border border-amber-700/40 rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="pending-account-panel bg-amber-950/40 border border-amber-700/40 rounded-2xl p-5">
+          <div className="pending-account-heading flex items-center gap-2 mb-4">
             <UserPlus className="w-4 h-4 text-amber-400" />
             <h3 className="font-semibold text-amber-700 text-sm">
               {t('pendingRegistrations')} ({pendingUsers.length})
             </h3>
-            <span className="text-amber-500 text-xs ml-1">— {t('chooseAccountRole')}</span>
+            <span className="pending-account-hint text-amber-500 text-xs ml-1">— {t('chooseAccountRole')}</span>
           </div>
-          <div className="space-y-2">
+          <div className="pending-account-list space-y-2">
             {pendingUsers.map(u => (
-              <div key={u.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 gap-3">
+              <div key={u.id} className="pending-account-row flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                  <div className="pending-account-avatar w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
                     <span className="text-sm font-bold text-amber-700">{u.full_name.charAt(0).toUpperCase()}</span>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-slate-900 text-sm font-medium truncate">{u.full_name}</p>
-                    <p className="text-slate-500 text-xs truncate">{u.email}{u.phone ? ` · ${u.phone}` : ''}</p>
+                    <p className="pending-account-name text-slate-900 text-sm font-medium truncate">{u.full_name}</p>
+                    <p className="pending-account-contact text-slate-500 text-xs truncate">{u.email}{u.phone ? ` · ${u.phone}` : ''}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="pending-account-controls flex items-center gap-3 shrink-0">
                   <p className="text-slate-500 text-xs hidden sm:block">
-                    Joined {new Date(u.created_at).toLocaleDateString()}
+                    {text('Joined', 'Inscrit le')} {new Date(u.created_at).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB')}
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div className="pending-account-actions flex items-center gap-2">
                     <Select
                       aria-label={`${t('roleFor')} ${u.full_name}`}
                       value={pendingRoles[u.id] ?? 'tenant'}
@@ -504,7 +558,7 @@ export default function TenantsPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
-            placeholder="Search name, phone, ID..."
+            placeholder={text('Search name, phone, ID...', 'Rechercher un nom, téléphone ou numéro d’identité...')}
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-white border border-slate-200 text-slate-900 placeholder-slate-500 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -515,24 +569,24 @@ export default function TenantsPage() {
           onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
         >
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="vacated">Vacated</option>
-          <option value="blacklisted">Blacklisted</option>
+          <option value="">{text('All Statuses', 'Tous les statuts')}</option>
+          <option value="active">{text('Active', 'Actif')}</option>
+          <option value="vacated">{text('Vacated', 'Parti')}</option>
+          <option value="blacklisted">{text('Blacklisted', 'Sur liste noire')}</option>
         </select>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+      <div className="tenant-list-table bg-white border border-slate-200 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="tenant-list-table-grid w-full">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tenant</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Contact</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">House</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">Move In</th>
-                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+              <tr className="tenant-list-table-heading border-b border-slate-200">
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('tenant')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">{text('Contact', 'Coordonnées')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">{t('houseNumber')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">{text('Move In', 'Date d’entrée')}</th>
+                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Status', 'Statut')}</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Actions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -542,23 +596,23 @@ export default function TenantsPage() {
                 </td></tr>
               )}
               {!loading && tenants.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-12 text-slate-500">No tenants found</td></tr>
+                <tr><td colSpan={6} className="text-center py-12 text-slate-500">{text('No tenants found', 'Aucun locataire trouvé')}</td></tr>
               )}
               {tenants.map(t => (
-                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
-                        {t.photo_url
-                          ? <img src={t.photo_url} alt="" className="w-full h-full object-cover" />
+                <tr key={t.id} className="tenant-list-table-row hover:bg-slate-50 transition-colors">
+                  <td className="tenant-list-name-cell px-5 py-3.5">
+                    <div className="tenant-list-name-wrap flex items-center gap-3">
+                      <div className="tenant-list-avatar w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                        {tenantPhotoUrls[t.id]
+                          ? <img src={tenantPhotoUrls[t.id]} alt="" className="w-full h-full object-cover" />
                           : <span className="text-sm font-semibold text-slate-700">{t.full_name.charAt(0)}</span>
                         }
                       </div>
-                      <div>
+                      <div className="tenant-list-name-text min-w-0">
                         <div className="flex items-center gap-1.5">
                           <p className="font-semibold text-slate-900 text-sm">{t.full_name}</p>
                           {t.user_id && (
-                            <span title="Has account" className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                            <span title={text('Has account', 'Possède un compte')} className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                           )}
                         </div>
                         <p className="text-xs text-slate-500">{t.tenant_code}</p>
@@ -570,35 +624,35 @@ export default function TenantsPage() {
                     <p className="text-xs text-slate-500 truncate max-w-[160px]">{t.email}</p>
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-sm text-slate-700">
-                    {(t.houses as any)?.house_number ?? <span className="text-slate-600">Unassigned</span>}
+                    {t.houses?.house_number ?? <span className="text-slate-600">{text('Unassigned', 'Non attribuée')}</span>}
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-sm text-slate-500">
-                    {t.move_in_date ? new Date(t.move_in_date).toLocaleDateString() : '—'}
+                    {t.move_in_date ? new Date(t.move_in_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB') : '—'}
                   </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[t.status]}`}>
-                      {t.status}
+                  <td className="tenant-list-status-cell px-5 py-3.5 text-center">
+                    <span className={`tenant-list-status inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[t.status]}`}>
+                      {t.status === 'active' ? text('Active', 'Actif') : t.status === 'vacated' ? text('Vacated', 'Parti') : t.status === 'blacklisted' ? text('Blacklisted', 'Sur liste noire') : t.status}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openView(t)} className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all">
+                  <td className="tenant-list-actions-cell px-5 py-3.5 text-right">
+                    <div className="tenant-list-actions flex items-center justify-end gap-1">
+                      <button aria-label={text(`View ${t.full_name}`, `Voir ${t.full_name}`)} title={text('View', 'Voir')} onClick={() => openView(t)} className="tenant-list-action p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all">
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button onClick={() => openEdit(t)} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                      <button aria-label={text(`Edit ${t.full_name}`, `Modifier ${t.full_name}`)} title={text('Edit', 'Modifier')} onClick={() => openEdit(t)} className="tenant-list-action p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
                         <Pencil className="w-4 h-4" />
                       </button>
                       {profile?.role === 'admin' && t.user_id && t.status === 'vacated' && (
                         <button
                           onClick={() => setRemoveAccountTenant(t)}
                           title={language === 'fr' ? 'Supprimer le compte' : 'Remove account'}
-                          className="p-2 text-slate-500 hover:text-orange-400 hover:bg-orange-900/20 rounded-lg transition-all"
+                          className="tenant-list-action p-2 text-slate-500 hover:text-orange-400 hover:bg-orange-900/20 rounded-lg transition-all"
                         >
                           <UserX className="w-4 h-4" />
                         </button>
                       )}
                       {profile?.role === 'admin' && (
-                        <button onClick={() => setDeleteTenant(t)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                        <button aria-label={text(`Delete ${t.full_name}`, `Supprimer ${t.full_name}`)} title={text('Delete', 'Supprimer')} onClick={() => setDeleteTenant(t)} className="tenant-list-action p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
@@ -620,33 +674,69 @@ export default function TenantsPage() {
         onClose={() => setModalOpen(false)}
         title={editingId ? t('editTenantProfile') : editingUserId ? t('completeTenantProfile') : t('addTenantProfile')}
         size="xl"
+        className="tenant-edit-modal"
       >
         {editingUserId && !editingId && (
-          <div className="mb-4 p-3 bg-blue-950/50 border border-blue-700/40 rounded-xl text-sm text-blue-700 flex items-center gap-2">
+          <div className="tenant-edit-notice mb-4 p-3 bg-blue-950/50 border border-blue-700/40 rounded-xl text-sm text-blue-700 flex items-center gap-2">
             <UserCheck className="w-4 h-4 shrink-0" />
             {language === 'fr'
               ? "Configuration du profil d'un utilisateur inscrit — son compte sera automatiquement associé."
               : 'Setting up profile for a registered user — their account will be linked automatically.'}
           </div>
         )}
-        <div className="space-y-6">
+        <div className="tenant-edit-content space-y-6">
           {/* Personal */}
-          <div>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Personal Information</h3>
+          <div className="tenant-edit-section">
+            <h3 className="tenant-edit-section-title text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{text('Personal Information', 'Informations personnelles')}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Full Name *" placeholder="Enter full name" value={form.full_name} onChange={set('full_name')} />
-              <Input label="Phone *" placeholder="+254 700 000 000" value={form.phone} onChange={set('phone')} />
-              <Input label="Email *" type="email" placeholder="name@example.com" value={form.email} onChange={set('email')} />
-              <Select label="Gender" value={form.gender} onChange={set('gender')}>
-                <option value="">Select gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+              <Input label={text('Full Name *', 'Nom complet *')} placeholder={text('Enter full name', 'Saisissez le nom complet')} value={form.full_name} onChange={set('full_name')} />
+              <Input label={text('Phone *', 'Téléphone *')} placeholder="+254 700 000 000" value={form.phone} onChange={set('phone')} />
+              <Input label={text('Email *', 'E-mail *')} type="email" placeholder="name@example.com" value={form.email} onChange={set('email')} />
+              <Select label={text('Gender', 'Genre')} value={form.gender} onChange={set('gender')}>
+                <option value="">{text('Select gender', 'Sélectionner le genre')}</option>
+                <option value="Male">{text('Male', 'Homme')}</option>
+                <option value="Female">{text('Female', 'Femme')}</option>
+                <option value="Other">{text('Other', 'Autre')}</option>
               </Select>
-              <Input label="National ID / Passport" placeholder="ID or passport number" value={form.national_id} onChange={set('national_id')} />
-              <Input label="Photo URL" placeholder="https://..." value={form.photo_url} onChange={set('photo_url')} />
-              <label className="space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">
-                ID card / Passport (PDF or 500 × 500 PNG/JPG, max 10 MB)
+              <Input label={text('National ID / Passport', 'Carte nationale / Passeport')} placeholder={text('ID or passport number', 'Numéro de carte ou de passeport')} value={form.national_id} onChange={set('national_id')} />
+              <label className="tenant-edit-file-label space-y-1.5 text-sm font-medium text-slate-700">
+                {text('Tenant photo (500 × 500 PNG/JPG, max 10 MB)', 'Photo du locataire (PNG/JPG de 500 × 500, 10 Mo max.)')}
+                <input
+                  type="file"
+                  accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                  onChange={event => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    if (!isPngOrJpeg(file) || file.size > 10 * 1024 * 1024) {
+                      addToast(text('Choose a PNG/JPG image up to 10 MB.', 'Choisissez une image PNG/JPG de 10 Mo maximum.'), 'error');
+                      event.currentTarget.value = '';
+                      return;
+                    }
+                    const input = event.currentTarget;
+                    void hasExactImageDimensions(file, 500, 500).then(isExactSize => {
+                      if (!isExactSize) {
+                        addToast(text('Tenant photos must be exactly 500 × 500 pixels.', 'Les photos des locataires doivent mesurer exactement 500 × 500 pixels.'), 'error');
+                        input.value = '';
+                        return;
+                      }
+                      setTenantPhoto(file);
+                    }).catch(caught => {
+                      addToast(caught instanceof Error ? caught.message : text('The selected tenant photo could not be checked.', 'Impossible de vérifier la photo du locataire sélectionnée.'), 'error');
+                      input.value = '';
+                    });
+                  }}
+                  className="tenant-edit-file-input block w-full text-sm"
+                />
+                {tenantPhoto && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionnée :')} {tenantPhoto.name}</span>}
+              </label>
+              {editingId && tenantPhotoUrls[editingId] && !tenantPhoto && (
+                <div className="flex items-center gap-3">
+                  <img src={tenantPhotoUrls[editingId]} alt="" className="h-12 w-12 rounded-full object-cover" />
+                  <span className="text-xs text-slate-500">{text('Current tenant photo', 'Photo actuelle du locataire')}</span>
+                </div>
+              )}
+              <label className="tenant-edit-file-label space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">
+                {text('ID card / Passport (PDF or 500 × 500 PNG/JPG, max 10 MB)', 'Carte d’identité / Passeport (PDF ou PNG/JPG de 500 × 500, 10 Mo max.)')}
                 <input
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
@@ -654,7 +744,7 @@ export default function TenantsPage() {
                     const file = event.target.files?.[0];
                     if (!file) return;
                     if ((file.type !== 'application/pdf' && !isPngOrJpeg(file)) || file.size > 10 * 1024 * 1024) {
-                      addToast('Choose a PDF or PNG/JPG image up to 10 MB.', 'error');
+                      addToast(text('Choose a PDF or PNG/JPG image up to 10 MB.', 'Choisissez un PDF ou une image PNG/JPG de 10 Mo maximum.'), 'error');
                       event.target.value = '';
                       return;
                     }
@@ -663,12 +753,12 @@ export default function TenantsPage() {
                       if (isPngOrJpeg(file)) {
                         try {
                           if (!await hasExactImageDimensions(file, 500, 500)) {
-                            addToast('ID/passport images must be exactly 500 × 500 pixels.', 'error');
+                            addToast(text('ID/passport images must be exactly 500 × 500 pixels.', 'Les images de carte d’identité/passeport doivent mesurer exactement 500 × 500 pixels.'), 'error');
                             input.value = '';
                             return;
                           }
                         } catch (caught) {
-                          addToast(caught instanceof Error ? caught.message : 'The selected ID/passport image could not be checked.', 'error');
+                          addToast(caught instanceof Error ? caught.message : text('The selected ID/passport image could not be checked.', 'Impossible de vérifier l’image de carte d’identité/passeport sélectionnée.'), 'error');
                           input.value = '';
                           return;
                         }
@@ -677,25 +767,25 @@ export default function TenantsPage() {
                     };
                     void validateAndSelect();
                   }}
-                  className="block w-full text-sm"
+                  className="tenant-edit-file-input block w-full text-sm"
                 />
-                {identityDocument && <span className="block text-xs text-slate-500">Selected: {identityDocument.name}</span>}
+                {identityDocument && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionné :')} {identityDocument.name}</span>}
               </label>
               {editingId && tenants.find(tenant => tenant.id === editingId)?.national_id_document_path && (
                 <div className="sm:col-span-2">
-                  <p className="mb-1.5 text-sm font-medium text-slate-700">Current ID / Passport</p>
-                  <PrivateDocumentLink path={tenants.find(tenant => tenant.id === editingId)?.national_id_document_path} label="current ID / Passport document" />
+                  <p className="mb-1.5 text-sm font-medium text-slate-700">{text('Current ID / Passport', 'Carte d’identité / Passeport actuel')}</p>
+                  <PrivateDocumentLink path={tenants.find(tenant => tenant.id === editingId)?.national_id_document_path} label={text('current ID / Passport document', 'document de carte d’identité / passeport actuel')} />
                 </div>
               )}
             </div>
           </div>
 
           {/* House */}
-          <div>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">House Assignment</h3>
+          <div className="tenant-edit-section">
+            <h3 className="tenant-edit-section-title text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{text('House Assignment', 'Attribution d’une maison')}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Select
-                label="Assign House"
+                label={text('Assign House', 'Attribuer une maison')}
                 value={form.house_id}
                 onChange={event => {
                   const houseId = event.target.value;
@@ -707,36 +797,36 @@ export default function TenantsPage() {
                   }));
                 }}
               >
-                <option value="">Unassigned</option>
+                <option value="">{text('Unassigned', 'Non attribuée')}</option>
                 {houses
                   .filter(house => house.status === 'vacant' || house.id === form.house_id)
                   .map(house => <option key={house.id} value={house.id}>{house.house_number}</option>)}
               </Select>
-              <Input label="Move-In Date" type="date" value={form.move_in_date} onChange={set('move_in_date')} />
-              <Input label="Move-Out Date" type="date" value={form.move_out_date} onChange={set('move_out_date')} />
-              <Input label="Monthly Rent (Fbu)" type="number" placeholder="0" value={form.monthly_rent} onChange={set('monthly_rent')} />
-              <Input label="Security Deposit (Fbu)" type="number" placeholder="0" value={form.security_deposit} onChange={set('security_deposit')} />
-              <Select label="Status" value={form.status} onChange={set('status')}>
-                <option value="active">Active</option>
-                <option value="vacated">Vacated</option>
-                <option value="blacklisted">Blacklisted</option>
+              <Input label={text('Move-In Date', 'Date d’entrée')} type="date" value={form.move_in_date} onChange={set('move_in_date')} />
+              <Input label={text('Move-Out Date', 'Date de départ')} type="date" value={form.move_out_date} onChange={set('move_out_date')} />
+              <Input label={text('Monthly Rent (Fbu)', 'Loyer mensuel (Fbu)')} type="number" placeholder="0" value={form.monthly_rent} onChange={set('monthly_rent')} />
+              <Input label={text('Security Deposit (Fbu)', 'Dépôt de garantie (Fbu)')} type="number" placeholder="0" value={form.security_deposit} onChange={set('security_deposit')} />
+              <Select label={text('Status', 'Statut')} value={form.status} onChange={set('status')}>
+                <option value="active">{text('Active', 'Actif')}</option>
+                <option value="vacated">{text('Vacated', 'Parti')}</option>
+                <option value="blacklisted">{text('Blacklisted', 'Sur liste noire')}</option>
               </Select>
             </div>
           </div>
 
           {/* Family */}
-          <div>
+          <div className="tenant-edit-section">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Family Members</h3>
+              <h3 className="tenant-edit-section-title text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Family Members', 'Membres de la famille')}</h3>
               <button onClick={addFamilyMember} className="text-xs text-blue-400 hover:text-blue-700 flex items-center gap-1">
-                <Plus className="w-3 h-3" /> Add Member
+                <Plus className="w-3 h-3" /> {text('Add Member', 'Ajouter un membre')}
               </button>
             </div>
-            <Input label="Number of Family Members" type="number" placeholder="0" value={form.num_family_members} onChange={set('num_family_members')} className="mb-3" />
+            <Input label={text('Number of Family Members', 'Nombre de membres de la famille')} type="number" placeholder="0" value={form.num_family_members} onChange={set('num_family_members')} className="mb-3" />
             {familyMembers.map((m, i) => (
               <div key={i} className="flex items-end gap-2 mb-2">
-                <Input placeholder="Full name" value={m.full_name} onChange={e => updateFamilyMember(i, 'full_name', e.target.value)} className="flex-1" />
-                <Input placeholder="Relationship" value={m.relationship} onChange={e => updateFamilyMember(i, 'relationship', e.target.value)} className="flex-1" />
+                <Input placeholder={text('Full name', 'Nom complet')} value={m.full_name} onChange={e => updateFamilyMember(i, 'full_name', e.target.value)} className="flex-1" />
+                <Input placeholder={text('Relationship', 'Lien de parenté')} value={m.relationship} onChange={e => updateFamilyMember(i, 'relationship', e.target.value)} className="flex-1" />
                 <button onClick={() => removeFamilyMember(i)} className="p-2.5 text-red-400 hover:bg-red-50 rounded-lg mb-0">
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -745,31 +835,31 @@ export default function TenantsPage() {
           </div>
 
           {/* Vehicle */}
-          <div>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Vehicle Details (Optional)</h3>
+          <div className="tenant-edit-section">
+            <h3 className="tenant-edit-section-title text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{text('Vehicle Details (Optional)', 'Informations sur le véhicule (facultatif)')}</h3>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Car Make" placeholder="Toyota" value={form.car_make} onChange={set('car_make')} />
-              <Input label="Car Model" placeholder="Corolla" value={form.car_model} onChange={set('car_model')} />
-              <Input label="Registration No." placeholder="KAA 123X" value={form.car_registration} onChange={set('car_registration')} />
-              <Input label="Color" placeholder="White" value={form.car_color} onChange={set('car_color')} />
+              <Input label={text('Car Make', 'Marque du véhicule')} placeholder="Toyota" value={form.car_make} onChange={set('car_make')} />
+              <Input label={text('Car Model', 'Modèle du véhicule')} placeholder="Corolla" value={form.car_model} onChange={set('car_model')} />
+              <Input label={text('Registration No.', 'Numéro d’immatriculation')} placeholder="KAA 123X" value={form.car_registration} onChange={set('car_registration')} />
+              <Input label={text('Color', 'Couleur')} placeholder={text('White', 'Blanc')} value={form.car_color} onChange={set('car_color')} />
             </div>
           </div>
 
           {/* Emergency */}
-          <div>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Emergency Contact (Optional)</h3>
+          <div className="tenant-edit-section">
+            <h3 className="tenant-edit-section-title text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{text('Emergency Contact (Optional)', 'Contact d’urgence (facultatif)')}</h3>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Contact Name" placeholder="Emergency contact full name" value={form.emergency_contact_name} onChange={set('emergency_contact_name')} />
-              <Input label="Contact Phone" placeholder="+254 700 000 000" value={form.emergency_contact_phone} onChange={set('emergency_contact_phone')} />
+              <Input label={text('Contact Name', 'Nom du contact')} placeholder={text('Emergency contact full name', 'Nom complet du contact d’urgence')} value={form.emergency_contact_name} onChange={set('emergency_contact_name')} />
+              <Input label={text('Contact Phone', 'Téléphone du contact')} placeholder="+254 700 000 000" value={form.emergency_contact_phone} onChange={set('emergency_contact_phone')} />
             </div>
           </div>
 
-          <Textarea label="Notes" placeholder="Additional notes..." value={form.notes} onChange={set('notes')} rows={2} />
+          <Textarea label={text('Notes', 'Notes')} placeholder={text('Additional notes...', 'Notes complémentaires...')} value={form.notes} onChange={set('notes')} rows={2} />
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
-          <Button loading={saving} onClick={handleSave}>{editingId ? 'Save Changes' : 'Create Tenant Profile'}</Button>
+        <div className="tenant-edit-footer flex justify-end gap-3 mt-6">
+          <Button variant="ghost" onClick={() => setModalOpen(false)}>{text('Cancel', 'Annuler')}</Button>
+          <Button loading={saving} onClick={handleSave}>{editingId ? text('Save Changes', 'Enregistrer les modifications') : text('Create Tenant Profile', 'Créer le profil du locataire')}</Button>
         </div>
       </Modal>
       {pendingStaffSetup && (
@@ -786,78 +876,78 @@ export default function TenantsPage() {
 
       {/* View Modal */}
       {viewTenant && (
-        <Modal open={viewModal} onClose={() => setViewModal(false)} title="Tenant Profile" size="lg">
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
-                {viewTenant.photo_url
-                  ? <img src={viewTenant.photo_url} alt="" className="w-full h-full object-cover" />
+        <Modal open={viewModal} onClose={() => setViewModal(false)} title={text('Tenant Profile', 'Profil du locataire')} size="lg" className="tenant-profile-modal">
+          <div className="tenant-profile-content space-y-4">
+            <div className="tenant-profile-summary flex items-center gap-4">
+              <div className="tenant-profile-photo w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                {tenantPhotoUrls[viewTenant.id]
+                  ? <img src={tenantPhotoUrls[viewTenant.id]} alt="" className="w-full h-full object-cover" />
                   : <span className="text-xl font-bold text-slate-700">{viewTenant.full_name.charAt(0)}</span>
                 }
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">{viewTenant.full_name}</h3>
-                <p className="text-slate-500 text-sm">{viewTenant.tenant_code}</p>
+              <div className="tenant-profile-identity min-w-0">
+                <h3 className="tenant-profile-name text-lg font-bold text-slate-900">{viewTenant.full_name}</h3>
+                <p className="tenant-profile-code text-slate-500 text-sm">{viewTenant.tenant_code}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${statusColors[viewTenant.status]}`}>
-                    {viewTenant.status}
+                  <span className={`tenant-profile-status inline-flex items-center text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${statusColors[viewTenant.status]}`}>
+                    {viewTenant.status === 'active' ? text('Active', 'Actif') : viewTenant.status === 'vacated' ? text('Vacated', 'Parti') : viewTenant.status === 'blacklisted' ? text('Blacklisted', 'Sur liste noire') : viewTenant.status}
                   </span>
                   {viewTenant.user_id && (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Has account
+                    <span className="tenant-profile-account inline-flex items-center gap-1 text-xs text-emerald-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> {text('Has account', 'Possède un compte')}
                     </span>
                   )}
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="tenant-profile-fields grid grid-cols-2 gap-3 text-sm">
               {[
-                ['Phone', viewTenant.phone], ['Email', viewTenant.email],
-                ['Gender', viewTenant.gender], ['National ID', viewTenant.national_id],
-                ['House', (viewTenant.houses as any)?.house_number],
-                ['Move In', viewTenant.move_in_date ? new Date(viewTenant.move_in_date).toLocaleDateString() : null],
-                ['Monthly Rent', viewTenant.monthly_rent ? fmt(Number(viewTenant.monthly_rent)) : null],
-                ['Security Deposit', viewTenant.security_deposit ? fmt(Number(viewTenant.security_deposit)) : null],
-                ['Family Members', viewTenant.num_family_members],
-                ['Emergency Contact', viewTenant.emergency_contact_name],
+                [text('Phone', 'Téléphone'), viewTenant.phone], ['E-mail', viewTenant.email],
+                [text('Gender', 'Genre'), viewTenant.gender === 'Male' ? text('Male', 'Homme') : viewTenant.gender === 'Female' ? text('Female', 'Femme') : viewTenant.gender === 'Other' ? text('Other', 'Autre') : viewTenant.gender], [text('National ID', 'Carte nationale'), viewTenant.national_id],
+                [text('House', 'Maison'), viewTenant.houses?.house_number],
+                [text('Move In', 'Date d’entrée'), viewTenant.move_in_date ? new Date(viewTenant.move_in_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB') : null],
+                [text('Monthly Rent', 'Loyer mensuel'), viewTenant.monthly_rent ? fmt(Number(viewTenant.monthly_rent)) : null],
+                [text('Security Deposit', 'Dépôt de garantie'), viewTenant.security_deposit ? fmt(Number(viewTenant.security_deposit)) : null],
+                [text('Family Members', 'Membres de la famille'), viewTenant.num_family_members],
+                [text('Emergency Contact', 'Contact d’urgence'), viewTenant.emergency_contact_name],
               ].map(([label, value]) => value != null && value !== '' && (
-                <div key={String(label)} className="bg-white rounded-xl p-3">
+                <div key={String(label)} className="tenant-profile-field bg-white rounded-xl p-3">
                   <p className="text-xs text-slate-500 mb-0.5">{label}</p>
                   <p className="text-slate-900 font-medium">{String(value)}</p>
                 </div>
               ))}
             </div>
             {(viewTenant.car_make || viewTenant.car_registration) && (
-              <div className="bg-white rounded-xl p-3">
-                <p className="text-xs text-slate-500 mb-1">Vehicle</p>
+              <div className="tenant-profile-field bg-white rounded-xl p-3">
+                <p className="text-xs text-slate-500 mb-1">{text('Vehicle', 'Véhicule')}</p>
                 <p className="text-slate-900">{[viewTenant.car_make, viewTenant.car_model, viewTenant.car_registration, viewTenant.car_color].filter(Boolean).join(' · ')}</p>
               </div>
             )}
-            <div className="rounded-xl bg-white p-3">
-              <p className="mb-2 text-xs text-slate-500">ID / Passport document</p>
-              <PrivateDocumentLink path={viewTenant.national_id_document_path} label="ID / Passport document" />
+            <div className="tenant-profile-field rounded-xl bg-white p-3">
+              <p className="mb-2 text-xs text-slate-500">{text('ID / Passport document', 'Document de carte d’identité / passeport')}</p>
+              <PrivateDocumentLink path={viewTenant.national_id_document_path} label={text('ID / Passport document', 'Document de carte d’identité / passeport')} />
             </div>
           </div>
         </Modal>
       )}
 
       {/* Delete Confirm */}
-      <Modal open={!!deleteTenant} onClose={() => setDeleteTenant(null)} title="Delete Tenant" size="sm">
+      <Modal open={!!deleteTenant} onClose={() => setDeleteTenant(null)} title={text('Delete Tenant', 'Supprimer le locataire')} size="sm">
         <div className="space-y-2 mb-6">
-          <p className="text-slate-800 font-medium">Delete {deleteTenant?.full_name}?</p>
-          <p className="text-slate-500 text-sm">This will permanently delete:</p>
+          <p className="text-slate-800 font-medium">{text('Delete', 'Supprimer')} {deleteTenant?.full_name} ?</p>
+          <p className="text-slate-500 text-sm">{text('This will permanently delete:', 'Les éléments suivants seront définitivement supprimés :')}</p>
           <ul className="text-slate-500 text-sm space-y-1 list-disc ml-4">
-            <li>All payment records</li>
-            <li>Maintenance requests</li>
-            <li>Rental agreements</li>
-            <li>Family members</li>
-            <li>Login account (if any) — they must register again</li>
+            <li>{text('All payment records', 'Tous les paiements')}</li>
+            <li>{text('Maintenance requests', 'Les demandes de maintenance')}</li>
+            <li>{text('Rental agreements', 'Les contrats de location')}</li>
+            <li>{text('Family members', 'Les membres de la famille')}</li>
+            <li>{text('Login account (if any) — they must register again', 'Le compte de connexion (le cas échéant) — une nouvelle inscription sera nécessaire')}</li>
           </ul>
-          <p className="text-red-400 text-sm font-medium mt-2">This cannot be undone.</p>
+          <p className="text-red-400 text-sm font-medium mt-2">{text('This cannot be undone.', 'Cette action est irréversible.')}</p>
         </div>
         <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => setDeleteTenant(null)}>Cancel</Button>
-          <Button variant="danger" loading={deleting} onClick={handleDelete}>Delete Everything</Button>
+          <Button variant="ghost" onClick={() => setDeleteTenant(null)}>{text('Cancel', 'Annuler')}</Button>
+          <Button variant="danger" loading={deleting} onClick={handleDelete}>{text('Delete Everything', 'Tout supprimer')}</Button>
         </div>
       </Modal>
 

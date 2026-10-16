@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Home, Users, TrendingUp, AlertCircle, Wallet,
   UserCheck, Wrench, ArrowUpRight, CheckCircle2,
@@ -7,6 +7,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/contexts/ThemeContext';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
+import { calculateOutstandingInvoiceBalance } from '@/lib/invoiceBalances';
 
 interface Stats {
   totalHouses: number;
@@ -28,24 +29,45 @@ interface Stats {
   paymentStatusCounts: { status: string; count: number }[];
 }
 
-function StatCard({ icon: Icon, label, value, sub, onClick, iconStyle }: {
-  icon: any; label: string; value: string | number; sub?: string; onClick?: () => void;
+function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, moneyAmount, outstanding = false }: {
+  icon: any; title: string; label: string; value: string | number; sub?: string; onClick?: () => void;
   iconStyle: string;
+  moneyAmount?: number;
+  outstanding?: boolean;
 }) {
+  const isMoney = moneyAmount !== undefined;
+  const moneySizeClass = moneyAmount !== undefined && moneyAmount >= 1_000_000_000
+    ? 'phone-dashboard-money-billion'
+    : moneyAmount !== undefined && moneyAmount >= 100_000_000
+      ? 'phone-dashboard-money-hundred-million'
+      : '';
+  const moneyColorClass = outstanding
+    ? moneyAmount && moneyAmount > 0
+      ? 'phone-dashboard-outstanding-positive'
+      : 'phone-dashboard-outstanding-zero'
+    : 'text-[#25D366]';
+
   return (
     <div
       onClick={onClick}
       className={`min-w-0 bg-white border border-[#eaeaea] rounded-2xl p-3 sm:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all group ${onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''}`}
     >
-      <div className="flex items-start justify-between mb-3 sm:mb-4">
-        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center ${iconStyle}`}>
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.75} />
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className={`phone-stat-icon w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center ${iconStyle}`}>
+            <Icon className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.75} />
+          </div>
+          <span className="phone-stat-title block truncate text-xs font-semibold text-slate-500 md:hidden">{title}</span>
         </div>
         {onClick && <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-slate-700 transition-colors" />}
       </div>
-      <p className={`min-w-0 text-lg sm:text-2xl font-bold text-slate-900 mb-1 leading-tight ${typeof value === 'string' ? 'money-value' : ''}`}>{value}</p>
-      <p className="text-xs sm:text-sm leading-4 sm:leading-5 font-medium text-slate-500">{label}</p>
-      {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+      <p className={`min-w-0 text-lg sm:text-2xl font-bold mb-1 leading-tight ${isMoney ? `phone-dashboard-money ${moneyColorClass} ${moneySizeClass}` : 'text-slate-900'}`}>{value}</p>
+      <p className="phone-stat-description min-w-0 border-l border-[#ff0000] pl-2 text-xs italic leading-5 text-slate-500 md:hidden">
+        <span className="block">{label}</span>
+        {sub && <span className="block text-slate-400">{sub}</span>}
+      </p>
+      <p className="hidden text-xs font-medium leading-4 text-slate-500 sm:text-sm sm:leading-5 md:block">{label}</p>
+      {sub && <p className="hidden text-xs text-slate-400 mt-1 md:block">{sub}</p>}
     </div>
   );
 }
@@ -89,21 +111,91 @@ function AdminOverviewDiagram({
   centerLabel: string;
   language: string;
 }) {
+  const { loginFamilyImageUrl } = useTheme();
+  const ringRef = useRef<SVGGElement | null>(null);
+  const rotationRef = useRef(0);
+  const lastFrameTimeRef = useRef<number | null>(null);
+  const lastPointerAngleRef = useRef<number | null>(null);
+  const draggingRef = useRef(false);
+  const draggedRef = useRef(false);
+
+  useEffect(() => {
+    let frameId: number;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const animate = (time: number) => {
+      const previousTime = lastFrameTimeRef.current;
+      if (previousTime !== null && !draggingRef.current && !reducedMotion && window.matchMedia('(max-width: 767px)').matches) {
+        rotationRef.current += (time - previousTime) * 0.0025;
+      }
+      ringRef.current?.setAttribute('transform', `rotate(${rotationRef.current} 200 200)`);
+      lastFrameTimeRef.current = time;
+      frameId = window.requestAnimationFrame(animate);
+    };
+    frameId = window.requestAnimationFrame(animate);
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  const getPointerAngle = (event: React.PointerEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const centerX = bounds.left + bounds.width / 2;
+    const centerY = bounds.top + bounds.height / 2;
+    return Math.atan2(event.clientY - centerY, event.clientX - centerX) * (180 / Math.PI);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    draggedRef.current = false;
+    draggingRef.current = true;
+    lastPointerAngleRef.current = getPointerAngle(event);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!draggingRef.current || lastPointerAngleRef.current === null) return;
+    const angle = getPointerAngle(event);
+    let delta = angle - lastPointerAngleRef.current;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    if (Math.abs(delta) > 1) draggedRef.current = true;
+    rotationRef.current += delta;
+    lastPointerAngleRef.current = angle;
+    ringRef.current?.setAttribute('transform', `rotate(${rotationRef.current} 200 200)`);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    draggingRef.current = false;
+    lastPointerAngleRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] sm:p-6">
-      <div className="mb-4">
-        <h2 className="text-base font-semibold text-slate-900">{centerLabel}</h2>
-        <p className="mt-1 text-xs text-slate-500">
+    <section className="phone-overview-card relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] sm:p-6">
+      <div className="pointer-events-none absolute inset-0 z-0 md:hidden" aria-hidden="true">
+        <img src={loginFamilyImageUrl || '/Bck.png'} alt="" className="h-full w-full object-cover object-center" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/90 via-slate-900/75 to-slate-800/90" />
+      </div>
+      <div className="relative z-10 mb-4">
+        <h2 className="phone-overview-heading text-base font-semibold text-slate-900">{centerLabel}</h2>
+        <p className="phone-overview-description mt-1 text-xs text-slate-500">
           {language === 'fr' ? 'Sélectionnez une section pour ouvrir sa page.' : 'Select a section to open its admin page.'}
         </p>
       </div>
-      <div className="mx-auto w-full max-w-[320px]">
+      <div className="relative z-10 mx-auto w-full max-w-[320px]">
         <svg
           viewBox="0 0 400 400"
           role="group"
           aria-label={centerLabel}
-          className="h-auto w-full overflow-visible"
+          className="h-auto w-full overflow-visible cursor-grab active:cursor-grabbing"
+          style={{ touchAction: 'none' }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         >
+          <g ref={ringRef} className="phone-overview-ring">
           {items.map((item, index) => {
             const middleAngle = (index * 360) / items.length - 90;
             const radians = (middleAngle * Math.PI) / 180;
@@ -117,7 +209,14 @@ function AdminOverviewDiagram({
                 tabIndex={0}
                 aria-label={`${item.label}: ${item.value}`}
                 className="cursor-pointer outline-none"
-                onClick={() => onNavigate(item.page)}
+                onClick={event => {
+                  if (draggedRef.current) {
+                    draggedRef.current = false;
+                    event.preventDefault();
+                    return;
+                  }
+                  onNavigate(item.page);
+                }}
                 onKeyDown={event => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
@@ -130,7 +229,7 @@ function AdminOverviewDiagram({
                   fill={item.color}
                   stroke="white"
                   strokeWidth="3"
-                  className="transition-opacity hover:opacity-80 focus:opacity-80"
+                  className="phone-overview-segment transition-[filter,transform,opacity] duration-200 hover:opacity-90 focus:opacity-90"
                 />
                 <text
                   x={x}
@@ -144,6 +243,7 @@ function AdminOverviewDiagram({
               </g>
             );
           })}
+          </g>
           <circle cx="200" cy="200" r="74" fill="#111827" />
           <text x="200" y="195" textAnchor="middle" className="fill-white text-xs font-bold">
             {language === 'fr' ? 'Gestion' : 'Property'}
@@ -174,7 +274,22 @@ function LineChart({ data, noDataLabel, fmtCurrency }: { data: { month: string; 
             <stop offset="0%" stopColor="rgba(16,185,129,0.25)" />
             <stop offset="100%" stopColor="rgba(16,185,129,0)" />
           </linearGradient>
+          <pattern id="incomeNetwork" width="34" height="30" patternUnits="userSpaceOnUse">
+            <path
+              d="M0 4L12 10L23 2M12 10L7 25L23 18L34 27M23 2L23 18M0 4L7 25"
+              fill="none"
+              stroke="rgba(16,185,129,0.16)"
+              strokeWidth="0.55"
+            />
+            <circle cx="0" cy="4" r="1" fill="rgba(16,185,129,0.22)" />
+            <circle cx="12" cy="10" r="1.1" fill="rgba(16,185,129,0.24)" />
+            <circle cx="23" cy="2" r="0.9" fill="rgba(16,185,129,0.18)" />
+            <circle cx="7" cy="25" r="0.9" fill="rgba(16,185,129,0.2)" />
+            <circle cx="23" cy="18" r="1" fill="rgba(16,185,129,0.2)" />
+            <circle cx="34" cy="27" r="0.9" fill="rgba(16,185,129,0.17)" />
+          </pattern>
         </defs>
+        <rect x="0" y="0" width="100" height="100" fill="url(#incomeNetwork)" />
         <path d={areaD} fill="url(#lineGrad)" />
         <path d={pathD} fill="none" stroke="#10b981" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
         {points.map((p, i) => (
@@ -204,7 +319,7 @@ const statusColors: Record<string, string> = {
 const panelClass = 'bg-white border border-slate-200 rounded-2xl';
 
 export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string) => void }) {
-  const { t, fmt, language, appName, appLogoUrl } = useTheme();
+  const { t, fmt, language } = useTheme();
   const [pendingRegistrationCount, setPendingRegistrationCount] = useState(0);
   const [pendingRegistrationError, setPendingRegistrationError] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats>({
@@ -220,20 +335,25 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
     async function load() {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
 
-      const [houses, tenants, family, payments, visitors, maintenance, invoices] = await Promise.all([
+      const [houses, tenants, family, payments, visitors, maintenance, invoices, unpaidInvoices, invoiceBalances, utilityPayments] = await Promise.all([
         supabase.from('houses').select('id, status, monthly_rent'),
         supabase.from('tenants').select('id, status'),
         supabase.from('tenant_family').select('id'),
-        supabase.from('payments').select('id, amount_paid, amount_due, status, rent_month, tenants(full_name), houses(house_number), payment_date, receipt_number').order('created_at', { ascending: false }).limit(50),
+        supabase.from('payments').select('id, amount_paid, rent_paid_amount, amount_due, status, rent_month, tenants(full_name), houses(house_number), payment_date, receipt_number').order('created_at', { ascending: false }).limit(50),
         supabase.from('visitors').select('id, visitor_name, purpose, time_in, status, houses(house_number)').order('time_in', { ascending: false }).limit(5),
         supabase.from('maintenance_requests').select('id, title, priority, status, tenants(full_name), houses(house_number), created_at').order('created_at', { ascending: false }),
-        supabase.from('utility_invoices').select('id, status'),
+        supabase.from('utility_invoices').select('id', { count: 'exact', head: true }),
+        supabase.from('utility_invoices').select('id', { count: 'exact', head: true }).in('status', ['unpaid', 'partial']),
+        supabase.from('utility_invoices').select('id, tenant_id, rent_month, rent_balance, water_amount, electricity_amount'),
+        supabase.from('payments').select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount'),
       ]);
 
-      if (invoices.error) {
-        console.error('Unable to load invoice summary:', invoices.error.message);
+      if (invoices.error || unpaidInvoices.error) {
+        console.error('Unable to load invoice summary:', invoices.error?.message ?? unpaidInvoices.error?.message);
       }
-      const invoiceData = invoices.data ?? [];
+      if (invoiceBalances.error || utilityPayments.error) {
+        console.error('Unable to load outstanding invoice balance:', invoiceBalances.error?.message ?? utilityPayments.error?.message);
+      }
       const houseData = houses.data ?? [];
       const tenantData = tenants.data ?? [];
       const paymentData = payments.data ?? [];
@@ -252,9 +372,9 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       );
 
       const collected = thisMonthPayments.reduce((s, p) => s + Number(p.amount_paid), 0);
-      const outstanding = paymentData
-        .filter(p => p.status !== 'paid')
-        .reduce((s, p) => s + Math.max(0, Number(p.amount_due) - Number(p.amount_paid)), 0);
+      const outstanding = invoiceBalances.error || utilityPayments.error
+        ? 0
+        : calculateOutstandingInvoiceBalance(invoiceBalances.data ?? [], utilityPayments.data ?? []);
 
       const visitorsToday = (visitors.data ?? []).filter(v =>
         new Date(v.time_in) >= todayStart
@@ -288,8 +408,8 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         monthlyExpectedRent: houseData.filter(h => h.status === 'occupied').reduce((s, h) => s + Number(h.monthly_rent), 0),
         monthlyCollected: collected,
         outstandingRent: outstanding,
-        totalInvoices: invoices.error ? null : invoiceData.length,
-        unpaidInvoices: invoiceData.filter(invoice => invoice.status === 'unpaid').length,
+        totalInvoices: invoices.error ? null : invoices.count ?? 0,
+        unpaidInvoices: unpaidInvoices.error ? 0 : unpaidInvoices.count ?? 0,
         visitorsToday,
         recentPayments: paymentData.slice(0, 5),
         recentVisitors: visitors.data ?? [],
@@ -299,7 +419,12 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       });
       setLoading(false);
     }
-    load();
+    void load();
+    const channel = supabase
+      .channel('admin-dashboard-invoice-status')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'utility_invoices' }, () => { void load(); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
   }, [language]);
 
   const loadPendingRegistrations = useCallback(async () => {
@@ -357,7 +482,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
 
       <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
       {pendingRegistrationError && (
-        <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:p-4">
+        <div role="alert" className="pending-registration-error rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:p-4">
           Unable to check pending registrations: {pendingRegistrationError}
         </div>
       )}
@@ -366,40 +491,65 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         <button
           type="button"
           onClick={() => onNavigate('tenants')}
+          className="pending-registration-card flex w-full items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-3 text-left shadow-sm transition-colors hover:bg-red-100 sm:gap-4 sm:p-5"
+        >
+          <span className="pending-registration-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700 sm:h-12 sm:w-12">
+            <Users className="h-4 w-4 sm:h-6 sm:w-6" aria-hidden="true" />
+          </span>
+          <span className="pending-registration-content min-w-0 flex-1">
+            <span className="pending-registration-header">
+              <span className="pending-registration-title">{t('pendingRegistrations')}</span>
+              <span className="pending-registration-count">{pendingRegistrationCount}</span>
+              <span className="pending-registration-action shrink-0 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white">
+                {t('reviewRegistrations')}
+              </span>
+            </span>
+            <span className="pending-registration-message">{t('pendingRegistrationsMessage')}</span>
+          </span>
+        </button>
+      )}
+
+      {stats.unpaidInvoices > 0 && (
+        <button
+          type="button"
+          onClick={() => onNavigate('invoices')}
           className="flex w-full items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-3 text-left shadow-sm transition-colors hover:bg-red-100 sm:gap-4 sm:p-5"
         >
-          <img src={appLogoUrl} alt={`${appName} logo`} className="h-10 w-10 shrink-0 rounded-xl bg-white p-1 object-contain sm:h-12 sm:w-12" />
+          <AlertCircle className="h-10 w-10 shrink-0 text-red-600 sm:h-12 sm:w-12" />
           <span className="min-w-0 flex-1">
             <span className="block font-semibold text-red-800">
-              {t('pendingRegistrations')} ({pendingRegistrationCount})
+              {stats.unpaidInvoices} {language === 'fr' ? 'factures impayées' : 'unpaid invoices'}
             </span>
-            <span className="mt-1 block text-sm text-red-700">{t('pendingRegistrationsMessage')}</span>
+            <span className="mt-1 block text-sm text-red-700">
+              {language === 'fr' ? 'Consultez les factures impayées ou partiellement payées.' : 'Review unpaid or partially paid invoices.'}
+            </span>
           </span>
           <span className="shrink-0 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white">
-            {t('reviewRegistrations')}
+            {language === 'fr' ? 'Voir les factures' : 'View invoices'}
           </span>
         </button>
       )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-        <StatCard icon={Building2} label={t('totalHouses')} value={stats.totalHouses} iconStyle="bg-blue-50 text-blue-700" onClick={() => onNavigate('houses')} />
-        <StatCard icon={CheckCircle2} label={t('occupied')} value={stats.occupiedHouses} iconStyle="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('houses')} />
-        <StatCard icon={Home} label={t('vacant')} value={stats.vacantHouses} iconStyle="bg-amber-50 text-amber-700" onClick={() => onNavigate('houses')} />
-        <StatCard icon={Wrench} label={t('maintenanceHouses')} value={stats.maintenanceHouses} iconStyle="bg-red-50 text-red-700" onClick={() => onNavigate('maintenance')} />
-        <StatCard icon={Users} label={t('activeTenants')} value={stats.totalTenants} sub={`${stats.totalFamilyMembers} ${t('familyMembers')}`} iconStyle="bg-violet-50 text-violet-700" onClick={() => onNavigate('tenants')} />
-        <StatCard icon={Wallet} label={t('expectedRent')} value={fmt(stats.monthlyExpectedRent)} iconStyle="bg-sky-50 text-sky-700" onClick={() => onNavigate('payments')} />
-        <StatCard icon={TrendingUp} label={t('collected')} value={fmt(stats.monthlyCollected)} iconStyle="bg-green-50 text-green-700" onClick={() => onNavigate('payments')} />
-        <StatCard icon={AlertCircle} label={t('outstanding')} value={fmt(stats.outstandingRent)} iconStyle="bg-red-50 text-red-700" onClick={() => onNavigate('payments')} />
+        <StatCard icon={Building2} title={t('houses')} label={t('totalHouses')} value={stats.totalHouses} iconStyle="bg-blue-50 text-blue-700" onClick={() => onNavigate('houses')} />
+        <StatCard icon={CheckCircle2} title={t('houses')} label={t('occupied')} value={stats.occupiedHouses} iconStyle="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('houses')} />
+        <StatCard icon={Home} title={t('houses')} label={t('vacant')} value={stats.vacantHouses} iconStyle="bg-amber-50 text-amber-700" onClick={() => onNavigate('houses')} />
+        <StatCard icon={Wrench} title={t('maintenance')} label={t('maintenanceHouses')} value={stats.maintenanceHouses} iconStyle="bg-red-50 text-red-700" onClick={() => onNavigate('maintenance')} />
+        <StatCard icon={Users} title={t('tenants')} label={t('activeTenants')} value={stats.totalTenants} sub={`${stats.totalFamilyMembers} ${t('familyMembers')}`} iconStyle="bg-violet-50 text-violet-700" onClick={() => onNavigate('tenants')} />
+        <StatCard icon={Wallet} title={t('payments')} label={t('expectedRent')} value={fmt(stats.monthlyExpectedRent)} moneyAmount={stats.monthlyExpectedRent} iconStyle="bg-sky-50 text-sky-700" onClick={() => onNavigate('payments')} />
+        <StatCard icon={TrendingUp} title={t('payments')} label={t('collected')} value={fmt(stats.monthlyCollected)} moneyAmount={stats.monthlyCollected} iconStyle="bg-green-50 text-green-700" onClick={() => onNavigate('payments')} />
+        <StatCard icon={AlertCircle} title={t('payments')} label={t('outstanding')} value={fmt(stats.outstandingRent)} moneyAmount={stats.outstandingRent} outstanding iconStyle="bg-red-50 text-red-700" onClick={() => onNavigate('payments')} />
         <StatCard
           icon={StickyNote}
+          title={t('invoices')}
           label={t('invoices')}
           value={stats.totalInvoices ?? '—'}
           sub={stats.totalInvoices === null ? undefined : `${stats.unpaidInvoices} ${t('unpaid')}`}
           iconStyle="bg-indigo-50 text-indigo-700"
           onClick={() => onNavigate('invoices')}
         />
-        <StatCard icon={UserCheck} label={t('visitorsToday')} value={stats.visitorsToday} iconStyle="bg-cyan-50 text-cyan-700" onClick={() => onNavigate('visitors')} />
+        <StatCard icon={UserCheck} title={t('visitors')} label={t('visitorsToday')} value={stats.visitorsToday} iconStyle="bg-cyan-50 text-cyan-700" onClick={() => onNavigate('visitors')} />
       </div>
 
       <AdminOverviewDiagram

@@ -7,6 +7,7 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
 }
 
 const sizes = {
@@ -16,13 +17,13 @@ const sizes = {
   xl: 'max-w-4xl',
 };
 
-export default function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
+export default function Modal({ open, onClose, title, children, size = 'md', className = '' }: ModalProps) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
-        className={`relative w-full ${sizes[size]} flex flex-col max-h-[90vh] animate-fade-up`}
+        className={`relative w-full ${sizes[size]} flex flex-col max-h-[90vh] animate-fade-up ${className}`}
         style={{
           background: '#ffffff',
           border: '1px solid #e5e7eb',

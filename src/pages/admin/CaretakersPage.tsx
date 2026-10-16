@@ -20,6 +20,7 @@ type Caretaker = Profile & {
 
 export default function CaretakersPage() {
   const { t, language } = useTheme();
+  const text = (english: string, french: string) => language === 'fr' ? french : english;
   const { toasts, addToast, removeToast } = useToast();
   const [caretakers, setCaretakers] = useState<Caretaker[]>([]);
   const [houses, setHouses] = useState<StaffHouse[]>([]);
@@ -32,7 +33,7 @@ export default function CaretakersPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.from('profiles')
-      .select('id, full_name, email, phone, role, assigned_property_id, assigned_property_group_id, assigned_property_name, is_active, created_at, staff_id, national_id, residential_address, profile_photo_path, identity_document_path')
+      .select('id, full_name, email, phone, role, assigned_property_id, assigned_property_group_id, assigned_property_name, is_active, created_at, staff_id, national_id, residential_address, profile_photo_path, identity_document_path, signature_image_path')
       .eq('role', 'caretaker')
       .order('created_at', { ascending: false });
     if (error) addToast(error.message, 'error');
@@ -50,7 +51,7 @@ export default function CaretakersPage() {
       ]);
       const error = houseResult.error ?? propertyResult.error;
       if (error) {
-        addToast(`Unable to load properties and houses: ${error.message}`, 'error');
+        addToast(`${language === 'fr' ? 'Impossible de charger les biens immobiliers et les maisons' : 'Unable to load properties and houses'}: ${error.message}`, 'error');
         return;
       }
       setProperties(propertyResult.data ?? []);
@@ -59,12 +60,14 @@ export default function CaretakersPage() {
         id: house.id,
         house_number: house.house_number,
         property_id: house.property_id,
-        property_name: house.property_id ? propertyNameById.get(house.property_id) ?? 'Unassigned property' : 'Unassigned property',
+        property_name: house.property_id
+          ? propertyNameById.get(house.property_id) ?? (language === 'fr' ? 'Bien immobilier non attribué' : 'Unassigned property')
+          : language === 'fr' ? 'Bien immobilier non attribué' : 'Unassigned property',
         status: house.status,
       })));
     };
     void loadAssignments();
-  }, [addToast]);
+  }, [addToast, language]);
 
   const updateCaretaker = async (caretaker: Caretaker, updates: Partial<Caretaker>) => {
     setSavingId(caretaker.id);
@@ -97,7 +100,7 @@ export default function CaretakersPage() {
             <h1 className="text-2xl font-bold text-slate-900">{t('caretakers')}</h1>
             <p className="mt-1 text-sm text-slate-500">{t('caretakerManagement')}</p>
           </div>
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setStaffForm(null)}>Add Caretaker</Button>
+          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setStaffForm(null)}>{t('addCaretaker')}</Button>
         </div>
       </div>
 
@@ -132,7 +135,7 @@ export default function CaretakersPage() {
                     icon={<Pencil className="h-4 w-4" />}
                     onClick={() => setStaffForm(caretaker)}
                   >
-                    Edit details and documents
+                    {text('Edit details and documents', 'Modifier les informations et les documents')}
                   </Button>
                   <Button
                     variant={caretaker.is_active ? 'danger' : 'secondary'}
@@ -157,9 +160,7 @@ export default function CaretakersPage() {
           <div className="space-y-4">
             <StaffIdentityCard
               profile={viewing}
-              assignedProperties={houses
-                .filter(house => house.property_id === viewing.assigned_property_group_id)
-                .map(house => `${viewing.assigned_property_name} · ${house.house_number}`)}
+              assignedProperties={viewing.assigned_property_name ? [viewing.assigned_property_name] : []}
             />
             <p className="text-sm text-slate-500">{t('accountStatus')}: {viewing.is_active ? t('active') : t('inactive')}</p>
           </div>

@@ -16,11 +16,18 @@ export default function PrivateDocumentLink({ path, label }: { path?: string | n
       return;
     }
     const extension = path.split('.').pop()?.toLowerCase();
-    const fileBaseName = label.toLowerCase().includes('profile photo') ? 'profile-photo' : 'identity-document';
+    const normalizedLabel = label.toLowerCase();
+    const fileBaseName = normalizedLabel.includes('signature')
+      ? 'signature'
+      : normalizedLabel.includes('profile photo')
+        ? 'profile-photo'
+        : 'identity-document';
     const downloadName = extension === 'pdf'
       ? `${fileBaseName}.pdf`
       : extension === 'png'
         ? `${fileBaseName}.png`
+        : extension === 'svg'
+          ? `${fileBaseName}.svg`
         : `${fileBaseName}.jpg`;
     Promise.all([
       supabase.storage.from('identity-documents').createSignedUrl(path, 300),

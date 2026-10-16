@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface PaginationProps {
   page: number;
@@ -9,6 +10,7 @@ interface PaginationProps {
 }
 
 export default function Pagination({ page, total, perPage, onChange }: PaginationProps) {
+  const { language } = useTheme();
   const totalPages = Math.ceil(total / perPage);
   if (totalPages <= 1) return null;
 
@@ -20,12 +22,13 @@ export default function Pagination({ page, total, perPage, onChange }: Paginatio
   return (
     <div className="flex items-center justify-between px-1 py-2">
       <p className="text-sm text-slate-400">
-        Showing {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} of {total}
+        {language === 'fr' ? 'Affichage' : 'Showing'} {Math.min((page - 1) * perPage + 1, total)}–{Math.min(page * perPage, total)} {language === 'fr' ? 'sur' : 'of'} {total}
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onChange(page - 1)}
           disabled={page === 1}
+          aria-label={language === 'fr' ? 'Page précédente' : 'Previous page'}
           className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -45,6 +48,7 @@ export default function Pagination({ page, total, perPage, onChange }: Paginatio
         <button
           onClick={() => onChange(page + 1)}
           disabled={page === totalPages}
+          aria-label={language === 'fr' ? 'Page suivante' : 'Next page'}
           className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
         >
           <ChevronRight className="w-4 h-4" />

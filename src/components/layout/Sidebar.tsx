@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 
 interface SidebarProps {
   currentPage: string;
@@ -39,6 +40,7 @@ const gatekeeperNavItems = [
 
 const caretakerNavItems = [
   { id: 'caretaker-dashboard',          labelKey: 'caretaker-dashboard',          icon: LayoutDashboard },
+  { id: 'caretaker-chat',               labelKey: 'managerCallCenter',            icon: MessageCircle },
   { id: 'invoices',                     labelKey: 'invoices',                     icon: StickyNote },
   { id: 'caretaker-visitors',           labelKey: 'caretaker-visitors',           icon: UserCheck },
   { id: 'caretaker-register-visitor',   labelKey: 'caretaker-register-visitor',   icon: UserPlus },
@@ -65,11 +67,12 @@ const propertyManagerNavItems = [
   { id: 'maintenance', labelKey: 'maintenance', icon: Wrench },
   { id: 'visitors', labelKey: 'visitors', icon: UserCheck },
   { id: 'reports', labelKey: 'reports', icon: ClipboardList },
+  { id: 'manager-chat', labelKey: 'managerCallCenter', icon: MessageCircle },
   { id: 'notifications', labelKey: 'notifications', icon: Bell },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }: SidebarProps) {
-  const { profile, signOut } = useAuth();
+  const { profile, tenantRecord, signOut } = useAuth();
   const { t, appName, appLogoUrl } = useTheme();
 
   const navItems = profile?.role === 'admin'
@@ -87,27 +90,25 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
   return (
     <>
       {!collapsed && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-20 lg:hidden" onClick={onToggle} />
+        <div className="fixed inset-x-0 bottom-0 top-14 bg-black/50 backdrop-blur-sm z-20 lg:inset-0" onClick={onToggle} />
       )}
 
-      <aside className={`fixed top-0 left-0 h-full z-30 flex flex-col
-          transition-all duration-300 ease-in-out ${
-          collapsed ? '-translate-x-full lg:translate-x-0 lg:w-[72px]' : 'translate-x-0 w-[260px]'
+      <aside       className={`app-sidebar fixed left-0 top-14 h-[calc(100dvh-3.5rem)] rounded-3xl border-r border-white/[0.08] z-30 flex flex-col overflow-hidden lg:top-0 lg:h-full lg:rounded-none lg:border-r-white/[0.08]
+          transition-[transform,width,border-radius] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          collapsed ? '-translate-x-full lg:translate-x-0 lg:w-[260px]' : 'translate-x-0 w-[260px]'
         }`}
         style={{
-          background: 'linear-gradient(180deg, #090b0d 0%, #101315 100%)',
-          borderRight: '1px solid rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(22px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(22px) saturate(150%)',
         }}
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 py-[18px] border-b border-white/[0.05] min-h-[72px]">
           <img src={appLogoUrl} alt={`${appName} logo`} className="h-9 w-9 shrink-0 object-contain" />
-          {!collapsed && (
-            <div className="overflow-hidden flex-1">
-              <p className="text-white font-bold text-sm leading-tight tracking-tight">{appName}</p>
-              <p className="text-slate-500 text-[10px] tracking-widest uppercase">{t('rentalManagement')}</p>
-            </div>
-          )}
+          <div className="overflow-hidden flex-1">
+            <p className="text-white font-bold text-sm leading-tight tracking-tight">{appName}</p>
+            <p className="text-slate-500 text-[10px] tracking-widest uppercase">{t('rentalManagement')}</p>
+          </div>
           <button
             onClick={onToggle}
             className="lg:hidden text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors ml-auto"
@@ -125,10 +126,9 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                title={collapsed ? t(item.labelKey) : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+                className={`app-sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
                   isActive
-                    ? 'text-slate-900'
+                    ? 'app-sidebar-item-active text-slate-900'
                     : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
                 }`}
                 style={isActive ? {
@@ -136,8 +136,10 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
                   boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
                 } : {}}
               >
-                <Icon className="shrink-0 w-[18px] h-[18px]" />
-                {!collapsed && <span className="truncate">{t(item.labelKey)}</span>}
+                {item.id === 'admin-chat' || item.id === 'manager-chat' || item.id === 'caretaker-chat' || item.id === 'tenant-chat'
+                  ? <WhatsAppIcon className="shrink-0 w-[18px] h-[18px]" />
+                  : <Icon className="shrink-0 w-[18px] h-[18px]" />}
+                <span className="truncate">{t(item.labelKey)}</span>
               </button>
             );
           })}
@@ -145,45 +147,30 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
 
         {/* User footer */}
         <div className="border-t border-white/[0.05] p-3">
-          {!collapsed ? (
-            <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.04] transition-colors group">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, #2c3a4f, #1a2434)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                {profile?.photo_url
+          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.04] transition-colors group">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #2c3a4f, #1a2434)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              {profile?.role === 'tenant'
+                ? tenantRecord?.photo_url
+                  ? <img src={tenantRecord.photo_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                  : <UserRound className="h-4 w-4 text-white" />
+                : profile?.photo_url
                   ? <img src={profile.photo_url} alt="" className="w-9 h-9 rounded-full object-cover" />
                   : <span className="text-sm font-bold text-white">{profile?.full_name?.charAt(0).toUpperCase()}</span>
-                }
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate leading-tight">{profile?.full_name}</p>
-                <p className="text-xs text-slate-500 truncate mt-0.5">{roleLabel}</p>
-              </div>
-              <button
-                onClick={signOut}
-                title={t('signOut')}
-                className="text-slate-600 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              }
             </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, #2c3a4f, #1a2434)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                {profile?.photo_url
-                  ? <img src={profile.photo_url} alt="" className="w-9 h-9 rounded-full object-cover" />
-                  : <span className="text-sm font-bold text-white">{profile?.full_name?.charAt(0).toUpperCase()}</span>
-                }
-              </div>
-              <button
-                onClick={signOut}
-                title={t('signOut')}
-                className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate leading-tight">{profile?.full_name}</p>
+              <p className="text-xs text-slate-500 truncate mt-0.5">{roleLabel}</p>
             </div>
-          )}
+            <button
+              onClick={signOut}
+              title={t('signOut')}
+              className="text-slate-600 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </aside>
     </>

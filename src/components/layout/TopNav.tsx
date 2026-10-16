@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, Bell, Search, Menu, Globe, DollarSign, X } from 'lucide-react';
+import { ArrowRight, Bell, Search, Menu, DollarSign, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme, CURRENCY_SYMBOLS, Currency } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabase';
 interface TopNavProps {
   onMenuToggle: () => void;
   onNavigate: (page: string) => void;
-  sidebarCollapsed: boolean;
 }
 
 const CURRENCIES: Currency[] = ['BIF', 'KSh', 'Frw', 'Ugx', 'Tsh', 'Cdf', 'USD', 'EUR'];
@@ -62,6 +61,7 @@ const SEARCH_PAGES: Record<string, Array<{ page: string; labelKey: string }>> = 
   ],
   property_manager: [
     { page: 'manager-dashboard', labelKey: 'dashboard' },
+    { page: 'manager-chat', labelKey: 'managerCallCenter' },
     { page: 'houses', labelKey: 'houses' },
     { page: 'tenants', labelKey: 'tenants' },
     { page: 'invoices', labelKey: 'invoices' },
@@ -73,6 +73,7 @@ const SEARCH_PAGES: Record<string, Array<{ page: string; labelKey: string }>> = 
   ],
   caretaker: [
     { page: 'caretaker-dashboard', labelKey: 'dashboard' },
+    { page: 'caretaker-chat', labelKey: 'managerCallCenter' },
     { page: 'invoices', labelKey: 'invoices' },
     { page: 'caretaker-visitors', labelKey: 'visitors' },
     { page: 'caretaker-register-visitor', labelKey: 'caretaker-register-visitor' },
@@ -94,8 +95,8 @@ const SEARCH_PAGES: Record<string, Array<{ page: string; labelKey: string }>> = 
   ],
 };
 
-export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: TopNavProps) {
-  const { profile } = useAuth();
+export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
+  const { profile, tenantRecord } = useAuth();
   const {
     language, setLanguage, t, currency, setCurrency, appLogoUrl,
     currencyRatesAvailable, currencyRatesLoading, currencyRatesError, refreshCurrencyRates,
@@ -306,9 +307,7 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
 
   return (
     <header
-      className={`fixed top-0 right-0 z-10 h-[72px] flex items-center gap-2 sm:gap-3 px-3 sm:px-4 md:px-6 transition-all duration-300 ease-in-out ${
-        sidebarCollapsed ? 'left-0 lg:left-[72px]' : 'left-0 lg:left-[260px]'
-      }`}
+      className="phone-app-navbar fixed left-0 right-0 top-10 z-10 flex h-[72px] items-center gap-2 px-3 transition-all duration-300 ease-in-out sm:gap-3 sm:px-4 md:top-0 md:px-6 lg:left-[260px]"
       style={{
         background: 'rgba(226,232,240,0.78)',
         backdropFilter: 'blur(22px) saturate(160%)',
@@ -320,7 +319,8 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
     >
       <button
         onClick={onMenuToggle}
-        className="lg:hidden text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-100 transition-colors"
+        aria-label={language === 'fr' ? 'Ouvrir le menu' : 'Open menu'}
+        className="phone-menu-toggle lg:hidden text-slate-500 hover:text-slate-900 p-2 rounded-xl hover:bg-slate-100 transition-colors"
       >
         <Menu className="w-5 h-5" />
       </button>
@@ -331,6 +331,7 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
+            className="phone-navbar-search w-full rounded-xl py-2.5 pl-10 pr-9 text-xs text-slate-900 placeholder-slate-400 transition-all focus:outline-none sm:text-sm"
             value={searchTerm}
             placeholder={t('searchPlaceholder')}
             role="combobox"
@@ -360,7 +361,6 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
                 selectSearchResult(searchResults[activeResult]);
               }
             }}
-            className="w-full text-xs sm:text-sm text-slate-900 placeholder-slate-400 rounded-xl py-2.5 pl-10 pr-9 focus:outline-none transition-all"
             style={{ background: '#f8fafc', border: '1px solid #e5e7eb' }}
             onBlur={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
           />
@@ -428,7 +428,7 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
           <div className="relative">
             <button
               onClick={() => { setCurrencyOpen(o => !o); setLangOpen(false); }}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs font-bold tracking-widest"
+              className="phone-navbar-control flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs font-bold tracking-widest"
               style={{ border: '1px solid #e5e7eb' }}
               title={t('currency')}
             >
@@ -437,7 +437,7 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
             </button>
             {currencyOpen && (
               <div
-                className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-50 min-w-[110px] animate-fade-up"
+                className="phone-navbar-dropdown absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-50 min-w-[110px] animate-fade-up"
                 style={{ background: '#ffffff', border: '1px solid #e5e7eb', boxShadow: '0 16px 48px rgba(0,0,0,0.12)' }}
               >
                 {!currencyRatesAvailable && (
@@ -475,15 +475,15 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
         <div className="relative">
           <button
             onClick={() => { setLangOpen(o => !o); setCurrencyOpen(false); }}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs font-bold tracking-widest"
-            style={{ border: '1px solid #e5e7eb' }}
+            aria-label={language === 'en' ? 'Language: English' : 'Langue : Français'}
+            className="phone-navbar-control flex items-center gap-1.5 px-1.5 py-2 text-slate-500 hover:text-slate-900 transition-all text-xs font-bold"
           >
-            <Globe className="w-3.5 h-3.5 shrink-0" />
-            <span className="uppercase">{language}</span>
+            <span aria-hidden="true" className="text-base leading-none">{language === 'en' ? '🇬🇧' : '🇫🇷'}</span>
+            <span>{language === 'en' ? 'UK' : 'FR'}</span>
           </button>
           {langOpen && (
             <div
-              className="absolute right-0 top-full mt-2 rounded-xl shadow-2xl overflow-hidden z-50 min-w-[130px] animate-fade-up"
+              className="phone-navbar-dropdown absolute right-0 top-full mt-2 rounded-xl shadow-2xl overflow-hidden z-50 min-w-[130px] animate-fade-up"
               style={{ background: '#ffffff', border: '1px solid #e5e7eb', boxShadow: '0 16px 48px rgba(0,0,0,0.12)' }}
             >
               {(['en', 'fr'] as const).map(lang => (
@@ -496,7 +496,7 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
                   style={language === lang ? { background: 'rgba(16,185,129,0.08)' } : {}}
                 >
                   <span>{lang === 'en' ? '🇬🇧' : '🇫🇷'}</span>
-                  {lang === 'en' ? 'English' : 'Français'}
+                  {lang === 'en' ? 'English (UK)' : 'Français'}
                 </button>
               ))}
             </div>
@@ -506,7 +506,7 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
         {/* Notifications bell */}
         <button
           onClick={() => { onNavigate('notifications'); closePanels(); }}
-          className="relative p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
+          className="phone-notification-toggle relative p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
         >
           <Bell className="w-5 h-5" />
           {unreadCount > 0 && (
@@ -528,7 +528,11 @@ export default function TopNav({ onMenuToggle, onNavigate, sidebarCollapsed }: T
             className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full"
             style={{ background: '#000000', border: '1.5px solid rgba(255,255,255,0.15)' }}
           >
-            <img src={appLogoUrl} alt="" className="h-full w-full rounded-full object-contain" />
+            {profile?.role === 'tenant'
+              ? tenantRecord?.photo_url
+                ? <img src={tenantRecord.photo_url} alt="" className="h-full w-full rounded-full object-cover" />
+                : <UserRound className="h-4 w-4 text-white" />
+              : <img src={appLogoUrl} alt="" className="h-full w-full rounded-full object-contain" />}
           </div>
           <div className="hidden md:block">
             <p className="text-sm font-semibold text-slate-900 leading-tight">{profile?.full_name}</p>

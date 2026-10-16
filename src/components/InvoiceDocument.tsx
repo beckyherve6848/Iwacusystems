@@ -11,11 +11,11 @@ export default function InvoiceDocument({
 }) {
   const { appName, appLogoUrl, propertyPhone, propertyAddress, fmt, t, language } = useTheme();
   const month = new Date(`${invoice.rent_month.slice(0, 7)}-01`).toLocaleDateString(
-    language === 'fr' ? 'fr-FR' : 'en-US',
+    language === 'fr' ? 'fr-FR' : 'en-GB',
     { month: 'long', year: 'numeric' },
   );
 
-  const dateLocale = language === 'fr' ? 'fr-FR' : 'en-US';
+  const dateLocale = language === 'fr' ? 'fr-FR' : 'en-GB';
   const dueDate = new Date(`${invoice.due_date}T00:00:00`).toLocaleDateString(dateLocale, {
     day: 'numeric',
     month: 'long',
@@ -45,8 +45,8 @@ export default function InvoiceDocument({
         <div className="shrink-0 text-right">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-700">{t('invoice')}</p>
           <p className="mt-1 text-xl font-bold tracking-tight">{invoice.invoice_number}</p>
-          <span className={`invoice-status mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
-            {t(invoice.status)}
+          <span className={`invoice-status mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-800' : invoice.status === 'partial' ? 'bg-blue-50 text-blue-800' : 'bg-amber-50 text-amber-800'}`}>
+            {invoice.status === 'partial' ? t('partiallyUnpaid') : t(invoice.status)}
           </span>
         </div>
       </header>
@@ -75,8 +75,9 @@ export default function InvoiceDocument({
 
       <section className="mt-8">
         <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-          {language === 'fr' ? 'Détail des frais' : 'Charges breakdown'}
+          {t('rent')} + {t('additionalCharges')}
         </h2>
+        <p className="mb-3 text-xs text-slate-500">{t('rentBalanceCreditNote')}</p>
         <table className="invoice-items w-full border-collapse text-sm">
           <thead>
             <tr className="border-y border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600">
@@ -87,8 +88,8 @@ export default function InvoiceDocument({
           <tbody>
             {[
               [t('rent'), invoice.rent_amount],
-              [t('water'), invoice.water_amount],
-              [t('electricity'), invoice.electricity_amount],
+              [`${t('additionalCharges')} — ${t('water')}`, invoice.water_amount],
+              [`${t('additionalCharges')} — ${t('electricity')}`, invoice.electricity_amount],
             ].map(([label, amount]) => (
               <tr key={label} className="border-b border-slate-100">
                 <td className="px-4 py-4 font-medium">{label}</td>
@@ -101,6 +102,38 @@ export default function InvoiceDocument({
               <td className="px-4 py-4 text-sm font-bold">{t('totalDue')}</td>
               <td className="px-4 py-4 text-right text-lg font-extrabold tabular-nums">{fmt(Number(invoice.total_amount))}</td>
             </tr>
+            {Number(invoice.rent_balance) > 0 && (
+              <tr>
+                <td className="px-4 py-3 text-sm font-semibold text-amber-800">{t('rentBalanceDue')}</td>
+                <td className="px-4 py-3 text-right font-semibold text-amber-800 tabular-nums">{fmt(Number(invoice.rent_balance))}</td>
+              </tr>
+            )}
+            {Number(invoice.water_balance) > 0 && (
+              <tr>
+                <td className="px-4 py-3 text-sm font-semibold text-amber-800">{t('waterBalanceDue')}</td>
+                <td className="px-4 py-3 text-right font-semibold text-amber-800 tabular-nums">{fmt(Number(invoice.water_balance))}</td>
+              </tr>
+            )}
+            {Number(invoice.electricity_balance) > 0 && (
+              <tr>
+                <td className="px-4 py-3 text-sm font-semibold text-amber-800">{t('electricityBalanceDue')}</td>
+                <td className="px-4 py-3 text-right font-semibold text-amber-800 tabular-nums">{fmt(Number(invoice.electricity_balance))}</td>
+              </tr>
+            )}
+            {invoice.status !== 'paid' && (
+              <tr>
+                <td className="px-4 py-3 text-sm font-bold text-red-800">{t('totalBalanceDue')}</td>
+                <td className="px-4 py-3 text-right text-base font-extrabold text-red-800 tabular-nums">
+                  {fmt(Number(invoice.total_balance_due ?? invoice.rent_balance))}
+                </td>
+              </tr>
+            )}
+            {Number(invoice.rent_credit) > 0 && (
+              <tr>
+                <td className="px-4 py-3 text-sm font-semibold text-emerald-800">{t('rentCredit')}</td>
+                <td className="px-4 py-3 text-right font-semibold text-emerald-800 tabular-nums">{fmt(Number(invoice.rent_credit))}</td>
+              </tr>
+            )}
           </tfoot>
         </table>
       </section>
@@ -116,7 +149,9 @@ export default function InvoiceDocument({
         <p className="text-sm font-semibold text-slate-800">
           {invoice.status === 'paid'
             ? (language === 'fr' ? 'Merci pour votre paiement.' : 'Thank you for your payment.')
-            : (language === 'fr' ? 'Veuillez régler cette facture avant la date d’échéance.' : 'Please settle this invoice by the due date.')}
+            : invoice.status === 'partial'
+              ? (language === 'fr' ? 'Cette facture est partiellement payée. Veuillez régler le solde restant indiqué ci-dessus.' : 'This invoice is partially paid. Please pay the remaining balance shown above.')
+              : (language === 'fr' ? 'Veuillez régler cette facture avant la date d’échéance.' : 'Please settle this invoice by the due date.')}
         </p>
         <p className="mt-3 text-[10px] text-slate-400">
           {language === 'fr' ? 'Facture générée le' : 'Invoice generated on'} {issueDate} · {appName}

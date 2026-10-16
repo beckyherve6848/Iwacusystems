@@ -42,7 +42,14 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
   const [propertyAddress, setPropertyAddress] = useState('');
   const [savingProperty, setSavingProperty] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
-  const { fmt } = useTheme();
+  const { fmt, t, language } = useTheme();
+  const text = (english: string, french: string) => language === 'fr' ? french : english;
+  const houseStatus = (status: string) => ({
+    vacant: text('Vacant', 'Libre'),
+    occupied: text('Occupied', 'Occupée'),
+    reserved: text('Reserved', 'Réservée'),
+    maintenance: text('Maintenance', 'En maintenance'),
+  }[status] ?? status);
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
@@ -74,10 +81,10 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
   useEffect(() => {
     supabase.from('properties').select('id, name, address').order('name')
       .then(({ data, error }) => {
-        if (error) addToast(`Unable to load properties: ${error.message}`, 'error');
+        if (error) addToast(`${language === 'fr' ? 'Impossible de charger les biens immobiliers' : 'Unable to load properties'}: ${error.message}`, 'error');
         else setProperties(data ?? []);
       });
-  }, [addToast]);
+  }, [addToast, language]);
 
   const openAdd = () => { setForm({ ...emptyForm }); setEditingId(null); setModalOpen(true); };
   const openEdit = (h: House) => {
@@ -98,8 +105,8 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
   };
 
   const handleSave = async () => {
-    if (!form.house_number.trim()) { addToast('House number is required', 'error'); return; }
-    if (!form.property_id) { addToast('Select the property this house belongs to.', 'error'); return; }
+    if (!form.house_number.trim()) { addToast(text('House number is required', 'Le numéro de maison est obligatoire.'), 'error'); return; }
+    if (!form.property_id) { addToast(text('Select the property this house belongs to.', 'Sélectionnez le bien immobilier auquel appartient cette maison.'), 'error'); return; }
     setSaving(true);
     const payload = {
       house_number: form.house_number.trim(),
@@ -117,13 +124,13 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
       ? await supabase.from('houses').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingId)
       : await supabase.from('houses').insert(payload);
     if (error) { addToast(error.message, 'error'); }
-    else { addToast(editingId ? 'House updated' : 'House added', 'success'); setModalOpen(false); load(); }
+    else { addToast(editingId ? text('House updated', 'Maison mise à jour') : text('House added', 'Maison ajoutée'), 'success'); setModalOpen(false); load(); }
     setSaving(false);
   };
 
   const handleCreateProperty = async () => {
     if (!propertyName.trim()) {
-      addToast('Property name is required.', 'error');
+      addToast(text('Property name is required.', 'Le nom du bien immobilier est obligatoire.'), 'error');
       return;
     }
     setSavingProperty(true);
@@ -132,14 +139,14 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
       .select('id, name, address')
       .single();
     if (error) {
-      addToast(`Unable to create property: ${error.message}`, 'error');
+      addToast(`${text('Unable to create property', 'Impossible de créer le bien immobilier')}: ${error.message}`, 'error');
     } else {
       setProperties(current => [...current, data].sort((left, right) => left.name.localeCompare(right.name)));
       setForm(current => ({ ...current, property_id: data.id }));
       setPropertyName('');
       setPropertyAddress('');
       setPropertyModalOpen(false);
-      addToast('Property created. Now add houses to it.', 'success');
+      addToast(text('Property created. Now add houses to it.', 'Bien immobilier créé. Vous pouvez maintenant y ajouter des maisons.'), 'success');
     }
     setSavingProperty(false);
   };
@@ -147,8 +154,8 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
   const handleDelete = async () => {
     if (!deleteId) return;
     const { error } = await supabase.from('houses').delete().eq('id', deleteId);
-    if (error) addToast('Cannot delete: house may have active tenants or payments', 'error');
-    else { addToast('House deleted', 'success'); load(); }
+    if (error) addToast(text('Cannot delete: house may have active tenants or payments', 'Suppression impossible : la maison peut avoir des locataires actifs ou des paiements.'), 'error');
+    else { addToast(text('House deleted', 'Maison supprimée'), 'success'); load(); }
     setDeleteId(null);
   };
 
@@ -158,13 +165,13 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Properties &amp; Houses</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Create properties first, then add their rental houses.</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('propertiesAndHouses')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{text('Create properties first, then add their rental houses.', 'Créez d’abord des biens immobiliers, puis ajoutez-y les maisons à louer.')}</p>
         </div>
         {!managerMode && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" icon={<Building2 className="w-4 h-4" />} onClick={() => setPropertyModalOpen(true)}>Add Property</Button>
-            <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>Add House</Button>
+            <Button variant="outline" icon={<Building2 className="w-4 h-4" />} onClick={() => setPropertyModalOpen(true)}>{t('addProperty')}</Button>
+            <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>{t('addHouse')}</Button>
           </div>
         )}
       </div>
@@ -174,7 +181,7 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
-            placeholder="Search house number..."
+            placeholder={text('Search house number...', 'Rechercher un numéro de maison...')}
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-white border border-slate-200 text-slate-900 placeholder-slate-500 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -185,11 +192,11 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
           onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
         >
-          <option value="">All Statuses</option>
-          <option value="vacant">Vacant</option>
-          <option value="occupied">Occupied</option>
-          <option value="reserved">Reserved</option>
-          <option value="maintenance">Maintenance</option>
+          <option value="">{text('All Statuses', 'Tous les statuts')}</option>
+          <option value="vacant">{text('Vacant', 'Libre')}</option>
+          <option value="occupied">{text('Occupied', 'Occupée')}</option>
+          <option value="reserved">{text('Reserved', 'Réservée')}</option>
+          <option value="maintenance">{text('Maintenance', 'En maintenance')}</option>
         </select>
       </div>
 
@@ -199,13 +206,13 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-200">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">House</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Property</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Category</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">Floor/Block</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Rent</th>
-                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('House', 'Maison')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Property', 'Bien immobilier')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">{text('Category', 'Catégorie')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">{text('Floor/Block', 'Étage/Bloc')}</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Rent', 'Loyer')}</th>
+                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Status', 'Statut')}</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Actions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -215,7 +222,7 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
                 </td></tr>
               )}
               {!loading && houses.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-500">No houses found</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-slate-500">{text('No houses found', 'Aucune maison trouvée')}</td></tr>
               )}
               {houses.map(h => (
                 <tr key={h.id} className="hover:bg-slate-50 transition-colors">
@@ -234,21 +241,21 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-sm font-medium text-slate-700">
-                    {h.properties?.name ?? 'Unassigned'}
+                    {h.properties?.name ?? text('Unassigned', 'Non attribué')}
                   </td>
                   <td className="px-5 py-3.5 hidden md:table-cell text-sm text-slate-700">
                     {(h.house_categories as any)?.name ?? '—'}
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-sm text-slate-500">
-                    {[h.floor && `Floor ${h.floor}`, h.block_wing].filter(Boolean).join(' · ') || '—'}
+                    {[h.floor && `${text('Floor', 'Étage')} ${h.floor}`, h.block_wing].filter(Boolean).join(' · ') || '—'}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <p className="text-sm font-semibold text-slate-900"><span className="money-value">{fmt(Number(h.monthly_rent))}</span></p>
-                    <p className="text-xs text-slate-500">Dep: <span className="money-value">{fmt(Number(h.security_deposit))}</span></p>
+                    <p className="text-xs text-slate-500">{text('Deposit:', 'Dépôt :')} <span className="money-value">{fmt(Number(h.security_deposit))}</span></p>
                   </td>
                   <td className="px-5 py-3.5 text-center">
                     <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[h.status]}`}>
-                      {h.status}
+                      {houseStatus(h.status)}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
@@ -274,61 +281,61 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
       </div>
 
       {/* Add/Edit Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit House' : 'Add House'} size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? text('Edit House', 'Modifier la maison') : t('addHouse')} size="lg">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input label="House Number *" placeholder="e.g. A-101" value={form.house_number} onChange={set('house_number')} />
-          <Select label="Property *" value={form.property_id} onChange={set('property_id')}>
-            <option value="">Select property</option>
+          <Input label={text('House Number *', 'Numéro de maison *')} placeholder={text('e.g. A-101', 'ex. A-101')} value={form.house_number} onChange={set('house_number')} />
+          <Select label={`${text('Property', 'Bien immobilier')} *`} value={form.property_id} onChange={set('property_id')}>
+            <option value="">{text('Select property', 'Sélectionner un bien immobilier')}</option>
             {properties.map(property => <option key={property.id} value={property.id}>{property.name}</option>)}
           </Select>
           {properties.length === 0 && !managerMode && (
             <p className="sm:col-span-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-              Create a Property first, then add houses under it.
+              {text('Create a Property first, then add houses under it.', 'Créez d’abord un bien immobilier, puis ajoutez-y des maisons.')}
             </p>
           )}
-          <Input label="Block / Wing" placeholder="e.g. Block A" value={form.block_wing} onChange={set('block_wing')} />
-          <Input label="Floor" placeholder="e.g. Ground, 1st" value={form.floor} onChange={set('floor')} />
-          <Select label="Category" value={form.category_id} onChange={set('category_id')}>
-            <option value="">Select category</option>
+          <Input label={text('Block / Wing', 'Bloc / Aile')} placeholder={text('e.g. Block A', 'ex. Bloc A')} value={form.block_wing} onChange={set('block_wing')} />
+          <Input label={text('Floor', 'Étage')} placeholder={text('e.g. Ground, 1st', 'ex. Rez-de-chaussée, 1er')} value={form.floor} onChange={set('floor')} />
+          <Select label={text('Category', 'Catégorie')} value={form.category_id} onChange={set('category_id')}>
+            <option value="">{text('Select category', 'Sélectionner une catégorie')}</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
-          <Input label="Monthly Rent (Fbu)" type="number" placeholder="0" value={form.monthly_rent} onChange={set('monthly_rent')} />
-          <Input label="Security Deposit (Fbu)" type="number" placeholder="0" value={form.security_deposit} onChange={set('security_deposit')} />
-          <Select label="Status" value={form.status} onChange={set('status')}>
-            <option value="vacant">Vacant</option>
-            <option value="occupied">Occupied</option>
-            <option value="reserved">Reserved</option>
-            <option value="maintenance">Maintenance</option>
+          <Input label={text('Monthly Rent (Fbu)', 'Loyer mensuel (Fbu)')} type="number" placeholder="0" value={form.monthly_rent} onChange={set('monthly_rent')} />
+          <Input label={text('Security Deposit (Fbu)', 'Dépôt de garantie (Fbu)')} type="number" placeholder="0" value={form.security_deposit} onChange={set('security_deposit')} />
+          <Select label={text('Status', 'Statut')} value={form.status} onChange={set('status')}>
+            <option value="vacant">{text('Vacant', 'Libre')}</option>
+            <option value="occupied">{text('Occupied', 'Occupée')}</option>
+            <option value="reserved">{text('Reserved', 'Réservée')}</option>
+            <option value="maintenance">{text('Maintenance', 'En maintenance')}</option>
           </Select>
-          <Input label="Image URL" placeholder="https://..." value={form.image_url} onChange={set('image_url')} />
+          <Input label={text('Image URL', "URL de l’image")} placeholder="https://..." value={form.image_url} onChange={set('image_url')} />
           <div className="sm:col-span-2">
-            <Textarea label="Description" placeholder="Describe the unit..." value={form.description} onChange={set('description')} rows={3} />
+            <Textarea label={text('Description', 'Description')} placeholder={text('Describe the unit...', 'Décrivez le logement...')} value={form.description} onChange={set('description')} rows={3} />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
-          <Button loading={saving} onClick={handleSave}>{editingId ? 'Save Changes' : 'Add House'}</Button>
+          <Button variant="ghost" onClick={() => setModalOpen(false)}>{text('Cancel', 'Annuler')}</Button>
+          <Button loading={saving} onClick={handleSave}>{editingId ? text('Save Changes', 'Enregistrer les modifications') : t('addHouse')}</Button>
         </div>
       </Modal>
 
-      <Modal open={propertyModalOpen} onClose={() => setPropertyModalOpen(false)} title="Add Property" size="md">
+      <Modal open={propertyModalOpen} onClose={() => setPropertyModalOpen(false)} title={t('addProperty')} size="md">
         <div className="space-y-4">
-          <p className="text-sm text-slate-500">A property is the building or location that contains one or more rental houses.</p>
-          <Input label="Property name *" placeholder="e.g. Mirango" value={propertyName} onChange={event => setPropertyName(event.target.value)} />
-          <Input label="Property address (optional)" placeholder="e.g. Mirango, Bujumbura" value={propertyAddress} onChange={event => setPropertyAddress(event.target.value)} />
+          <p className="text-sm text-slate-500">{text('A property is the building or location that contains one or more rental houses.', 'Un bien immobilier est un bâtiment ou un emplacement qui contient une ou plusieurs maisons à louer.')}</p>
+          <Input label={text('Property name *', 'Nom du bien immobilier *')} placeholder={text('e.g. Mirango', 'ex. Mirango')} value={propertyName} onChange={event => setPropertyName(event.target.value)} />
+          <Input label={text('Property address (optional)', 'Adresse du bien immobilier (facultatif)')} placeholder={text('e.g. Mirango, Bujumbura', 'ex. Mirango, Bujumbura')} value={propertyAddress} onChange={event => setPropertyAddress(event.target.value)} />
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
-            <Button variant="ghost" onClick={() => setPropertyModalOpen(false)}>Cancel</Button>
-            <Button loading={savingProperty} onClick={handleCreateProperty}>Create Property</Button>
+            <Button variant="ghost" onClick={() => setPropertyModalOpen(false)}>{text('Cancel', 'Annuler')}</Button>
+            <Button loading={savingProperty} onClick={handleCreateProperty}>{text('Create Property', 'Créer le bien immobilier')}</Button>
           </div>
         </div>
       </Modal>
 
       {/* Delete Confirm */}
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete House" size="sm">
-        <p className="text-slate-700 mb-6">Are you sure you want to delete this house? This cannot be undone.</p>
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title={text('Delete House', 'Supprimer la maison')} size="sm">
+        <p className="text-slate-700 mb-6">{text('Are you sure you want to delete this house? This cannot be undone.', 'Voulez-vous vraiment supprimer cette maison ? Cette action est irréversible.')}</p>
         <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button variant="danger" onClick={handleDelete}>Delete</Button>
+          <Button variant="ghost" onClick={() => setDeleteId(null)}>{text('Cancel', 'Annuler')}</Button>
+          <Button variant="danger" onClick={handleDelete}>{text('Delete', 'Supprimer')}</Button>
         </div>
       </Modal>
     </div>

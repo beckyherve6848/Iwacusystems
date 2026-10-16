@@ -1,22 +1,66 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Home, CreditCard, FileText, Wrench, User, MessageCircle, Bell } from 'lucide-react';
+import { Home, CreditCard, FileText, Wrench, User, MessageCircle, Bell, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
 
+type InvoiceNotification = {
+  id: string;
+  invoice_id: string | null;
+  title: string;
+  message: string;
+  created_at: string;
+  is_read: boolean;
+};
+
 export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string) => void }) {
   const { user, profile } = useAuth();
-  const { t, fmt } = useTheme();
+  const { t, fmt, language } = useTheme();
   const [tenant, setTenant] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [customPaymentMethods, setCustomPaymentMethods] = useState<CustomPaymentMethod[]>([]);
   const [maintenanceCount, setMaintenanceCount] = useState(0);
+  const [unpaidInvoiceCount, setUnpaidInvoiceCount] = useState(0);
+  const [invoiceNotifications, setInvoiceNotifications] = useState<InvoiceNotification[]>([]);
   const { toasts, addToast, removeToast } = useToast();
+
+  const loadInvoiceDashboardData = useCallback(async (tenantId: string, userId: string) => {
+    const [invoiceResult, notificationResult] = await Promise.all([
+      supabase
+        .from('utility_invoices')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .in('status', ['unpaid', 'partial']),
+      supabase
+        .from('notifications')
+        .select('id, invoice_id, title, message, created_at, is_read')
+        .eq('user_id', userId)
+        .eq('link', 'tenant-invoices')
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]);
+    if (invoiceResult.error) {
+      addToast(`Unable to load unpaid invoices: ${invoiceResult.error.message}`, 'error');
+      setUnpaidInvoiceCount(0);
+      setInvoiceNotifications([]);
+    } else {
+      const unpaidInvoiceIds = new Set((invoiceResult.data ?? []).map(invoice => invoice.id));
+      setUnpaidInvoiceCount(unpaidInvoiceIds.size);
+      if (!notificationResult.error) {
+        setInvoiceNotifications((notificationResult.data ?? []).filter(
+          notification => notification.invoice_id && unpaidInvoiceIds.has(notification.invoice_id),
+        ));
+      }
+    }
+    if (notificationResult.error) {
+      addToast(`Unable to load invoice notifications: ${notificationResult.error.message}`, 'error');
+    }
+  }, [addToast]);
 
   useEffect(() => {
     if (!user) return;
@@ -52,6 +96,42 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
     });
   }, [user, addToast]);
 
+  useEffect(() => {
+    if (!tenant?.id || !user) return;
+    void loadInvoiceDashboardData(tenant.id, user.id);
+    const channel = supabase
+      .channel(`tenant-dashboard-invoices-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        () => { void loadInvoiceDashboardData(tenant.id, user.id); },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'utility_invoices', filter: `tenant_id=eq.${tenant.id}` },
+        () => { void loadInvoiceDashboardData(tenant.id, user.id); },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [tenant?.id, user, loadInvoiceDashboardData]);
+
+  const openInvoiceNotification = async (notification: InvoiceNotification) => {
+    if (!notification.is_read) {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notification.id);
+      if (error) {
+        addToast(`Unable to mark invoice notification as read: ${error.message}`, 'error');
+      } else {
+        setInvoiceNotifications(current => current.map(item =>
+          item.id === notification.id ? { ...item, is_read: true } : item,
+        ));
+      }
+    }
+    onNavigate('tenant-invoices');
+  };
+
   const statusColors: Record<string, string> = {
     paid: 'bg-emerald-50 text-emerald-700',
     pending: 'bg-amber-50 text-amber-700',
@@ -69,6 +149,48 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
         title={t('myDashboard')}
         subtitle={`${t('welcomeBack')}, ${profile?.full_name ?? ''}`}
       />
+
+      {invoiceNotifications.map(notification => (
+        <button
+          key={notification.id}
+          type="button"
+          onClick={() => { void openInvoiceNotification(notification); }}
+          className={`flex w-full items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-left text-red-800 transition-colors hover:bg-red-100 ${notification.is_read ? 'opacity-75' : ''}`}
+        >
+          <AlertCircle className="mt-0.5 h-6 w-6 shrink-0 text-red-600" />
+          <span className="flex-1">
+            <span className="block font-semibold">{notification.title}</span>
+            <span className="mt-0.5 block text-sm">{notification.message}</span>
+          </span>
+          <span className="shrink-0 text-sm font-semibold underline">
+            {language === 'fr' ? 'Voir la facture' : 'View invoice'}
+          </span>
+        </button>
+      ))}
+      {unpaidInvoiceCount > 0 && invoiceNotifications.length === 0 && (
+        <button
+          type="button"
+          onClick={() => onNavigate('tenant-invoices')}
+          className="flex w-full items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-left text-red-800 transition-colors hover:bg-red-100"
+        >
+          <AlertCircle className="h-6 w-6 shrink-0 text-red-600" />
+          <span className="flex-1">
+            <span className="block font-semibold">
+              {unpaidInvoiceCount} {unpaidInvoiceCount === 1
+                ? (language === 'fr' ? 'facture impayée' : 'unpaid invoice')
+                : (language === 'fr' ? 'factures impayées' : 'unpaid invoices')}
+            </span>
+            <span className="block text-sm">
+              {language === 'fr'
+                ? 'Consultez vos factures et les montants restant à payer.'
+                : 'Review your invoices and the amounts still due.'}
+            </span>
+          </span>
+          <span className="shrink-0 text-sm font-semibold underline">
+            {language === 'fr' ? 'Voir les factures' : 'View invoices'}
+          </span>
+        </button>
+      )}
 
       {/* Quick links */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -129,7 +251,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
               <div className="flex justify-between"><span className="text-slate-400">{t('houseNumber')}</span><span className="text-slate-900 font-semibold">{tenant.houses.house_number}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">{t('category')}</span><span className="text-slate-900">{tenant.houses.house_categories?.name ?? '—'}</span></div>
               <div className="flex justify-between gap-2"><span className="text-slate-400">{t('monthlyRent')}</span><span className="text-slate-900 font-semibold money-value">{fmt(Number(tenant.monthly_rent ?? tenant.houses.monthly_rent))}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">{t('moveIn')}</span><span className="text-slate-900">{tenant.move_in_date ? new Date(tenant.move_in_date).toLocaleDateString() : '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{t('moveIn')}</span><span className="text-slate-900">{tenant.move_in_date ? new Date(tenant.move_in_date).toLocaleDateString('en-GB') : '—'}</span></div>
             </div>
           ) : <p className="text-slate-400 text-sm">{t('noHouseAssigned')}</p>}
         </div>

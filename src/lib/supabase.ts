@@ -18,6 +18,7 @@ export interface Profile {
   residential_address?: string | null;
   profile_photo_path?: string | null;
   identity_document_path?: string | null;
+  signature_image_path?: string | null;
   role: UserRole;
   is_active: boolean;
   created_at: string;
@@ -88,13 +89,21 @@ export interface Payment {
   due_date: string;
   amount_due: number;
   amount_paid: number;
+  rent_paid_amount: number;
+  water_due_amount: number;
+  electricity_due_amount: number;
+  water_paid_amount: number;
+  electricity_paid_amount: number;
   balance: number;
   late_fee: number;
+  recorded_by_name?: string | null;
+  recorded_by_phone?: string | null;
   payment_method?: string;
   payment_proof_url?: string;
   status: 'paid' | 'pending' | 'partial' | 'overdue';
   notes?: string;
   created_at: string;
+  total_balance_due?: number;
   tenants?: { full_name: string; tenant_code: string };
   houses?: { house_number: string };
 }
@@ -108,9 +117,15 @@ export interface UtilityInvoice {
   rent_amount: number;
   water_amount: number;
   electricity_amount: number;
+  rent_paid_amount: number;
+  rent_balance: number;
+  rent_credit: number;
+  water_balance?: number;
+  electricity_balance?: number;
+  total_balance_due?: number;
   total_amount: number;
   due_date: string;
-  status: 'unpaid' | 'paid';
+  status: 'unpaid' | 'partial' | 'paid';
   notes?: string | null;
   created_at: string;
   tenants?: {

@@ -18,6 +18,8 @@ export function hasExactImageDimensions(file: File, width: number, height: numbe
   });
 }
 
-export function imageFileExtension(file: File): 'png' | 'jpg' {
-  return file.type === 'image/png' ? 'png' : 'jpg';
+export function imageFileExtension(file: File): 'png' | 'jpg' | 'svg' {
+  if (file.type === 'image/png') return 'png';
+  if (file.type === 'image/svg+xml') return 'svg';
+  return 'jpg';
 }

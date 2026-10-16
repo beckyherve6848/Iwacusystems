@@ -5,6 +5,7 @@ import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import PrivateDocumentLink from '@/components/identity/PrivateDocumentLink';
 import { hasExactImageDimensions, imageFileExtension, isPngOrJpeg } from '@/lib/identityFiles';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export interface StaffHouse {
   id: string;
@@ -71,6 +72,8 @@ export default function StaffIdentityForm({
   onClose,
   onSaved,
 }: Props) {
+  const { language } = useTheme();
+  const text = (english: string, french: string) => language === 'fr' ? french : english;
   const [fullName, setFullName] = useState(initialProfile?.full_name ?? '');
   const [staffId, setStaffId] = useState(initialProfile?.staff_id ?? '');
   const [nationalId, setNationalId] = useState(initialProfile?.national_id ?? '');
@@ -83,10 +86,12 @@ export default function StaffIdentityForm({
   );
   const [photo, setPhoto] = useState<File | null>(null);
   const [document, setDocument] = useState<File | null>(null);
+  const [signature, setSignature] = useState<File | null>(null);
   const [createdProfileId, setCreatedProfileId] = useState<string | null>(null);
   const [createdStaffId, setCreatedStaffId] = useState<string | null>(null);
   const [currentPhotoPath, setCurrentPhotoPath] = useState(initialProfile?.profile_photo_path ?? null);
   const [currentDocumentPath, setCurrentDocumentPath] = useState(initialProfile?.identity_document_path ?? null);
+  const [currentSignaturePath, setCurrentSignaturePath] = useState(initialProfile?.signature_image_path ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,21 +101,25 @@ export default function StaffIdentityForm({
     setSelectedHouses(initialHouseIds);
   }, [initialProfile, initialHouseIds]);
 
-  const chooseFile = async (file: File | undefined, kind: 'photo' | 'document') => {
+  const chooseFile = async (file: File | undefined, kind: 'photo' | 'document' | 'signature') => {
     if (!file) return;
     const valid = kind === 'photo'
       ? isPngOrJpeg(file) && file.size <= MAX_PHOTO_BYTES
-      : (file.type === 'application/pdf' || isPngOrJpeg(file)) && file.size <= MAX_DOCUMENT_BYTES;
+      : kind === 'signature'
+        ? (isPngOrJpeg(file) || file.type === 'image/svg+xml') && file.size <= 1024 * 1024
+        : (file.type === 'application/pdf' || isPngOrJpeg(file)) && file.size <= MAX_DOCUMENT_BYTES;
     if (!valid) {
       setError(kind === 'photo'
-        ? 'Choose a PNG or JPG/JPEG image up to 5 MB.'
-        : 'Choose a PDF up to 10 MB, or a 500 × 500 PNG/JPG image up to 10 MB.');
+        ? text('Choose a PNG or JPG/JPEG image up to 5 MB.', 'Choisissez une image PNG ou JPG/JPEG de 5 Mo maximum.')
+        : kind === 'signature'
+          ? text('Choose an SVG, PNG, or JPG/JPEG signature image up to 1 MB.', 'Choisissez une signature au format SVG, PNG ou JPG/JPEG de 1 Mo maximum.')
+          : text('Choose a PDF up to 10 MB, or a 500 × 500 PNG/JPG image up to 10 MB.', 'Choisissez un PDF de 10 Mo maximum ou une image PNG/JPG de 500 × 500 pixels et de 10 Mo maximum.'));
       return;
     }
     if (kind === 'document' && isPngOrJpeg(file)) {
       try {
         if (!await hasExactImageDimensions(file, 500, 500)) {
-          setError('ID/passport images must be exactly 500 × 500 pixels.');
+          setError(text('ID/passport images must be exactly 500 × 500 pixels.', 'Les images de carte d’identité/passeport doivent mesurer exactement 500 × 500 pixels.'));
           return;
         }
       } catch (caught) {
@@ -120,6 +129,7 @@ export default function StaffIdentityForm({
     }
     setError(null);
     if (kind === 'photo') setPhoto(file);
+    else if (kind === 'signature') setSignature(file);
     else setDocument(file);
   };
 
@@ -129,7 +139,9 @@ export default function StaffIdentityForm({
     if (role === 'caretaker'
       ? !houses.some(house => house.property_id === selectedPropertyId)
       : selectedHouses.length === 0) {
-      setError(role === 'caretaker' ? 'Assign a property to this caretaker.' : 'Assign at least one available house.');
+      setError(role === 'caretaker'
+        ? text('Assign a property to this caretaker.', 'Attribuez un bien immobilier à ce concierge.')
+        : text('Assign at least one available house.', 'Attribuez au moins une maison disponible.'));
       return;
     }
     setSaving(true);
@@ -199,8 +211,8 @@ export default function StaffIdentityForm({
       }
 
       if (!profileId) throw new Error('The staff profile ID is unavailable.');
-      const newPaths: { profile_photo_path?: string; identity_document_path?: string } = {};
-      const upload = async (file: File, kind: 'photo' | 'identity') => {
+      const newPaths: { profile_photo_path?: string; identity_document_path?: string; signature_image_path?: string } = {};
+      const upload = async (file: File, kind: 'photo' | 'identity' | 'signature') => {
         const extension = file.type === 'application/pdf' ? 'pdf' : imageFileExtension(file);
         const path = `staff/${profileId}/${kind}-${crypto.randomUUID()}.${extension}`;
         const { error: uploadError } = await supabase.storage.from('identity-documents')
@@ -211,6 +223,7 @@ export default function StaffIdentityForm({
       };
       if (photo) newPaths.profile_photo_path = await upload(photo, 'photo');
       if (document) newPaths.identity_document_path = await upload(document, 'identity');
+      if (signature) newPaths.signature_image_path = await upload(signature, 'signature');
       if (Object.keys(newPaths).length > 0) {
         const { error: pathError } = await supabase.from('profiles')
           .update(newPaths)
@@ -219,9 +232,11 @@ export default function StaffIdentityForm({
         filesLinked = true;
         if (newPaths.profile_photo_path) setCurrentPhotoPath(newPaths.profile_photo_path);
         if (newPaths.identity_document_path) setCurrentDocumentPath(newPaths.identity_document_path);
+        if (newPaths.signature_image_path) setCurrentSignaturePath(newPaths.signature_image_path);
         const oldPaths = [
           photo ? currentPhotoPath : null,
           document ? currentDocumentPath : null,
+          signature ? currentSignaturePath : null,
         ].filter((path): path is string => Boolean(path));
         if (oldPaths.length) {
           const { error: removeError } = await supabase.storage.from('identity-documents').remove(oldPaths);
@@ -253,48 +268,48 @@ export default function StaffIdentityForm({
   };
 
   const isSavedProfile = Boolean(initialProfile || createdProfileId);
-  const title = isSavedProfile
-    ? `Edit ${role === 'caretaker' ? 'Caretaker' : 'Property Manager'}`
-    : `Add ${role === 'caretaker' ? 'Caretaker' : 'Property Manager'}`;
+  const title = role === 'caretaker'
+    ? isSavedProfile ? text('Edit Caretaker', 'Modifier le concierge') : text('Add Caretaker', 'Ajouter un concierge')
+    : isSavedProfile ? text('Edit Property Manager', 'Modifier le gestionnaire immobilier') : text('Add Property Manager', 'Ajouter un gestionnaire immobilier');
 
   return (
     <Modal open onClose={onClose} title={title} size="lg">
       <form onSubmit={save} className="space-y-5">
         {!isSavedProfile && (
           <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800">
-            Supabase will email a secure invitation link. Enter a preferred Staff ID below, or leave it blank to generate one automatically.
+            {text('Supabase will email a secure invitation link. Enter a preferred Staff ID below, or leave it blank to generate one automatically.', 'Supabase enverra un lien d’invitation sécurisé par e-mail. Saisissez un identifiant de personnel ou laissez le champ vide pour en générer un automatiquement.')}
           </p>
         )}
         {(initialProfile?.staff_id || createdStaffId) && (
           <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-            Staff ID: <strong>{initialProfile?.staff_id ?? createdStaffId}</strong>
+            {text('Staff ID', 'Identifiant du personnel')} : <strong>{initialProfile?.staff_id ?? createdStaffId}</strong>
           </p>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Full name" required maxLength={120} value={fullName} onChange={event => setFullName(event.target.value)} />
+          <Input label={text('Full name', 'Nom complet')} required maxLength={120} value={fullName} onChange={event => setFullName(event.target.value)} />
           <div>
             <Input
-              label="Preferred Staff ID"
+              label={text('Preferred Staff ID', 'Identifiant du personnel souhaité')}
               maxLength={40}
               value={staffId}
               onChange={event => setStaffId(event.target.value)}
-              placeholder="e.g. PM-001"
+              placeholder={text('e.g. PM-001', 'ex. PM-001')}
             />
-            <p className="mt-1 text-xs text-slate-500">Leave blank to use the automatically generated Staff ID.</p>
+            <p className="mt-1 text-xs text-slate-500">{text('Leave blank to use the automatically generated Staff ID.', 'Laissez vide pour utiliser l’identifiant généré automatiquement.')}</p>
           </div>
-          <Input label="National ID / Passport number" required maxLength={80} value={nationalId} onChange={event => setNationalId(event.target.value)} />
-          <Input label="Telephone" required type="tel" maxLength={40} value={phone} onChange={event => setPhone(event.target.value)} />
-          <Input label="Email address" required type="email" maxLength={254} value={email} onChange={event => setEmail(event.target.value)} disabled={isSavedProfile} />
-          <Input label="Residential address" required maxLength={300} value={address} onChange={event => setAddress(event.target.value)} />
+          <Input label={text('National ID / Passport number', 'Numéro de carte nationale / passeport')} required maxLength={80} value={nationalId} onChange={event => setNationalId(event.target.value)} />
+          <Input label={text('Telephone', 'Téléphone')} required type="tel" maxLength={40} value={phone} onChange={event => setPhone(event.target.value)} />
+          <Input label={text('Email address', 'Adresse e-mail')} required type="email" maxLength={254} value={email} onChange={event => setEmail(event.target.value)} disabled={isSavedProfile} />
+          <Input label={text('Residential address', 'Adresse du domicile')} required maxLength={300} value={address} onChange={event => setAddress(event.target.value)} />
         </div>
 
         <fieldset className="space-y-2">
           <legend className="mb-2 text-sm font-medium text-slate-700">
-            {role === 'caretaker' ? 'Property managed by this caretaker' : 'Houses assigned to this manager'}
+            {role === 'caretaker' ? text('Property managed by this caretaker', 'Bien immobilier géré par ce concierge') : text('Houses assigned to this manager', 'Maisons attribuées à ce gestionnaire')}
           </legend>
           {role === 'caretaker' ? (
             properties.length === 0 || !properties.some(property => houses.some(house => house.property_id === property.id)) ? (
-              <p className="text-sm text-amber-700">Create a property and assign houses to it before adding a caretaker.</p>
+              <p className="text-sm text-amber-700">{text('Create a property and assign houses to it before adding a caretaker.', 'Créez un bien immobilier et attribuez-lui des maisons avant d’ajouter un concierge.')}</p>
             ) : (
               <div className="space-y-2">
                 {properties.map(property => {
@@ -311,7 +326,7 @@ export default function StaffIdentityForm({
                       <span>
                         <strong className="block">{property.name}</strong>
                         <span className="block text-xs text-slate-500">
-                          {propertyHouses.length} {propertyHouses.length === 1 ? 'house' : 'houses'}: {propertyHouses.map(house => house.house_number).join(', ') || 'No houses assigned'}
+                          {propertyHouses.length} {propertyHouses.length === 1 ? text('house', 'maison') : text('houses', 'maisons')} : {propertyHouses.map(house => house.house_number).join(', ') || text('No houses assigned', 'Aucune maison attribuée')}
                         </span>
                       </span>
                     </label>
@@ -320,7 +335,7 @@ export default function StaffIdentityForm({
               </div>
             )
           ) : houses.length === 0 ? (
-            <p className="text-sm text-amber-700">Create a property and add houses before assigning a manager.</p>
+            <p className="text-sm text-amber-700">{text('Create a property and add houses before assigning a manager.', 'Créez un bien immobilier et ajoutez-y des maisons avant d’attribuer un gestionnaire.')}</p>
           ) : houses.map(house => {
             const unavailable = unavailableHouseIds.includes(house.id) && !selectedHouses.includes(house.id);
             return (
@@ -334,9 +349,9 @@ export default function StaffIdentityForm({
                   current.includes(house.id) ? current.filter(id => id !== house.id) : [...current, house.id])}
               />
               <span>
-                <span className="block font-medium">{house.property_name} · House {house.house_number}</span>
+                <span className="block font-medium">{house.property_name} · {text('House', 'Maison')} {house.house_number}</span>
                 <span className="block text-xs text-slate-500">
-                  {unavailable ? 'Assigned to another property manager' : `Status: ${house.status}`}
+                  {unavailable ? text('Assigned to another property manager', 'Attribuée à un autre gestionnaire immobilier') : `${text('Status', 'Statut')} : ${house.status === 'vacant' ? text('Vacant', 'Libre') : house.status === 'occupied' ? text('Occupied', 'Occupée') : house.status === 'reserved' ? text('Reserved', 'Réservée') : house.status === 'maintenance' ? text('Maintenance', 'En maintenance') : house.status}`}
                 </span>
               </span>
             </label>
@@ -346,22 +361,29 @@ export default function StaffIdentityForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1.5 text-sm font-medium text-slate-700">
-            Profile photo (PNG/JPG/JPEG, max 5 MB)
+            {text('Profile photo (PNG/JPG/JPEG, max 5 MB)', 'Photo de profil (PNG/JPG/JPEG, 5 Mo max.)')}
             <input type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onChange={event => chooseFile(event.target.files?.[0], 'photo')} className="block w-full text-sm" />
-            {currentPhotoPath && <PrivateDocumentLink path={currentPhotoPath} label="current profile photo" />}
-            {photo && <span className="block text-xs text-slate-500">Selected: {photo.name}</span>}
+            {currentPhotoPath && <PrivateDocumentLink path={currentPhotoPath} label={text('current profile photo', 'photo de profil actuelle')} />}
+            {photo && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionné :')} {photo.name}</span>}
           </label>
           <label className="space-y-1.5 text-sm font-medium text-slate-700">
-            ID card / Passport (PDF or 500 × 500 PNG/JPG, max 10 MB)
+            {text('ID card / Passport (PDF or 500 × 500 PNG/JPG, max 10 MB)', 'Carte d’identité / Passeport (PDF ou PNG/JPG de 500 × 500, 10 Mo max.)')}
             <input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={event => { void chooseFile(event.target.files?.[0], 'document'); }} className="block w-full text-sm" />
-            {currentDocumentPath && <PrivateDocumentLink path={currentDocumentPath} label="current ID / Passport" />}
-            {document && <span className="block text-xs text-slate-500">Selected: {document.name}</span>}
+            {currentDocumentPath && <PrivateDocumentLink path={currentDocumentPath} label={text('current ID / Passport', 'carte d’identité / passeport actuel')} />}
+            {document && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionné :')} {document.name}</span>}
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-slate-700">
+            {text('Signature image', 'Image de signature')}
+            <span className="block text-xs font-normal text-slate-500">{text('SVG or transparent PNG recommended; at least 300 × 100 px; maximum 1 MB.', 'Format SVG ou PNG transparent recommandé ; au moins 300 × 100 px ; 1 Mo maximum.')}</span>
+            <input type="file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" onChange={event => { void chooseFile(event.target.files?.[0], 'signature'); }} className="block w-full text-sm" />
+            {currentSignaturePath && <PrivateDocumentLink path={currentSignaturePath} label={text('current signature', 'signature actuelle')} />}
+            {signature && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionné :')} {signature.name}</span>}
           </label>
         </div>
 
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="button" variant="ghost" onClick={onClose}>{text('Cancel', 'Annuler')}</Button>
           <Button
             type="submit"
             loading={saving}
@@ -369,7 +391,7 @@ export default function StaffIdentityForm({
               ? !properties.some(property => houses.some(house => house.property_id === property.id))
               : houses.length === 0}
           >
-            {isSavedProfile ? 'Save staff details' : 'Create staff account'}
+            {isSavedProfile ? text('Save staff details', 'Enregistrer les informations du personnel') : text('Create staff account', 'Créer le compte du personnel')}
           </Button>
         </div>
       </form>

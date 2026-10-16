@@ -222,7 +222,7 @@ export default function TenantMaintenancePage() {
             </div>
             <div className="flex items-center justify-between text-xs text-slate-500">
               <span>{r.houses?.house_number}</span>
-              <span>{new Date(r.created_at).toLocaleDateString()}</span>
+              <span>{new Date(r.created_at).toLocaleDateString('en-GB')}</span>
             </div>
             {r.admin_notes && (
               <div className="mt-3 p-3 rounded-xl" style={{ background: '#f9fafb', border: '1px solid #e9ecef' }}>

@@ -7,6 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import StaffIdentityCard from '@/components/identity/StaffIdentityCard';
+import { calculateOutstandingInvoiceBalance } from '@/lib/invoiceBalances';
 
 interface DashboardStats {
   properties: number;
@@ -14,12 +15,13 @@ interface DashboardStats {
   tenants: number;
   collected: number;
   outstanding: number;
+  unpaidInvoices: number;
   maintenance: number;
   visitors: number;
 }
 
 const initialStats: DashboardStats = {
-  properties: 0, occupied: 0, tenants: 0, collected: 0, outstanding: 0, maintenance: 0, visitors: 0,
+  properties: 0, occupied: 0, tenants: 0, collected: 0, outstanding: 0, unpaidInvoices: 0, maintenance: 0, visitors: 0,
 };
 
 export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (page: string) => void }) {
@@ -32,14 +34,18 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
 
   useEffect(() => {
     const load = async () => {
-      const [houseResult, tenantResult, paymentResult, maintenanceResult, visitorResult] = await Promise.all([
+      const [houseResult, tenantResult, paymentResult, invoiceResult, invoiceBalanceResult, utilityPaymentResult, maintenanceResult, visitorResult] = await Promise.all([
         supabase.from('houses').select('id, status'),
         supabase.from('tenants').select('id, status'),
-        supabase.from('payments').select('amount_due, amount_paid, status'),
+        supabase.from('payments').select('amount_due, amount_paid, rent_paid_amount, status'),
+        supabase.from('utility_invoices').select('id', { count: 'exact', head: true }).in('status', ['unpaid', 'partial']),
+        supabase.from('utility_invoices').select('id, tenant_id, rent_month, rent_balance, water_amount, electricity_amount'),
+        supabase.from('payments').select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount'),
         supabase.from('maintenance_requests').select('id, status').not('status', 'in', '(completed,rejected)'),
         supabase.from('visitors').select('id, status').eq('status', 'inside'),
       ]);
-      const error = houseResult.error ?? tenantResult.error ?? paymentResult.error ?? maintenanceResult.error ?? visitorResult.error;
+      const error = houseResult.error ?? tenantResult.error ?? paymentResult.error ?? invoiceResult.error
+        ?? invoiceBalanceResult.error ?? utilityPaymentResult.error ?? maintenanceResult.error ?? visitorResult.error;
       if (error) {
         addToast(`Unable to load dashboard metrics: ${error.message}`, 'error');
       } else {
@@ -53,14 +59,20 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
           occupied: houses.filter(house => house.status === 'occupied').length,
           tenants: tenants.filter(tenant => tenant.status === 'active').length,
           collected: payments.reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0),
-          outstanding: payments.reduce((sum, payment) => sum + Math.max(Number(payment.amount_due || 0) - Number(payment.amount_paid || 0), 0), 0),
+          outstanding: calculateOutstandingInvoiceBalance(invoiceBalanceResult.data ?? [], utilityPaymentResult.data ?? []),
+          unpaidInvoices: invoiceResult.count ?? 0,
           maintenance: maintenance.length,
           visitors: visitors.length,
         });
       }
       setLoading(false);
     };
-    load();
+    void load();
+    const channel = supabase
+      .channel('property-manager-invoice-status')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'utility_invoices' }, () => { void load(); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
   }, [addToast]);
 
   useEffect(() => {
@@ -89,8 +101,8 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
           return;
         }
         const propertyNames = new Map((propertyResult.data ?? []).map(property => [property.id, property.name]));
-        setAssignedProperties((houseResult.data ?? []).map(house =>
-          `${house.property_id ? propertyNames.get(house.property_id) ?? 'Property' : 'Property'} · ${house.house_number}`));
+        setAssignedProperties([...new Set((houseResult.data ?? []).map(house =>
+          house.property_id ? propertyNames.get(house.property_id) ?? 'Property' : 'Property'))]);
       } catch (caught: unknown) {
         addToast(`Unable to load assigned properties: ${caught instanceof Error ? caught.message : 'Unknown error'}`, 'error');
       }
@@ -99,8 +111,8 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
   }, [profile, addToast]);
 
   const labels = language === 'fr'
-    ? { title: 'Tableau de bord', subtitle: 'Aperçu des maisons qui vous sont attribuées', properties: 'Maisons attribuées', occupied: 'Maisons occupées', tenants: 'Locataires actifs', collected: 'Loyers encaissés', outstanding: 'Loyers en attente', maintenance: 'Maintenances ouvertes', visitors: 'Visiteurs présents' }
-    : { title: 'Property Manager Dashboard', subtitle: 'Overview of houses assigned to you', properties: 'Assigned Houses', occupied: 'Occupied Houses', tenants: 'Active Tenants', collected: 'Rent Collected', outstanding: 'Outstanding Rent', maintenance: 'Open Maintenance', visitors: 'Visitors Inside' };
+    ? { title: 'Tableau de bord', subtitle: 'Aperçu des maisons qui vous sont attribuées', properties: 'Maisons attribuées', occupied: 'Maisons occupées', tenants: 'Locataires actifs', collected: 'Loyers encaissés', outstanding: 'Solde total restant', maintenance: 'Maintenances ouvertes', visitors: 'Visiteurs présents' }
+    : { title: 'Property Manager Dashboard', subtitle: 'Overview of houses assigned to you', properties: 'Assigned Houses', occupied: 'Occupied Houses', tenants: 'Active Tenants', collected: 'Rent Collected', outstanding: 'Outstanding Balance', maintenance: 'Open Maintenance', visitors: 'Visitors Inside' };
 
   const cards = [
     { label: labels.properties, value: stats.properties, icon: Building2, color: 'text-emerald-700 bg-emerald-50' },
@@ -119,6 +131,26 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
         title={`${labels.title}${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
         subtitle={labels.subtitle}
       />
+      {stats.unpaidInvoices > 0 && (
+        <button
+          type="button"
+          onClick={() => onNavigate('invoices')}
+          className="flex w-full items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-3 text-left shadow-sm transition-colors hover:bg-red-100 sm:gap-4 sm:p-5"
+        >
+          <AlertCircle className="h-10 w-10 shrink-0 text-red-600 sm:h-12 sm:w-12" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-red-800">
+              {stats.unpaidInvoices} {language === 'fr' ? 'factures impayées' : 'unpaid invoices'}
+            </span>
+            <span className="mt-1 block text-sm text-red-700">
+              {language === 'fr' ? 'Consultez les factures impayées ou partiellement payées.' : 'Review unpaid or partially paid invoices.'}
+            </span>
+          </span>
+          <span className="shrink-0 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white">
+            {language === 'fr' ? 'Voir les factures' : 'View invoices'}
+          </span>
+        </button>
+      )}
       <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
       {profile && <StaffIdentityCard profile={profile} assignedProperties={assignedProperties} showIdentityDocument={false} />}
       <section aria-label={labels.title} className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">

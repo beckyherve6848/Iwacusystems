@@ -14,11 +14,16 @@ CREATE POLICY "property_managers_notify_assigned_maintenance_tenants" ON public.
   FOR INSERT TO authenticated
   WITH CHECK (
     public.current_app_role() = 'property_manager'
+    AND notifications.maintenance_request_id IS NOT NULL
     AND EXISTS (
       SELECT 1
-      FROM public.tenants AS tenant
-      WHERE tenant.user_id = notifications.user_id
-        AND public.is_property_manager_for_tenant(tenant.id)
+      FROM public.maintenance_requests AS request
+      JOIN public.tenants AS tenant
+        ON tenant.id = request.tenant_id
+      WHERE request.id = notifications.maintenance_request_id
+        AND tenant.user_id = notifications.user_id
+        AND tenant.status = 'active'
+        AND public.is_property_manager_for_house(request.house_id)
     )
   );
 

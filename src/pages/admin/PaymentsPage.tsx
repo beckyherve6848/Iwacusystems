@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { printDocument } from '@/lib/print';
 import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
+import { calculateMonthlyInvoiceBalances } from '@/lib/invoiceBalances';
 
 const PER_PAGE = 10;
 
@@ -23,21 +24,23 @@ const statusColors: Record<string, string> = {
 };
 
 const standardPaymentMethods = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank_deposit', label: 'Bank Deposit' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'mobile_money', label: 'Mobile Money' },
+  { value: 'cash', labelKey: 'cashPayment' },
+  { value: 'bank_deposit', labelKey: 'bankDepositPayment' },
+  { value: 'bank_transfer', labelKey: 'bankTransferPayment' },
+  { value: 'mobile_money', labelKey: 'mobileMoneyPayment' },
 ] as const;
 
 const emptyForm = {
   tenant_id: '', house_id: '', rent_month: '', payment_date: '',
-  due_date: '', amount_due: '', amount_paid: '', late_fee: '0',
+  due_date: '', amount_due: '', rent_paid_amount: '',
+  water_due_amount: '0', electricity_due_amount: '0',
+  water_paid_amount: '0', electricity_paid_amount: '0', late_fee: '0',
   payment_method: 'cash', status: 'paid', notes: '', payment_proof_url: '',
 };
 
 export default function PaymentsPage() {
-  const { user } = useAuth();
-  const { fmt } = useTheme();
+  const { user, profile } = useAuth();
+  const { fmt, t, language } = useTheme();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [tenants, setTenants] = useState<{ id: string; full_name: string; tenant_code: string; house_id?: string; monthly_rent?: number }[]>([]);
   const [houses, setHouses] = useState<{ id: string; house_number: string; monthly_rent: number }[]>([]);
@@ -53,6 +56,16 @@ export default function PaymentsPage() {
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null);
+  const [receiptInvoiceSummary, setReceiptInvoiceSummary] = useState<{
+    rentDue: number;
+    waterDue: number;
+    electricityDue: number;
+    rentBalance: number;
+    rentCredit: number;
+    waterBalance: number;
+    electricityBalance: number;
+    totalBalance: number;
+  } | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { toasts, addToast, removeToast } = useToast();
 
@@ -78,9 +91,45 @@ export default function PaymentsPage() {
     q = q.range(from, from + PER_PAGE - 1);
 
     const { data, count, error } = await q;
-    if (!error) { setPayments(data ?? []); setTotal(count ?? 0); }
+    if (error) {
+      addToast(`Unable to load payments: ${error.message}`, 'error');
+      setPayments([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+
+    const rows = data ?? [];
+    const tenantIds = [...new Set(rows.map(payment => payment.tenant_id))];
+    const rentMonths = [...new Set(rows.map(payment => payment.rent_month.slice(0, 10)))];
+    if (tenantIds.length > 0 && rentMonths.length > 0) {
+      const [invoiceResult, utilityPaymentResult] = await Promise.all([
+        supabase.from('utility_invoices')
+          .select('id, tenant_id, rent_month, rent_amount, rent_balance, water_amount, electricity_amount')
+          .in('tenant_id', tenantIds)
+          .in('rent_month', rentMonths),
+        supabase.from('payments')
+          .select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount')
+          .in('tenant_id', tenantIds)
+          .in('rent_month', rentMonths),
+      ]);
+      if (invoiceResult.error || utilityPaymentResult.error) {
+        const message = invoiceResult.error?.message ?? utilityPaymentResult.error?.message;
+        addToast(`Unable to load outstanding payment balances: ${message}`, 'error');
+        setPayments(rows);
+      } else {
+        const monthlyBalances = calculateMonthlyInvoiceBalances(invoiceResult.data ?? [], utilityPaymentResult.data ?? []);
+        setPayments(rows.map(payment => ({
+          ...payment,
+          total_balance_due: monthlyBalances.get(`${payment.tenant_id}:${payment.rent_month.slice(0, 7)}`)?.total_balance_due,
+        })));
+      }
+    } else {
+      setPayments([]);
+    }
+    setTotal(count ?? 0);
     setLoading(false);
-  }, [page, search, filterStatus, filterMonth]);
+  }, [page, search, filterStatus, filterMonth, addToast]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -103,15 +152,49 @@ export default function PaymentsPage() {
       });
   }, [addToast]);
 
-  const handleTenantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const tid = e.target.value;
-    const tenant = tenants.find(t => t.id === tid);
+  const loadInvoiceCharges = async (tenantId: string, rentMonth: string) => {
+    const tenant = tenants.find(item => item.id === tenantId);
+    if (!tenantId || !rentMonth) {
+      setForm(current => ({ ...current, amount_due: String(tenant?.monthly_rent ?? '') }));
+      return;
+    }
+    const { data, error } = await supabase
+      .from('utility_invoices')
+      .select('rent_amount, water_amount, electricity_amount')
+      .eq('tenant_id', tenantId)
+      .eq('rent_month', `${rentMonth}-01`)
+      .maybeSingle();
+    if (error) {
+      addToast(`Unable to load invoice charges: ${error.message}`, 'error');
+      return;
+    }
     setForm(f => ({
       ...f,
-      tenant_id: tid,
+      amount_due: String(data?.rent_amount ?? tenant?.monthly_rent ?? ''),
+      water_due_amount: String(data?.water_amount ?? 0),
+      electricity_due_amount: String(data?.electricity_amount ?? 0),
+    }));
+  };
+
+  const handleTenantChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const tenantId = e.target.value;
+    const tenant = tenants.find(item => item.id === tenantId);
+    setForm(current => ({
+      ...current,
+      tenant_id: tenantId,
       house_id: tenant?.house_id ?? '',
       amount_due: String(tenant?.monthly_rent ?? ''),
+      rent_paid_amount: '',
+      water_paid_amount: '0',
+      electricity_paid_amount: '0',
     }));
+    await loadInvoiceCharges(tenantId, form.rent_month);
+  };
+
+  const handleRentMonthChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rentMonth = e.target.value;
+    setForm(current => ({ ...current, rent_month: rentMonth }));
+    await loadInvoiceCharges(form.tenant_id, rentMonth);
   };
 
   const openAdd = () => {
@@ -126,14 +209,18 @@ export default function PaymentsPage() {
       house_id: p.house_id,
       rent_month: p.rent_month.slice(0, 7),
       payment_date: p.payment_date,
-      due_date: (p as any).due_date ?? '',
+      due_date: p.due_date ?? '',
       amount_due: String(p.amount_due),
-      amount_paid: String(p.amount_paid),
+      rent_paid_amount: String(p.rent_paid_amount ?? p.amount_paid),
+      water_due_amount: String(p.water_due_amount ?? 0),
+      electricity_due_amount: String(p.electricity_due_amount ?? 0),
+      water_paid_amount: String(p.water_paid_amount ?? 0),
+      electricity_paid_amount: String(p.electricity_paid_amount ?? 0),
       late_fee: String(p.late_fee ?? 0),
       payment_method: p.payment_method || 'cash',
       status: p.status,
-      notes: (p as any).notes ?? '',
-      payment_proof_url: (p as any).payment_proof_url ?? '',
+      notes: p.notes ?? '',
+      payment_proof_url: p.payment_proof_url ?? '',
     });
     setEditingId(p.id);
     setModalOpen(true);
@@ -141,22 +228,37 @@ export default function PaymentsPage() {
 
   const handleSave = async () => {
     if (!form.tenant_id || !form.house_id || !form.rent_month || !form.amount_due) {
-      addToast('Tenant, house, month and amount are required', 'error'); return;
+      addToast(t('paymentRequiredFields'), 'error'); return;
     }
     setSaving(true);
-    const amtPaid = Number(form.amount_paid) || 0;
+    const rentPaid = Number(form.rent_paid_amount);
+    const waterPaid = Number(form.water_paid_amount);
+    const electricityPaid = Number(form.electricity_paid_amount);
     const amtDue = Number(form.amount_due);
-    const computedStatus = amtPaid >= amtDue ? 'paid' : amtPaid > 0 ? 'partial' : 'pending';
+    const waterDue = Number(form.water_due_amount);
+    const electricityDue = Number(form.electricity_due_amount);
+    if (![rentPaid, waterPaid, electricityPaid, amtDue, waterDue, electricityDue].every(amount => Number.isFinite(amount) && amount >= 0)) {
+      addToast(t('paymentAmountValid'), 'error');
+      setSaving(false);
+      return;
+    }
+    const totalPaid = rentPaid + waterPaid + electricityPaid;
+    const computedStatus = rentPaid >= amtDue ? 'paid' : rentPaid > 0 ? 'partial' : 'pending';
     const finalStatus = form.status === 'overdue' ? 'overdue' : computedStatus;
 
     const paymentMethod = form.payment_method.trim() || 'cash';
 
-    const payload: any = {
+    const payload = {
       tenant_id: form.tenant_id, house_id: form.house_id,
       rent_month: form.rent_month + '-01',
       payment_date: form.payment_date || new Date().toISOString().slice(0, 10),
       due_date: form.due_date || new Date().toISOString().slice(0, 10),
-      amount_due: amtDue, amount_paid: amtPaid,
+      amount_due: amtDue, amount_paid: totalPaid,
+      rent_paid_amount: rentPaid,
+      water_due_amount: waterDue,
+      electricity_due_amount: electricityDue,
+      water_paid_amount: waterPaid,
+      electricity_paid_amount: electricityPaid,
       late_fee: Number(form.late_fee) || 0,
       payment_method: paymentMethod,
       payment_proof_url: form.payment_proof_url || null,
@@ -167,21 +269,59 @@ export default function PaymentsPage() {
     if (editingId) {
       const { error } = await supabase.from('payments').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingId);
       if (error) { addToast(error.message, 'error'); }
-      else { addToast('Payment updated', 'success'); setModalOpen(false); load(); }
+      else { addToast(t('paymentUpdatedSuccess'), 'success'); setModalOpen(false); load(); }
     } else {
-      payload.recorded_by = user?.id;
-      const { error } = await supabase.from('payments').insert(payload);
+      const { error } = await supabase.from('payments').insert({
+        ...payload,
+        recorded_by: user?.id,
+        recorded_by_name: profile?.full_name ?? null,
+        recorded_by_phone: profile?.role === 'property_manager' ? profile.phone ?? null : null,
+      });
       if (error) { addToast(error.message, 'error'); }
-      else { addToast('Payment recorded', 'success'); setModalOpen(false); setForm({ ...emptyForm }); load(); }
+      else { addToast(t('paymentRecordedSuccess'), 'success'); setModalOpen(false); setForm({ ...emptyForm }); load(); }
     }
     setSaving(false);
+  };
+
+  const openReceipt = async (payment: Payment) => {
+    setReceiptInvoiceSummary(null);
+    const [invoiceResult, utilityPaymentResult] = await Promise.all([
+      supabase.from('utility_invoices')
+        .select('id, tenant_id, rent_month, rent_amount, rent_balance, water_amount, electricity_amount')
+        .eq('tenant_id', payment.tenant_id)
+        .eq('rent_month', payment.rent_month.slice(0, 10))
+        .maybeSingle(),
+      supabase.from('payments')
+        .select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount')
+        .eq('tenant_id', payment.tenant_id)
+        .eq('rent_month', payment.rent_month.slice(0, 10)),
+    ]);
+    if (invoiceResult.error || utilityPaymentResult.error) {
+      addToast(`Unable to load outstanding payment balance: ${invoiceResult.error?.message ?? utilityPaymentResult.error?.message}`, 'warning');
+    } else if (invoiceResult.data) {
+      const balance = calculateMonthlyInvoiceBalances([invoiceResult.data], utilityPaymentResult.data ?? [])
+        .get(`${payment.tenant_id}:${payment.rent_month.slice(0, 7)}`);
+      if (balance) {
+        setReceiptInvoiceSummary({
+          rentDue: Number(invoiceResult.data.rent_amount),
+          waterDue: Number(invoiceResult.data.water_amount),
+          electricityDue: Number(invoiceResult.data.electricity_amount),
+          rentBalance: balance.rent_balance,
+          rentCredit: balance.rent_credit,
+          waterBalance: balance.water_balance,
+          electricityBalance: balance.electricity_balance,
+          totalBalance: balance.total_balance_due,
+        });
+      }
+    }
+    setReceiptPayment(payment);
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
     const { error } = await supabase.from('payments').delete().eq('id', deleteId);
     if (error) addToast(error.message, 'error');
-    else { addToast('Payment deleted', 'success'); load(); }
+    else { addToast(t('paymentDeletedSuccess'), 'success'); load(); }
     setDeleteId(null);
   };
 
@@ -191,22 +331,32 @@ export default function PaymentsPage() {
 
       {/* Receipt print modal */}
       {receiptPayment && (
-        <Modal open={!!receiptPayment} onClose={() => setReceiptPayment(null)} title="Payment Receipt" size="md">
-          <Receipt payment={receiptPayment} />
+        <Modal open={!!receiptPayment} onClose={() => { setReceiptPayment(null); setReceiptInvoiceSummary(null); }} title={t('paymentReceipt')} size="lg">
+          <Receipt
+            payment={receiptPayment}
+            invoiceRentDue={receiptInvoiceSummary?.rentDue}
+            invoiceWaterDue={receiptInvoiceSummary?.waterDue}
+            invoiceElectricityDue={receiptInvoiceSummary?.electricityDue}
+            invoiceRentBalance={receiptInvoiceSummary?.rentBalance}
+            invoiceRentCredit={receiptInvoiceSummary?.rentCredit}
+            invoiceWaterBalance={receiptInvoiceSummary?.waterBalance}
+            invoiceElectricityBalance={receiptInvoiceSummary?.electricityBalance}
+            invoiceTotalBalance={receiptInvoiceSummary?.totalBalance}
+          />
           <div className="flex justify-end gap-3 mt-4 no-print">
-            <Button variant="ghost" onClick={() => setReceiptPayment(null)}>Close</Button>
-            <Button icon={<Printer className="w-4 h-4" />} onClick={() => printDocument('receipt', 'receipt-content')}>Print / Save PDF</Button>
+            <Button variant="ghost" onClick={() => { setReceiptPayment(null); setReceiptInvoiceSummary(null); }}>{t('closeButton')}</Button>
+            <Button icon={<Printer className="w-4 h-4" />} onClick={() => printDocument('receipt', 'receipt-content')}>{t('printSavePdf')}</Button>
           </div>
         </Modal>
       )}
 
       <div className="flex items-center justify-between no-print">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Rent Payments</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Record and track all rent transactions</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('rentPaymentsTitle')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{t('trackRentTransactions')}</p>
         </div>
         <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>
-          Record Payment
+          {t('recordPayment')}
         </Button>
       </div>
 
@@ -214,7 +364,7 @@ export default function PaymentsPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
-            placeholder="Search receipt number..."
+            placeholder={t('searchReceiptNumber')}
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-white border border-slate-200 text-slate-900 placeholder-slate-500 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -222,11 +372,11 @@ export default function PaymentsPage() {
         </div>
         <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
-          <option value="">All Statuses</option>
-          <option value="paid">Paid</option>
-          <option value="pending">Pending</option>
-          <option value="partial">Partial</option>
-          <option value="overdue">Overdue</option>
+          <option value="">{t('allPaymentStatuses')}</option>
+          <option value="paid">{t('paid')}</option>
+          <option value="pending">{t('pending')}</option>
+          <option value="partial">{t('partial')}</option>
+          <option value="overdue">{t('overdue')}</option>
         </select>
         <input type="month" value={filterMonth} onChange={e => { setFilterMonth(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
@@ -237,12 +387,12 @@ export default function PaymentsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-200">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Receipt</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Tenant</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">Month</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
-                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('paymentReceiptHeader')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">{t('tenant')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">{t('rentMonth')}</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('paymentAmount')}</th>
+                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('status')}</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -252,49 +402,49 @@ export default function PaymentsPage() {
                 </td></tr>
               )}
               {!loading && payments.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-12 text-slate-500">No payments found</td></tr>
+                <tr><td colSpan={6} className="text-center py-12 text-slate-500">{t('noPaymentsFound')}</td></tr>
               )}
               {payments.map(p => (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3.5">
                     <p className="font-semibold text-slate-900 text-sm">{p.receipt_number}</p>
-                    <p className="text-xs text-slate-500">{new Date(p.payment_date).toLocaleDateString()}</p>
+                    <p className="text-xs text-slate-500">{new Date(p.payment_date).toLocaleDateString('en-GB')}</p>
                   </td>
                   <td className="px-5 py-3.5 hidden md:table-cell">
-                    <p className="text-sm text-slate-900">{(p.tenants as any)?.full_name}</p>
-                    <p className="text-xs text-slate-500">{(p.houses as any)?.house_number}</p>
+                    <p className="text-sm text-slate-900">{p.tenants?.full_name}</p>
+                    <p className="text-xs text-slate-500">{p.houses?.house_number}</p>
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-sm text-slate-700">
-                    {new Date(p.rent_month).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                    {new Date(p.rent_month).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB', { month: 'long', year: 'numeric' })}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <p className="text-sm font-semibold text-slate-900"><span className="money-value">{fmt(Number(p.amount_paid))}</span></p>
-                    <p className="text-xs text-slate-500">of <span className="money-value">{fmt(Number(p.amount_due))}</span></p>
+                    <p className="text-xs text-slate-500">{t('totalBalanceDue')}: <span className={`money-value font-semibold ${p.total_balance_due === undefined ? 'text-slate-400' : p.total_balance_due > 0 ? 'text-red-700' : 'text-slate-900'}`}>{p.total_balance_due === undefined ? '—' : fmt(p.total_balance_due)}</span></p>
                   </td>
                   <td className="px-5 py-3.5 text-center">
                     <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[p.status]}`}>
-                      {p.status}
+                      {t(p.status)}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => setReceiptPayment(p)}
-                        title="View receipt"
+                        onClick={() => openReceipt(p)}
+                        title={t('viewReceipt')}
                         className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => openEdit(p)}
-                        title="Edit payment"
+                        title={t('editPayment')}
                         className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setDeleteId(p.id)}
-                        title="Delete payment"
+                        title={t('deletePayment')}
                         className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -312,23 +462,38 @@ export default function PaymentsPage() {
       </div>
 
       {/* Add/Edit Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Payment' : 'Record Payment'} size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('editPaymentTitle') : t('recordPayment')} size="lg">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Select label="Tenant" value={form.tenant_id} onChange={handleTenantChange}>
-            <option value="">Select tenant</option>
+          <Select label={t('tenant')} value={form.tenant_id} onChange={handleTenantChange}>
+            <option value="">{t('chooseTenant')}</option>
             {tenants.map(t => <option key={t.id} value={t.id}>{t.full_name} ({t.tenant_code})</option>)}
           </Select>
-          <Select label="House" value={form.house_id} onChange={set('house_id')}>
-            <option value="">Select house</option>
+          <Select label={t('house')} value={form.house_id} onChange={set('house_id')}>
+            <option value="">{t('selectHouse')}</option>
             {houses.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
           </Select>
-          <Input label="Rent Month" type="month" value={form.rent_month} onChange={set('rent_month')} />
-          <Input label="Payment Date" type="date" value={form.payment_date} onChange={set('payment_date')} />
-          <Input label="Amount Due" type="number" value={form.amount_due} onChange={set('amount_due')} />
-          <Input label="Amount Paid" type="number" value={form.amount_paid} onChange={set('amount_paid')} />
-          <Input label="Late Fee" type="number" value={form.late_fee} onChange={set('late_fee')} />
-          <Select label="Payment Method" value={form.payment_method} onChange={set('payment_method')}>
-            {standardPaymentMethods.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
+          <Input label={t('rentMonth')} type="month" value={form.rent_month} onChange={handleRentMonthChange} />
+          <Input label={t('paymentDateLabel')} type="date" value={form.payment_date} onChange={set('payment_date')} />
+          <Input label={t('rentDue')} type="number" min="0" step="0.01" value={form.amount_due} onChange={set('amount_due')} />
+          <Input label={t('rentPaid')} type="number" min="0" step="0.01" value={form.rent_paid_amount} onChange={set('rent_paid_amount')} />
+          <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <h3 className="mb-3 text-sm font-semibold text-slate-800">{t('additionalCharges')}</h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input label={`${t('water')} ${t('chargeDue')}`} type="number" value={form.water_due_amount} readOnly />
+              <Input label={`${t('water')} ${t('paidAmount')}`} type="number" min="0" step="0.01" value={form.water_paid_amount} onChange={set('water_paid_amount')} />
+              <Input label={`${t('electricity')} ${t('chargeDue')}`} type="number" value={form.electricity_due_amount} readOnly />
+              <Input label={`${t('electricity')} ${t('paidAmount')}`} type="number" min="0" step="0.01" value={form.electricity_paid_amount} onChange={set('electricity_paid_amount')} />
+            </div>
+          </div>
+          <div className="sm:col-span-2 flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
+            <span className="text-sm font-semibold text-emerald-900">{t('totalPaymentReceived')}</span>
+            <span className="text-lg font-bold text-emerald-900 money-value">
+              {fmt((Number(form.rent_paid_amount) || 0) + (Number(form.water_paid_amount) || 0) + (Number(form.electricity_paid_amount) || 0))}
+            </span>
+          </div>
+          <Input label={t('paymentLateFee')} type="number" value={form.late_fee} onChange={set('late_fee')} />
+          <Select label={t('paymentMethodLabel')} value={form.payment_method} onChange={set('payment_method')}>
+            {standardPaymentMethods.map(method => <option key={method.value} value={method.value}>{t(method.labelKey)}</option>)}
             {customPaymentMethods.map(method => (
               <option key={method.id} value={method.name}>{method.name}</option>
             ))}
@@ -337,20 +502,20 @@ export default function PaymentsPage() {
                 <option value={form.payment_method}>{form.payment_method}</option>
               )}
           </Select>
-          <Textarea label="Notes" value={form.notes} onChange={set('notes')} rows={2} />
+          <Textarea label={t('notesLabel')} value={form.notes} onChange={set('notes')} rows={2} />
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
-          <Button loading={saving} onClick={handleSave}>{editingId ? 'Update' : 'Save'}</Button>
+          <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
+          <Button loading={saving} onClick={handleSave}>{editingId ? t('update') : t('save')}</Button>
         </div>
       </Modal>
 
       {/* Delete Confirm */}
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Payment" size="sm">
-        <p className="text-slate-500 text-sm mb-6">This action cannot be undone. The receipt will be permanently removed.</p>
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title={t('deletePaymentTitle')} size="sm">
+        <p className="text-slate-500 text-sm mb-6">{t('deletePaymentConfirm')}</p>
         <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button variant="danger" onClick={handleDelete}>Delete</Button>
+          <Button variant="ghost" onClick={() => setDeleteId(null)}>{t('cancel')}</Button>
+          <Button variant="danger" onClick={handleDelete}>{t('delete')}</Button>
         </div>
       </Modal>
     </div>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Plus, Pencil, Printer, Trash2 } from 'lucide-react';
+import { CalendarDays, Plus, Pencil, Printer, Trash2 } from 'lucide-react';
 import { supabase, Tenant, UtilityInvoice } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import Button from '@/components/ui/Button';
@@ -10,6 +10,7 @@ import ToastContainer from '@/components/ui/ToastContainer';
 import { useTheme } from '@/contexts/ThemeContext';
 import { printDocument } from '@/lib/print';
 import InvoiceDocument from '@/components/InvoiceDocument';
+import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
 
 type InvoiceForm = {
   tenant_id: string;
@@ -33,6 +34,26 @@ const emptyForm: InvoiceForm = {
 
 const invoiceSelect = '*, tenants(id, full_name, tenant_code, user_id, houses(house_number)), houses(house_number)';
 
+type ActiveLease = {
+  tenant_id: string;
+  lease_start_date: string;
+  lease_end_date: string | null;
+  monthly_rent: number;
+};
+
+function localDateString(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function monthlyAnniversary(startDate: string, year: number, monthIndex: number) {
+  const startDay = Number(startDate.slice(8, 10));
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(Math.min(startDay, lastDay)).padStart(2, '0')}`;
+}
+
 export default function InvoicesPage() {
   const { profile } = useAuth();
   const { fmt, t, language } = useTheme();
@@ -40,6 +61,7 @@ export default function InvoicesPage() {
   const { toasts, addToast, removeToast } = useToast();
   const [invoices, setInvoices] = useState<UtilityInvoice[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [activeLeases, setActiveLeases] = useState<ActiveLease[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -50,9 +72,10 @@ export default function InvoicesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data, error }, { data: tenantData, error: tenantError }] = await Promise.all([
+    const [{ data, error }, { data: tenantData, error: tenantError }, { data: paymentData, error: paymentError }] = await Promise.all([
       supabase.from('utility_invoices').select(invoiceSelect).order('rent_month', { ascending: false }),
       supabase.from('tenants').select('*, houses(house_number)').eq('status', 'active').order('full_name'),
+      supabase.from('payments').select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount'),
     ]);
     if (error) {
       addToast(
@@ -63,12 +86,32 @@ export default function InvoicesPage() {
           : error.message,
         'error',
       );
+    } else {
+      if (paymentError) {
+        addToast(`Unable to load utility payment balances: ${paymentError.message}`, 'error');
+      }
+      const invoiceRows = (data ?? []) as UtilityInvoice[];
+      const balances = calculateInvoiceChargeBalances(invoiceRows, paymentData ?? []);
+      setInvoices(invoiceRows.map(invoice => ({ ...invoice, ...balances.get(invoice.id) })));
     }
-    else setInvoices((data ?? []) as UtilityInvoice[]);
     if (tenantError) addToast(tenantError.message, 'error');
     else setTenants((tenantData ?? []) as Tenant[]);
+    if (profile?.role === 'admin') {
+      const { data: leaseData, error: leaseError } = await supabase
+        .from('rental_agreements')
+        .select('tenant_id, lease_start_date, lease_end_date, monthly_rent')
+        .eq('status', 'active');
+      if (leaseError) {
+        addToast(leaseError.message, 'error');
+        setActiveLeases([]);
+      } else {
+        setActiveLeases((leaseData ?? []) as ActiveLease[]);
+      }
+    } else {
+      setActiveLeases([]);
+    }
     setLoading(false);
-  }, [addToast, language]);
+  }, [addToast, language, profile?.role]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -79,6 +122,19 @@ export default function InvoicesPage() {
   const openCreate = () => {
     setEditing(null);
     setForm({ ...emptyForm });
+    setModalOpen(true);
+  };
+
+  const openCreateForTenant = (tenant: Tenant, month: string, dueDate: string) => {
+    const lease = activeLeases.find(item => item.tenant_id === tenant.id);
+    setEditing(null);
+    setForm({
+      ...emptyForm,
+      tenant_id: tenant.id,
+      rent_month: month,
+      rent_amount: String(lease?.monthly_rent ?? tenant.monthly_rent ?? ''),
+      due_date: dueDate,
+    });
     setModalOpen(true);
   };
 
@@ -98,10 +154,11 @@ export default function InvoicesPage() {
 
   const handleTenantSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const tenant = tenants.find(item => item.id === event.target.value);
+    const lease = activeLeases.find(item => item.tenant_id === tenant?.id);
     setForm(current => ({
       ...current,
       tenant_id: event.target.value,
-      rent_amount: String(tenant?.monthly_rent ?? ''),
+      rent_amount: String(lease?.monthly_rent ?? tenant?.monthly_rent ?? ''),
     }));
   };
 
@@ -171,7 +228,7 @@ export default function InvoicesPage() {
       await load();
       if (!editing && tenant.user_id && invoiceNumber && invoiceId) {
         const invoiceMonth = new Date(`${month.slice(0, 7)}-01`).toLocaleDateString(
-          language === 'fr' ? 'fr-FR' : 'en-US',
+          language === 'fr' ? 'fr-FR' : 'en-GB',
           { month: 'long', year: 'numeric' },
         );
         const { error: notificationError } = await supabase.from('notifications').insert({
@@ -223,18 +280,6 @@ export default function InvoicesPage() {
     setSaving(false);
   };
 
-  const updateStatus = async (invoice: UtilityInvoice) => {
-    const nextStatus = invoice.status === 'paid' ? 'unpaid' : 'paid';
-    const { error } = await supabase.from('utility_invoices')
-      .update({ status: nextStatus, updated_at: new Date().toISOString() })
-      .eq('id', invoice.id);
-    if (error) addToast(error.message, 'error');
-    else {
-      addToast(language === 'fr' ? 'Statut de la facture mis à jour.' : 'Invoice status updated.', 'success');
-      load();
-    }
-  };
-
   const deleteInvoice = async () => {
     if (!deleting) return;
     const { error } = await supabase.from('utility_invoices').delete().eq('id', deleting.id);
@@ -251,6 +296,28 @@ export default function InvoicesPage() {
     window.setTimeout(() => printDocument('invoice', 'invoice-print-document'), 100);
   };
 
+  const today = new Date();
+  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const todayString = localDateString(today);
+  const invoicedTenantIds = new Set(
+    invoices
+      .filter(invoice => invoice.rent_month.slice(0, 7) === currentMonth)
+      .map(invoice => invoice.tenant_id),
+  );
+  const pendingInvoices = invoices.filter(invoice => invoice.status === 'unpaid' || invoice.status === 'partial');
+  const rentDueTenants = tenants.flatMap(tenant => {
+    if (!tenant.house_id || invoicedTenantIds.has(tenant.id)) return [];
+    const lease = activeLeases
+      .filter(item => item.tenant_id === tenant.id)
+      .sort((a, b) => b.lease_start_date.localeCompare(a.lease_start_date))[0];
+    const startDate = tenant.move_in_date ?? lease?.lease_start_date;
+    if (!startDate || startDate.slice(0, 7) > currentMonth) return [];
+    const dueDate = monthlyAnniversary(startDate, today.getFullYear(), today.getMonth());
+    const endDate = lease?.lease_end_date ?? tenant.move_out_date;
+    if (dueDate > todayString || (endDate && endDate < dueDate)) return [];
+    return [{ tenant, dueDate }];
+  });
+
   return (
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -263,6 +330,48 @@ export default function InvoicesPage() {
           <Button icon={<Plus className="h-4 w-4" />} onClick={openCreate}>{t('createInvoice')}</Button>
         )}
       </div>
+
+      {canManageInvoices && (
+        <section className="overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/70">
+          <div className="flex items-center gap-3 border-b border-amber-100 px-5 py-4">
+            <CalendarDays className="h-5 w-5 text-amber-700" />
+            <div>
+              <h2 className="font-semibold text-slate-900">{t('rentDueThisMonth')}</h2>
+              <p className="mt-0.5 text-sm text-slate-600">{t('rentDueThisMonthDescription')}</p>
+            </div>
+            <span className="ml-auto rounded-full bg-white px-3 py-1 text-sm font-semibold text-amber-800">
+              {rentDueTenants.length}
+            </span>
+          </div>
+          {rentDueTenants.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-slate-600">{t('noRentDue')}</p>
+          ) : (
+            <div className="divide-y divide-amber-100">
+              {rentDueTenants.map(({ tenant, dueDate }) => (
+                <div key={tenant.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                  <div>
+                    <p className="font-medium text-slate-900">{tenant.full_name}</p>
+                    <p className="text-xs text-slate-600">
+                      {tenant.houses?.house_number ?? '—'} · {t('invoiceDueDate')}: {new Date(`${dueDate}T00:00:00`).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-slate-800 money-value">
+                      {fmt(Number(activeLeases.find(item => item.tenant_id === tenant.id)?.monthly_rent ?? tenant.monthly_rent ?? 0))}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => openCreateForTenant(tenant, currentMonth, dueDate)}
+                    >
+                      {t('createRentInvoice')}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
@@ -279,29 +388,29 @@ export default function InvoicesPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && <tr><td colSpan={6} className="py-10 text-center text-slate-500">{t('loading')}</td></tr>}
-              {!loading && invoices.length === 0 && <tr><td colSpan={6} className="py-10 text-center text-slate-500">{t('noInvoices')}</td></tr>}
-              {invoices.map(invoice => (
+              {!loading && pendingInvoices.length === 0 && <tr><td colSpan={6} className="py-10 text-center text-slate-500">{t('noPendingInvoices')}</td></tr>}
+              {pendingInvoices.map(invoice => (
                 <tr key={invoice.id}>
                   <td className="px-5 py-3 text-sm font-semibold text-slate-900">{invoice.invoice_number}</td>
                   <td className="px-5 py-3 text-sm text-slate-700">{invoice.tenants?.full_name ?? '—'}</td>
                   <td className="px-5 py-3 text-sm text-slate-700">
-                    {new Date(`${invoice.rent_month.slice(0, 7)}-01`).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' })}
+                    {new Date(`${invoice.rent_month.slice(0, 7)}-01`).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB', { month: 'long', year: 'numeric' })}
                   </td>
-                  <td className="px-5 py-3 text-right text-sm font-semibold text-slate-900"><span className="money-value">{fmt(Number(invoice.total_amount))}</span></td>
-                  <td className="px-5 py-3 text-center">
-                    {canManageInvoices ? (
-                      <button
-                        type="button"
-                        onClick={() => updateStatus(invoice)}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}
-                      >
-                        {t(invoice.status)}
-                      </button>
-                    ) : (
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {t(invoice.status)}
-                      </span>
+                  <td className="px-5 py-3 text-right text-sm font-semibold text-slate-900">
+                    <span className="money-value">{fmt(Number(invoice.total_amount))}</span>
+                    <p className="mt-1 text-xs font-semibold text-red-700">
+                      {t('totalBalanceDue')}: <span className="money-value">{fmt(Number(invoice.total_balance_due ?? invoice.rent_balance))}</span>
+                    </p>
+                    {Number(invoice.rent_credit) > 0 && (
+                      <p className="mt-1 text-xs font-medium text-emerald-700">
+                        {t('rentCredit')}: <span className="money-value">{fmt(Number(invoice.rent_credit))}</span>
+                      </p>
                     )}
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : invoice.status === 'partial' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {invoice.status === 'partial' ? t('partiallyUnpaid') : t(invoice.status)}
+                    </span>
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex justify-end gap-1">
@@ -333,8 +442,8 @@ export default function InvoicesPage() {
           </Select>
           <Input label={t('invoiceMonth')} type="month" value={form.rent_month} onChange={setField('rent_month')} />
           <Input label={t('rent')} type="number" min="0" step="0.01" value={form.rent_amount} onChange={setField('rent_amount')} />
-          <Input label={t('water')} type="number" min="0" step="0.01" value={form.water_amount} onChange={setField('water_amount')} />
-          <Input label={t('electricity')} type="number" min="0" step="0.01" value={form.electricity_amount} onChange={setField('electricity_amount')} />
+          <Input label={`${t('additionalCharges')} — ${t('water')}`} type="number" min="0" step="0.01" value={form.water_amount} onChange={setField('water_amount')} />
+          <Input label={`${t('additionalCharges')} — ${t('electricity')}`} type="number" min="0" step="0.01" value={form.electricity_amount} onChange={setField('electricity_amount')} />
           <Input label={t('invoiceDueDate')} type="date" value={form.due_date} onChange={setField('due_date')} />
           <div className="sm:col-span-2">
             <Textarea label={t('notes')} value={form.notes} onChange={setField('notes')} rows={3} maxLength={1000} />

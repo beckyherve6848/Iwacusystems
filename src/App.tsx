@@ -35,7 +35,7 @@ import UserActivityPage from '@/pages/admin/UserActivityPage';
 import { supabase } from '@/lib/supabase';
 
 const propertyManagerPages = new Set([
-  'manager-dashboard', 'houses', 'tenants', 'invoices', 'payments', 'maintenance', 'visitors', 'reports', 'notifications',
+  'manager-dashboard', 'houses', 'tenants', 'invoices', 'payments', 'maintenance', 'visitors', 'reports', 'notifications', 'manager-chat',
 ]);
 
 const defaultPageByRole: Record<string, string> = {
@@ -55,7 +55,7 @@ const pagesByRole: Record<string, Set<string>> = {
   gatekeeper: new Set(['gk-dashboard', 'visitors']),
   caretaker: new Set([
     'caretaker-dashboard', 'invoices', 'caretaker-visitors', 'caretaker-register-visitor',
-    'notifications', 'caretaker-profile',
+    'notifications', 'caretaker-profile', 'caretaker-chat',
   ]),
   property_manager: propertyManagerPages,
   tenant: new Set([
@@ -178,6 +178,7 @@ function AppContent() {
       case 'caretaker-visitors': return <CaretakerVisitorsPage onNavigate={navigate} />;
       case 'caretaker-register-visitor': return <CaretakerRegisterVisitorPage onNavigate={navigate} />;
       case 'caretaker-profile': return <CaretakerProfilePage onNavigate={navigate} />;
+      case 'caretaker-chat': return profile.role === 'caretaker' ? <AdminChatPage /> : null;
       case 'tenant-dashboard': return <TenantDashboard onNavigate={navigate} />;
       case 'tenant-payments': return <TenantPaymentsPage />;
       case 'tenant-invoices': return <TenantInvoicesPage />;
@@ -185,6 +186,7 @@ function AppContent() {
       case 'tenant-agreement': return <TenantAgreementPage />;
       case 'tenant-chat': return <TenantChatPage />;
       case 'admin-chat': return <AdminChatPage />;
+      case 'manager-chat': return profile.role === 'property_manager' ? <AdminChatPage /> : null;
       case 'visitors': return <VisitorsPage />;
       case 'notifications': return <NotificationsPage />;
       case 'user-activity': return profile.role === 'admin' ? <UserActivityPage /> : null;

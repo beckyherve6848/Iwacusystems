@@ -44,6 +44,20 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const getAuthErrorMessage = (message: string) => {
+    const normalized = message.toLowerCase();
+    if (
+      normalized.includes('failed to fetch') ||
+      normalized.includes('network request failed') ||
+      normalized.includes('networkerror') ||
+      normalized.includes('fetch failed') ||
+      normalized.includes('err_internet_disconnected')
+    ) {
+      return t('authNetworkError');
+    }
+    return message;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -70,20 +84,26 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
     }
     setLoading(true);
     if (mode === 'login') {
-      const { error } = await signIn(form.email, form.password, captchaToken ?? undefined);
-      if (error) {
-        const unavailableMessage = 'Your account is unavailable. Please contact the administrator.';
-        setError(error.message === unavailableMessage
-          ? language === 'fr'
-            ? 'Votre compte est indisponible. Veuillez contacter l’administrateur.'
-            : unavailableMessage
-          : error.message === 'Invalid login credentials'
+      try {
+        const { error } = await signIn(form.email, form.password, captchaToken ?? undefined);
+        if (error) {
+          const unavailableMessage = 'Your account is unavailable. Please contact the administrator.';
+          const message = error.message === unavailableMessage
             ? language === 'fr'
-              ? 'Email ou mot de passe invalide.'
-              : 'Invalid email or password.'
-            : error.message);
+              ? 'Votre compte est indisponible. Veuillez contacter l’administrateur.'
+              : unavailableMessage
+            : error.message === 'Invalid login credentials'
+              ? language === 'fr'
+                ? 'Email ou mot de passe invalide.'
+                : 'Invalid email or password.'
+              : getAuthErrorMessage(error.message);
+          setError(message);
+        } else {
+          onSuccess();
+        }
+      } catch (caught) {
+        setError(getAuthErrorMessage(caught instanceof Error ? caught.message : String(caught)));
       }
-      else onSuccess();
     } else {
       if (form.password !== form.confirmPassword) {
         setError(language === 'fr' ? 'Les mots de passe ne correspondent pas.' : 'Passwords do not match.');
@@ -93,15 +113,19 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
         setError(language === 'fr' ? 'Le mot de passe doit comporter au moins 8 caractères.' : 'Password must be at least 8 characters.');
         setLoading(false); return;
       }
-      const { error } = await signUp(form.email, form.password, form.fullName, form.phone, captchaToken ?? undefined);
-      if (error) setError(error.message || (language === 'fr' ? "Échec de l'inscription." : 'Registration failed.'));
-      else {
-        setMode('login');
-        setError('');
-        setRegistrationMessage(language === 'fr'
-          ? "Inscription réussie. Veuillez attendre la configuration de votre profil."
-          : 'Registration successful. Please wait for your profile to be set up.');
-        setForm(f => ({ ...f, password: '', confirmPassword: '' }));
+      try {
+        const { error } = await signUp(form.email, form.password, form.fullName, form.phone, captchaToken ?? undefined);
+        if (error) setError(getAuthErrorMessage(error.message) || (language === 'fr' ? "Échec de l'inscription." : 'Registration failed.'));
+        else {
+          setMode('login');
+          setError('');
+          setRegistrationMessage(language === 'fr'
+            ? "Inscription réussie. Veuillez attendre la configuration de votre profil."
+            : 'Registration successful. Please wait for your profile to be set up.');
+          setForm(f => ({ ...f, password: '', confirmPassword: '' }));
+        }
+      } catch (caught) {
+        setError(getAuthErrorMessage(caught instanceof Error ? caught.message : String(caught)));
       }
     }
     setCaptchaToken(null);

@@ -12,6 +12,7 @@ type StaffProfile = Profile & {
   residential_address?: string | null;
   profile_photo_path?: string | null;
   identity_document_path?: string | null;
+  signature_image_path?: string | null;
 };
 
 export default function StaffIdentityCard({
@@ -28,14 +29,18 @@ export default function StaffIdentityCard({
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
   const cardId = `staff-card-${profile.id}`;
   const french = language === 'fr';
+  const notAssigned = french ? 'Non attribué' : 'Not assigned';
   const cardText = french ? {
     cardType: 'CARTE D’IDENTITÉ',
     staffIdentification: 'IDENTIFICATION DU PERSONNEL',
-    caretaker: 'Gardien',
+    caretaker: 'Concierge',
     propertyManager: 'Gestionnaire immobilier',
+    role: 'Fonction',
     staffId: 'MATRICULE',
     pending: 'En attente',
     idPassport: 'ID / Passeport',
@@ -49,11 +54,18 @@ export default function StaffIdentityCard({
     printBiometric: 'Imprimer la carte biométrique',
     identityDocument: 'Document ID / Passeport',
     qrUnavailable: 'QR indisponible',
+    firstName: 'Prénom',
+    secondName: 'Nom',
+    dateIssued: 'Délivrée',
+    footer: 'Informations de la carte',
+    signature: 'Signature autorisée',
+    signatureUnavailable: 'Signature indisponible',
   } : {
     cardType: 'IDENTITY CARD',
     staffIdentification: 'STAFF IDENTIFICATION',
     caretaker: 'Caretaker',
     propertyManager: 'Property Manager',
+    role: 'Role',
     staffId: 'STAFF ID',
     pending: 'Pending',
     idPassport: 'ID / Passport',
@@ -67,45 +79,62 @@ export default function StaffIdentityCard({
     printBiometric: 'Print biometric card',
     identityDocument: 'ID / Passport document',
     qrUnavailable: 'QR unavailable',
+    firstName: 'First Name',
+    secondName: 'Second Name',
+    dateIssued: 'Issued',
+    footer: 'Card footer',
+    signature: 'Authorized signature',
+    signatureUnavailable: 'Signature unavailable',
   };
+  const nameParts = profile.full_name.trim().split(/\s+/);
+  const firstName = nameParts[0] || cardText.notProvided;
+  const secondName = nameParts.slice(1).join(' ') || cardText.notProvided;
+  const dateLocale = french ? 'fr-FR' : 'en-GB';
+  const dateIssued = profile.created_at
+    ? new Date(profile.created_at).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })
+    : cardText.notProvided;
   const roleLabel = profile.role === 'caretaker' ? cardText.caretaker : cardText.propertyManager;
   const properties = profile.role === 'caretaker'
-    ? profile.assigned_property_name || assignedProperties?.[0]?.split(' · ')[0] || 'Not assigned'
+    ? profile.assigned_property_name || assignedProperties?.[0]?.split(' · ')[0] || notAssigned
     : assignedProperties?.length
       ? assignedProperties.join(', ')
-      : profile.assigned_property_name || 'Not assigned';
+      : profile.assigned_property_name || notAssigned;
   const selectedFooter = french ? staffCardFooterFr : staffCardFooter;
   const footerMessage = (selectedFooter || (french ? DEFAULT_STAFF_CARD_FOOTER_FR : DEFAULT_STAFF_CARD_FOOTER))
     .replace(/\{phone\}/g, propertyPhone || (french ? 'veuillez contacter le bureau de gestion immobilière' : 'please contact the Property Management Office'))
     .replace(/\{address\}/g, propertyAddress || (french ? 'le bureau de gestion immobilière' : 'the Property Management Office'))
     .replace(/\{property\}/g, properties);
+  const qrField = (label: string, value: string) =>
+    `${label}: ${value.replace(/[\r\n\t]+/g, ' ').trim()}`;
   const qrPayload = [
-    french ? 'CARTE D’IDENTITÉ DU PERSONNEL' : 'STAFF IDENTITY CARD',
-    `${french ? 'Nom complet' : 'Full name'}: ${profile.full_name || cardText.notProvided}`,
-    `${cardText.staffId}: ${profile.staff_id || cardText.pending}`,
-    `${french ? 'Fonction' : 'Role'}: ${roleLabel}`,
-    `${cardText.idPassport}: ${profile.national_id || cardText.notProvided}`,
-    `${cardText.telephone}: ${profile.phone || cardText.notProvided}`,
-    `${cardText.email}: ${profile.email || cardText.notProvided}`,
-    `${cardText.assignedProperty}: ${properties}`,
-    `${cardText.address}: ${profile.residential_address || cardText.notProvided}`,
+    qrField(cardText.firstName, firstName),
+    qrField(cardText.secondName, secondName),
+    qrField(cardText.role, roleLabel),
+    qrField(cardText.staffId, profile.staff_id || cardText.pending),
+    qrField(cardText.idPassport, profile.national_id || cardText.notProvided),
+    qrField(cardText.telephone, profile.phone || cardText.notProvided),
+    qrField(cardText.email, profile.email || cardText.notProvided),
+    qrField(cardText.assignedProperty, properties),
+    qrField(cardText.address, profile.residential_address || cardText.notProvided),
+    qrField(cardText.dateIssued, dateIssued),
+    `${cardText.footer}:\n${footerMessage}`,
   ].join('\n');
 
   useEffect(() => {
     let cancelled = false;
     QRCode.toDataURL(qrPayload, {
-    width: 512,
-    margin: 1,
-    errorCorrectionLevel: 'M',
-    color: { dark: '#111827', light: '#ffffff' },
+      width: 1024,
+      margin: 4,
+      errorCorrectionLevel: 'L',
+      color: { dark: '#000000', light: '#ffffff' },
     }).then(url => {
-    if (cancelled) return;
-    setQrCodeUrl(url);
-    setQrError(null);
+      if (cancelled) return;
+      setQrCodeUrl(url);
+      setQrError(null);
     }).catch((caught: unknown) => {
-    if (cancelled) return;
-    setQrCodeUrl(null);
-    setQrError(caught instanceof Error ? caught.message : 'Unable to create the staff-details QR code.');
+      if (cancelled) return;
+      setQrCodeUrl(null);
+      setQrError(caught instanceof Error ? caught.message : 'Unable to create the staff-details QR code.');
     });
     return () => { cancelled = true; };
   }, [qrPayload]);
@@ -129,6 +158,32 @@ export default function StaffIdentityCard({
       });
     return () => { cancelled = true; };
   }, [profile.profile_photo_path]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!profile.signature_image_path) {
+      setSignatureUrl(null);
+      setSignatureError(null);
+      return;
+    }
+    supabase.storage.from('identity-documents').createSignedUrl(profile.signature_image_path, 300)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          setSignatureUrl(null);
+          setSignatureError(error.message);
+          return;
+        }
+        setSignatureUrl(data.signedUrl);
+        setSignatureError(null);
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) return;
+        setSignatureUrl(null);
+        setSignatureError(caught instanceof Error ? caught.message : 'Unable to load the staff signature.');
+      });
+    return () => { cancelled = true; };
+  }, [profile.signature_image_path]);
 
   const printCard = () => {
     setPrintError(null);
@@ -166,7 +221,16 @@ export default function StaffIdentityCard({
 
           <div className="staff-id-card__details">
             <p className="staff-id-card__role">{roleLabel}</p>
-            <h1 className="staff-id-card__name" title={profile.full_name}>{profile.full_name || 'Staff member'}</h1>
+            <div className="staff-id-card__name-parts">
+              <div>
+                <span>{cardText.firstName}</span>
+                <strong title={firstName}>{firstName}</strong>
+              </div>
+              <div>
+                <span>{cardText.secondName}</span>
+                <strong title={secondName}>{secondName}</strong>
+              </div>
+            </div>
             <div className="staff-id-card__staff-number">
               <span>{cardText.staffId}</span>
               <strong>{profile.staff_id || cardText.pending}</strong>
@@ -179,7 +243,11 @@ export default function StaffIdentityCard({
               </div>
               <div>
                 <dt>{cardText.telephone}</dt>
-                <dd title={profile.phone || undefined}>{profile.phone || cardText.notProvided}</dd>
+                <dd title={profile.phone || undefined}>
+                  {profile.phone
+                    ? <a className="staff-id-card__phone" href={`tel:${profile.phone.replace(/[^\d+]/g, '')}`}>{profile.phone}</a>
+                    : cardText.notProvided}
+                </dd>
               </div>
               <div className="staff-id-card__fact--wide">
                 <dt>{cardText.email}</dt>
@@ -189,7 +257,7 @@ export default function StaffIdentityCard({
                 <dt>{cardText.assignedProperty}</dt>
                 <dd title={properties}>{properties}</dd>
               </div>
-              <div className="staff-id-card__fact--wide">
+              <div className="staff-id-card__fact--wide staff-id-card__fact--address">
                 <dt>{cardText.address}</dt>
                 <dd title={profile.residential_address || undefined}>{profile.residential_address || cardText.notProvided}</dd>
               </div>
@@ -200,6 +268,12 @@ export default function StaffIdentityCard({
               ? <img src={qrCodeUrl} alt={`QR code containing ${profile.full_name}'s staff identity details`} />
               : <span>{cardText.qrUnavailable}</span>}
             <small>{cardText.scan}</small>
+            <span className="staff-id-card__issued">{cardText.dateIssued}: {dateIssued}</span>
+            <div className="staff-id-card__signature">
+              <span>{cardText.signature}</span>
+              {signatureUrl && <img src={signatureUrl} alt={`${profile.full_name}'s authorized signature`} />}
+              {signatureError && <small role="alert">{cardText.signatureUnavailable}</small>}
+            </div>
           </div>
         </div>
 
@@ -223,8 +297,8 @@ export default function StaffIdentityCard({
           </div>
         )}
       </div>
-      {photoError && <p role="alert" className="mt-2 text-xs text-red-700">Unable to load profile photo: {photoError}</p>}
-      {qrError && <p role="alert" className="mt-2 text-xs text-red-700">Unable to generate staff QR code: {qrError}</p>}
+      {photoError && <p role="alert" className="mt-2 text-xs text-red-700">{french ? 'Impossible de charger la photo de profil' : 'Unable to load profile photo'}: {photoError}</p>}
+      {qrError && <p role="alert" className="mt-2 text-xs text-red-700">{french ? 'Impossible de générer le code QR du personnel' : 'Unable to generate staff QR code'}: {qrError}</p>}
       {printError && <p role="alert" className="mt-2 text-xs text-red-700">{printError}</p>}
     </section>
   );

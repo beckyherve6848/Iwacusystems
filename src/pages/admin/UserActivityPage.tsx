@@ -231,7 +231,7 @@ export default function UserActivityPage() {
       .map(([key, value]) => `${key}: ${String(value)}`)
       .join(', ');
   };
-  const timestamp = (value: string) => new Intl.DateTimeFormat(language === 'fr' ? 'fr-BI' : 'en-US', {
+  const timestamp = (value: string) => new Intl.DateTimeFormat(language === 'fr' ? 'fr-BI' : 'en-GB', {
     dateStyle: 'medium',
     timeStyle: 'medium',
   }).format(new Date(value));

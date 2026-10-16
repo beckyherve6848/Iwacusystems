@@ -82,8 +82,8 @@ export default function TenantAgreementPage() {
               {[
                 { label: 'House', value: agreement.houses?.house_number },
                 { label: 'Monthly Rent', value: fmt(Number(agreement.monthly_rent)) },
-                { label: 'Start Date', value: new Date(agreement.lease_start_date).toLocaleDateString() },
-                { label: 'End Date', value: agreement.lease_end_date ? new Date(agreement.lease_end_date).toLocaleDateString() : 'Ongoing' },
+                { label: 'Start Date', value: new Date(agreement.lease_start_date).toLocaleDateString('en-GB') },
+                { label: 'End Date', value: agreement.lease_end_date ? new Date(agreement.lease_end_date).toLocaleDateString('en-GB') : 'Ongoing' },
                 { label: 'Security Deposit', value: fmt(Number(agreement.security_deposit)) },
                 { label: 'Landlord', value: agreement.landlord_signature ?? 'Property Management' },
               ].map(item => (

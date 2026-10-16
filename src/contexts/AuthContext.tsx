@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, Profile } from '@/lib/supabase';
+import { supabase, Profile, Tenant } from '@/lib/supabase';
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
-  tenantRecord: any | null;
+  tenantRecord: Tenant | null;
   tenantChecked: boolean;
   loading: boolean;
   signIn: (email: string, password: string, captchaToken?: string) => Promise<{ error: Error | null }>;
@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [tenantRecord, setTenantRecord] = useState<any | null>(null);
+  const [tenantRecord, setTenantRecord] = useState<Tenant | null>(null);
   const [tenantChecked, setTenantChecked] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -48,7 +48,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTenantChecked(true);
         return;
       }
-      setTenantRecord(tenant);
+      if (tenant?.photo_url?.startsWith('tenants/')) {
+        const { data: photo, error: photoError } = await supabase.storage
+          .from('identity-documents')
+          .createSignedUrl(tenant.photo_url, 3600);
+        if (photoError) console.error('Unable to load tenant profile photo:', photoError.message);
+        setTenantRecord({ ...tenant, photo_url: photo?.signedUrl ?? null });
+      } else {
+        setTenantRecord(tenant);
+      }
     } else {
       setTenantRecord(null);
     }
@@ -61,12 +69,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshTenant = async () => {
     if (!user) return;
-    const { data: tenant } = await supabase
+    const { data: tenant, error } = await supabase
       .from('tenants')
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
-    setTenantRecord(tenant);
+    if (error) {
+      console.error('Unable to refresh tenant details:', error.message);
+      return;
+    }
+    if (tenant?.photo_url?.startsWith('tenants/')) {
+      const { data: photo, error: photoError } = await supabase.storage
+        .from('identity-documents')
+        .createSignedUrl(tenant.photo_url, 3600);
+      if (photoError) console.error('Unable to load tenant profile photo:', photoError.message);
+      setTenantRecord({ ...tenant, photo_url: photo?.signedUrl ?? null });
+    } else {
+      setTenantRecord(tenant);
+    }
     setTenantChecked(true);
   };
 

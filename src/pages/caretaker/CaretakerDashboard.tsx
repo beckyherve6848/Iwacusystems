@@ -230,7 +230,7 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
                     {v.status === 'inside' ? t('inside') : t('left')}
                   </span>
                   <p className="text-[10px] text-slate-400 mt-0.5">
-                    {new Date(v.created_at).toLocaleDateString()}
+                    {new Date(v.created_at).toLocaleDateString('en-GB')}
                   </p>
                 </div>
               </motion.div>

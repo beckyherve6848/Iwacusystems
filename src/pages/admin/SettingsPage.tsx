@@ -4,9 +4,17 @@ import Input, { Textarea } from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
-import { Save, Settings, Upload, Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
+import { Save, Settings, Upload, Image as ImageIcon, Plus, Trash2, Smartphone, Sun, Moon } from 'lucide-react';
 import { DEFAULT_STAFF_CARD_FOOTER, DEFAULT_STAFF_CARD_FOOTER_FR, useTheme } from '@/contexts/ThemeContext';
 import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
+import {
+  getPhoneStatusStyle,
+  getPhoneThemeMode,
+  PhoneThemeMode,
+  PhoneStatusStyle,
+  savePhoneThemeMode,
+  savePhoneStatusStyle,
+} from '@/lib/phoneStatusStyle';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -16,15 +24,17 @@ export default function SettingsPage() {
   const [uploading, setUploading] = useState(false);
   const [logoPreview, setLogoPreview] = useState('/iwacu-mark-512.png');
   const [familyPreview, setFamilyPreview] = useState('/Bck.png');
+  const [phoneStatusStyle, setPhoneStatusStyle] = useState<PhoneStatusStyle>(() => getPhoneStatusStyle());
+  const [phoneThemeMode, setPhoneThemeMode] = useState<PhoneThemeMode>(() => getPhoneThemeMode());
   const logoFileRef = useRef<HTMLInputElement>(null);
   const familyFileRef = useRef<HTMLInputElement>(null);
   const { toasts, addToast, removeToast } = useToast();
-  const { updateBranding } = useTheme();
+  const { updateBranding, t } = useTheme();
 
   useEffect(() => {
     supabase.from('settings').select('key, value').then(({ data, error }) => {
       if (error) {
-        addToast(`Unable to load settings: ${error.message}`, 'error');
+        addToast(`${t('unableLoadSettings')}: ${error.message}`, 'error');
         setLoading(false);
         return;
       }
@@ -33,7 +43,7 @@ export default function SettingsPage() {
       try {
         setPaymentMethods(parseCustomPaymentMethods(map.custom_payment_methods));
       } catch (error) {
-        addToast(`Unable to load payment methods: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        addToast(`${t('unableLoadPaymentMethods')}: ${error instanceof Error ? error.message : String(error)}`, 'error');
       }
       setLogoPreview(map.logo_url || '/iwacu-mark-512.png');
       if (map.login_family_image_url) setFamilyPreview(map.login_family_image_url);
@@ -47,7 +57,7 @@ export default function SettingsPage() {
       });
       setLoading(false);
     });
-  }, [addToast]);
+  }, [addToast, t]);
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setSettings(s => ({ ...s, [key]: e.target.value }));
@@ -55,11 +65,11 @@ export default function SettingsPage() {
   const handleFileUpload = async (file: File, asset: 'logo' | 'family') => {
     const allowedImageTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'];
     if (!allowedImageTypes.includes(file.type)) {
-      addToast('Choose a PNG, JPG, WebP, GIF, or AVIF image', 'error');
+      addToast(t('chooseImageTypes'), 'error');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      addToast('Image must be under 5MB', 'error');
+      addToast(t('imageUnder5Mb'), 'error');
       return;
     }
     setUploading(true);
@@ -83,7 +93,7 @@ export default function SettingsPage() {
     setSettings(s => ({ ...s, [settingKey]: url }));
     if (asset === 'logo') setLogoPreview(url);
     else setFamilyPreview(url);
-    addToast('Image uploaded. Click Save Settings to apply.', 'success');
+    addToast(t('imageUploadedSave'), 'success');
     setUploading(false);
   };
 
@@ -101,7 +111,7 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     if (!settings.app_name?.trim()) {
-      addToast('App name cannot be empty', 'error');
+      addToast(t('appNameRequired'), 'error');
       return;
     }
     setSaving(true);
@@ -113,18 +123,18 @@ export default function SettingsPage() {
       const name = method.name.trim();
       const instructions = method.instructions.trim();
       if (!name || !instructions) {
-        addToast('Every payment method needs a name and instructions', 'error');
+        addToast(t('paymentMethodNeedsDetails'), 'error');
         setSaving(false);
         return;
       }
       const normalizedName = name.toLocaleLowerCase();
       if (reservedMethodNames.includes(normalizedName)) {
-        addToast(`"${name}" is already a built-in payment method`, 'error');
+        addToast(`"${name}" ${t('builtInPaymentMethod')}`, 'error');
         setSaving(false);
         return;
       }
       if (methodsByName.has(normalizedName)) {
-        addToast(`Payment method "${name}" is listed more than once`, 'error');
+        addToast(`"${name}" ${t('duplicatePaymentMethod')}`, 'error');
         setSaving(false);
         return;
       }
@@ -144,7 +154,7 @@ export default function SettingsPage() {
       { onConflict: 'key' },
     );
     if (error) {
-      addToast(`Unable to save settings: ${error.message}`, 'error');
+      addToast(`${t('unableSaveSettings')}: ${error.message}`, 'error');
     } else {
       updateBranding({
         appName: settings.app_name.trim(),
@@ -157,7 +167,7 @@ export default function SettingsPage() {
         loginFamilyImageUrl: settings.login_family_image_url ?? '',
       });
       setSettings(settingsToSave);
-      addToast('Settings saved successfully', 'success');
+      addToast(t('settingsSavedSuccess'), 'success');
     }
     setSaving(false);
   };
@@ -173,29 +183,89 @@ export default function SettingsPage() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Configure your property management system</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t('settingsTitle')}</h1>
+        <p className="text-slate-500 text-sm mt-0.5">{t('settingsDescription')}</p>
       </div>
 
       <div className="space-y-4">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 md:hidden">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <Smartphone className="h-4 w-4" />
+            {t('phoneStatusStyle')}
+          </h3>
+          <p className="mb-4 text-xs text-slate-500">{t('phoneStatusStyleDescription')}</p>
+          <div className="mb-4 grid grid-cols-2 gap-3">
+            {([
+              { value: 'light', label: t('lightMode'), Icon: Sun },
+              { value: 'dark', label: t('darkMode'), Icon: Moon },
+            ] as const).map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  setPhoneThemeMode(option.value);
+                  savePhoneThemeMode(option.value);
+                }}
+                aria-pressed={phoneThemeMode === option.value}
+                className={`flex min-h-14 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-medium transition-colors ${
+                  phoneThemeMode === option.value
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <option.Icon className="h-4 w-4" />
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { value: 'dynamic-island', label: t('dynamicIsland') },
+              { value: 'camera-cutout', label: t('cameraCutout') },
+            ] as const).map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  setPhoneStatusStyle(option.value);
+                  savePhoneStatusStyle(option.value);
+                }}
+                aria-pressed={phoneStatusStyle === option.value}
+                className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-medium transition-colors ${
+                  phoneStatusStyle === option.value
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <span className="flex h-8 w-16 items-start justify-center rounded-lg bg-slate-900 pt-1.5">
+                  <span className={option.value === 'dynamic-island'
+                    ? 'h-3 w-9 rounded-full bg-black'
+                    : 'h-3 w-3 rounded-full border border-slate-700 bg-black'} />
+                </span>
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* App Branding */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-            <Settings className="w-4 h-4" /> App Branding
+            <Settings className="w-4 h-4" /> {t('appBranding')}
           </h3>
           <div className="space-y-4">
-            <Input label="App Name" value={settings.app_name ?? 'Iwacusystem'} onChange={set('app_name')} placeholder="Iwacusystem" />
+            <Input label={t('appNameLabel')} value={settings.app_name ?? 'Iwacusystem'} onChange={set('app_name')} placeholder="Iwacusystem" />
             <div>
-              <p className="text-sm font-medium text-slate-700 mb-2">App Logo</p>
+              <p className="text-sm font-medium text-slate-700 mb-2">{t('appLogo')}</p>
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center p-2">
-                  <img src={logoPreview} alt="App logo preview" className="max-w-full max-h-full object-contain" />
+                  <img src={logoPreview} alt={t('appLogoPreview')} className="max-w-full max-h-full object-contain" />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="ghost" size="sm" disabled={uploading} icon={<Upload className="w-4 h-4" />} onClick={() => logoFileRef.current?.click()}>
-                    Replace Logo
+                    {t('replaceLogo')}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={handleRemoveLogo}>Use Default</Button>
+                  <Button variant="ghost" size="sm" onClick={handleRemoveLogo}>{t('useDefault')}</Button>
                 </div>
               </div>
               <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={e => {
@@ -209,17 +279,17 @@ export default function SettingsPage() {
         {/* Login Family Photo */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-            <ImageIcon className="w-4 h-4" /> Login Page Family Photo
+            <ImageIcon className="w-4 h-4" /> {t('loginFamilyPhoto')}
           </h3>
           <div className="relative rounded-xl overflow-hidden border border-slate-200">
-            <img src={familyPreview} alt="Login family photo preview" className="w-full h-40 object-contain bg-slate-900" />
+            <img src={familyPreview} alt={t('familyPhotoPreview')} className="w-full h-40 object-contain bg-slate-900" />
           </div>
           <div className="flex flex-wrap gap-2 mt-3">
             <Button variant="ghost" size="sm" disabled={uploading} icon={<Upload className="w-4 h-4" />} onClick={() => familyFileRef.current?.click()}>
-              Replace Photo
+              {t('replacePhoto')}
             </Button>
             {settings.login_family_image_url && (
-              <Button variant="ghost" size="sm" onClick={handleRemoveFamilyImage}>Use Default Photo</Button>
+              <Button variant="ghost" size="sm" onClick={handleRemoveFamilyImage}>{t('useDefaultPhoto')}</Button>
             )}
           </div>
           <input ref={familyFileRef} type="file" accept="image/*" className="hidden" onChange={e => {
@@ -231,37 +301,37 @@ export default function SettingsPage() {
         {/* Property Info */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-            <Settings className="w-4 h-4" /> Property Information
+            <Settings className="w-4 h-4" /> {t('propertyInformation')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Property Name" value={settings.property_name ?? ''} onChange={set('property_name')} placeholder="My Property" />
-            <Input label="Property Phone" value={settings.property_phone ?? ''} onChange={set('property_phone')} placeholder="+254 700 000 000" />
+            <Input label={t('propertyName')} value={settings.property_name ?? ''} onChange={set('property_name')} placeholder={t('myProperty')} />
+            <Input label={t('propertyPhoneLabel')} value={settings.property_phone ?? ''} onChange={set('property_phone')} placeholder="+257 00 00 00 00" />
             <div className="sm:col-span-2">
-              <Input label="Property Address" value={settings.property_address ?? ''} onChange={set('property_address')} placeholder="123 Main St, Nairobi" />
+              <Input label={t('propertyAddressLabel')} value={settings.property_address ?? ''} onChange={set('property_address')} placeholder="Bujumbura" />
             </div>
             <div className="sm:col-span-2">
-              <Input label="Property Email" value={settings.property_email ?? ''} onChange={set('property_email')} placeholder="info@property.com" />
+              <Input label={t('propertyEmail')} value={settings.property_email ?? ''} onChange={set('property_email')} placeholder="info@property.com" />
             </div>
           </div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-            <Settings className="w-4 h-4" /> Staff ID Card Footer
+            <Settings className="w-4 h-4" /> {t('staffCardFooter')}
           </h3>
           <p className="mb-3 text-xs text-slate-500">
-            Set the message shown at the bottom of staff ID cards in each language. Use {'{phone}'} for Property Phone, {'{address}'} for Property Address, or {'{property}'} for the staff member’s assigned property.
+            {t('staffCardFooterDescription')}
           </p>
           <div className="grid gap-4 md:grid-cols-2">
             <Textarea
-              label="Footer message (English)"
+              label={t('footerMessageEnglish')}
               rows={3}
               maxLength={300}
               value={settings.staff_card_footer ?? DEFAULT_STAFF_CARD_FOOTER}
               onChange={event => setSettings(current => ({ ...current, staff_card_footer: event.target.value }))}
             />
             <Textarea
-              label="Message de pied de carte (français)"
+              label={t('footerMessageFrench')}
               rows={3}
               maxLength={300}
               value={settings.staff_card_footer_fr ?? DEFAULT_STAFF_CARD_FOOTER_FR}
@@ -274,8 +344,8 @@ export default function SettingsPage() {
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-slate-700">Additional Payment Methods</h3>
-              <p className="mt-1 text-xs text-slate-500">Add payment options and instructions that tenants can view on their dashboard.</p>
+              <h3 className="text-sm font-semibold text-slate-700">{t('additionalPaymentMethods')}</h3>
+              <p className="mt-1 text-xs text-slate-500">{t('paymentMethodsDescription')}</p>
             </div>
             <Button
               variant="outline"
@@ -283,29 +353,29 @@ export default function SettingsPage() {
               icon={<Plus className="w-4 h-4" />}
               onClick={() => setPaymentMethods(methods => [...methods, { id: crypto.randomUUID(), name: '', instructions: '' }])}
             >
-              Add Method
+              {t('addMethod')}
             </Button>
           </div>
           <div className="space-y-4">
             {paymentMethods.length === 0 && (
-              <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No additional payment methods have been added.</p>
+              <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{t('noAdditionalMethods')}</p>
             )}
             {paymentMethods.map((method, index) => (
               <div key={method.id} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2">
                 <Input
-                  label="Method Name"
+                  label={t('methodName')}
                   value={method.name}
                   maxLength={60}
                   onChange={event => setPaymentMethods(methods => methods.map((item, i) => i === index ? { ...item, name: event.target.value } : item))}
-                  placeholder="e.g. Lumicash"
+                  placeholder={t('paymentMethodExample')}
                 />
                 <div className="flex items-end gap-2">
                   <Textarea
-                    label="Instructions for tenants"
+                    label={t('instructionsForTenants')}
                     value={method.instructions}
                     maxLength={500}
                     onChange={event => setPaymentMethods(methods => methods.map((item, i) => i === index ? { ...item, instructions: event.target.value } : item))}
-                    placeholder="Enter number, account, or steps"
+                    placeholder={t('placeholderAccountSteps')}
                     rows={3}
                   />
                   <Button
@@ -313,7 +383,7 @@ export default function SettingsPage() {
                     size="sm"
                     icon={<Trash2 className="w-4 h-4" />}
                     onClick={() => setPaymentMethods(methods => methods.filter((_, i) => i !== index))}
-                    aria-label={`Remove ${method.name || 'payment method'}`}
+                    aria-label={`${t('removePaymentMethod')}: ${method.name}`}
                   />
                 </div>
               </div>
@@ -323,30 +393,30 @@ export default function SettingsPage() {
 
         {/* Payment Instructions */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Payment Instructions</h3>
-          <p className="text-xs text-slate-500 mb-4">These details are shown to tenants when making payments.</p>
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">{t('paymentInstructionsTitle')}</h3>
+          <p className="text-xs text-slate-500 mb-4">{t('paymentInstructionsDescription')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Bank Name" value={settings.bank_name ?? ''} onChange={set('bank_name')} placeholder="Equity Bank" />
-            <Input label="Account Name" value={settings.account_name ?? ''} onChange={set('account_name')} placeholder="Property Manager Ltd" />
-            <Input label="Account Number" value={settings.account_number ?? ''} onChange={set('account_number')} placeholder="0123456789" />
-            <Input label="Mobile Money Number" value={settings.mobile_money_number ?? ''} onChange={set('mobile_money_number')} placeholder="0712 345 678" />
-            <Input label="Payment Reference" value={settings.payment_reference ?? ''} onChange={set('payment_reference')} placeholder="RENT" />
+            <Input label={t('bankName')} value={settings.bank_name ?? ''} onChange={set('bank_name')} placeholder={t('bankExample')} />
+            <Input label={t('accountName')} value={settings.account_name ?? ''} onChange={set('account_name')} placeholder={t('accountNameExample')} />
+            <Input label={t('accountNumber')} value={settings.account_number ?? ''} onChange={set('account_number')} placeholder="0123456789" />
+            <Input label={t('mobileMoneyNumber')} value={settings.mobile_money_number ?? ''} onChange={set('mobile_money_number')} placeholder="+257 00 00 00 00" />
+            <Input label={t('paymentReference')} value={settings.payment_reference ?? ''} onChange={set('payment_reference')} placeholder={t('rentReferenceExample')} />
           </div>
         </div>
 
         {/* Late Fee */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Late Payment Policy</h3>
+          <h3 className="text-sm font-semibold text-slate-700 mb-4">{t('latePaymentPolicy')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Late Fee Amount (Fbu)" type="number" value={settings.late_fee_amount ?? ''} onChange={set('late_fee_amount')} placeholder="500" />
-            <Input label="Grace Period (days)" type="number" value={settings.late_fee_due_day ?? ''} onChange={set('late_fee_due_day')} placeholder="5" />
+            <Input label={t('lateFeeAmount')} type="number" value={settings.late_fee_amount ?? ''} onChange={set('late_fee_amount')} placeholder="500" />
+            <Input label={t('gracePeriodDays')} type="number" value={settings.late_fee_due_day ?? ''} onChange={set('late_fee_due_day')} placeholder="5" />
           </div>
         </div>
       </div>
 
       <div className="flex justify-end">
         <Button loading={saving} icon={<Save className="w-4 h-4" />} onClick={handleSave} size="lg">
-          Save Settings
+          {t('saveSettings')}
         </Button>
       </div>
     </div>

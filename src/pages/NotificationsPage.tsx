@@ -255,10 +255,10 @@ export default function NotificationsPage() {
   const unread = notifications.filter(n => !n.is_read).length;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="notification-page space-y-6 max-w-3xl">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      <div className="flex items-center justify-between">
+      <div className="notification-page-header flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('notificationsTitle')}</h1>
           <p className="text-slate-500 text-sm mt-0.5">
@@ -276,7 +276,7 @@ export default function NotificationsPage() {
             </Button>
           )}
           {isAdmin && (
-            <Button icon={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
+            <Button className="notification-send-trigger" icon={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
               {t('sendNotification')}
             </Button>
           )}
@@ -293,7 +293,7 @@ export default function NotificationsPage() {
       {isAdmin && !loading && (
         <div className="space-y-3">
           {announcements.length === 0 && (
-            <div className="rounded-2xl p-12 text-center" style={panelStyle}>
+            <div className="notification-empty-state rounded-2xl p-12 text-center" style={panelStyle}>
               <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-500">
                 {language === 'fr' ? "Aucune notification envoyée pour l'instant" : 'No notifications sent yet'}
@@ -303,7 +303,7 @@ export default function NotificationsPage() {
           {announcements.map(a => (
             <div
               key={a.id}
-              className="rounded-xl p-4"
+              className="notification-announcement-card rounded-xl p-4"
               style={{
                 background: '#ffffff',
                 border: '1px solid #e9ecef',
@@ -327,7 +327,7 @@ export default function NotificationsPage() {
                           : <><User className="w-3 h-3" />{caretakers.some(c => c.id === a.target) ? t('specificCaretaker') : t('specificRecipient')}</>}
                       </span>
                       <span className="text-xs text-slate-600">
-                        {new Date(a.created_at).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US')}
+                        {new Date(a.created_at).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB')}
                       </span>
                     </div>
                     {deliveryStatuses[a.id] && (
@@ -364,7 +364,7 @@ export default function NotificationsPage() {
       {!isAdmin && !loading && (
         <div className="space-y-2">
           {notifications.length === 0 && (
-            <div className="rounded-2xl p-12 text-center" style={panelStyle}>
+            <div className="notification-empty-state rounded-2xl p-12 text-center" style={panelStyle}>
               <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-500">{t('noNotifications')}</p>
             </div>
@@ -373,7 +373,7 @@ export default function NotificationsPage() {
             <div
               key={n.id}
               onClick={() => !n.is_read && markRead(n.id)}
-              className="rounded-xl p-4 transition-all cursor-pointer"
+              className="notification-item rounded-xl p-4 transition-all cursor-pointer"
               style={{
                 background: n.is_read ? '#f9fafb' : '#f0fdf4',
                 border: '1px solid #e9ecef',
@@ -390,7 +390,7 @@ export default function NotificationsPage() {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs text-slate-500">{new Date(n.created_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-500">{new Date(n.created_at).toLocaleDateString('en-GB')}</p>
                   {!n.is_read && (
                     <div className="w-2 h-2 rounded-full mt-1.5 ml-auto"
                       style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.6)' }} />
@@ -403,7 +403,7 @@ export default function NotificationsPage() {
       )}
 
       {/* Compose modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t('sendNotification')} size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t('sendNotification')} size="lg" className="notification-compose-modal">
         <div className="space-y-4">
           <Select label={t('recipients')} value={form.target} onChange={set('target')}>
             <option value="all_tenants">{t('allTenants')}</option>
@@ -425,9 +425,9 @@ export default function NotificationsPage() {
           <Input label={t('notifTitle')} placeholder={language === 'fr' ? 'Titre de la notification' : 'Notification title'} value={form.title} onChange={set('title')} />
           <Textarea label={t('notifMessage')} placeholder={language === 'fr' ? "Rédigez votre message ici..." : 'Write your message here...'} value={form.message} onChange={set('message')} rows={6} />
         </div>
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="notification-compose-actions flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
-          <Button loading={sending} icon={<Send className="w-4 h-4" />} onClick={handleSend}>{t('send')}</Button>
+          <Button className="notification-submit" loading={sending} icon={<Send className="w-4 h-4" />} onClick={handleSend}>{t('send')}</Button>
         </div>
       </Modal>
 

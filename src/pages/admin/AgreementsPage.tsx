@@ -43,6 +43,14 @@ const defaultTerms = `1. RENT: Rent is due on the 1st of each month. Late paymen
 6. TERMINATION: Either party may terminate this agreement with 30 days written notice.
 7. VISITORS: Long-term guests (>14 days) must be registered with management.
 8. UTILITIES: Tenant is responsible for their utility bills unless otherwise agreed.`;
+const defaultTermsFr = `1. LOYER : Le loyer est dû le premier jour de chaque mois. Tout retard de paiement peut entraîner une pénalité.
+2. DÉPÔT : Le dépôt de garantie est remboursable après la libération satisfaisante des lieux.
+3. ENTRETIEN DU BIEN : Le locataire doit maintenir le bien en bon état.
+4. MODIFICATIONS : Aucune modification du bien n’est autorisée sans accord écrit préalable.
+5. SOUS-LOCATION : La sous-location est interdite sans autorisation écrite du propriétaire.
+6. RÉSILIATION : Chaque partie peut résilier le présent contrat avec un préavis écrit de 30 jours.
+7. VISITEURS : Les visiteurs de longue durée (plus de 14 jours) doivent être déclarés à la gestion.
+8. CHARGES : Le locataire est responsable de ses factures de services, sauf accord contraire.`;
 
 const panelStyle: React.CSSProperties = {
   background: '#ffffff',
@@ -53,7 +61,7 @@ const panelStyle: React.CSSProperties = {
 
 export default function AgreementsPage() {
   const { user } = useAuth();
-  const { t, fmt } = useTheme();
+  const { t, fmt, language } = useTheme();
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
   const [houses, setHouses] = useState<any[]>([]);
@@ -97,7 +105,7 @@ export default function AgreementsPage() {
   };
 
   const openAdd = () => {
-    setForm({ ...emptyForm, terms_and_conditions: defaultTerms });
+    setForm({ ...emptyForm, terms_and_conditions: language === 'fr' ? defaultTermsFr : defaultTerms });
     setEditingId(null); setModalOpen(true);
   };
 
@@ -114,7 +122,7 @@ export default function AgreementsPage() {
 
   const handleSave = async () => {
     if (!form.tenant_id || !form.house_id || !form.lease_start_date) {
-      addToast('Tenant, house and start date are required', 'error'); return;
+      addToast(t('agreementRequiredFields'), 'error'); return;
     }
     setSaving(true);
     const payload = {
@@ -130,7 +138,7 @@ export default function AgreementsPage() {
       ? await supabase.from('rental_agreements').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingId)
       : await supabase.from('rental_agreements').insert(payload);
     if (error) addToast(error.message, 'error');
-    else { addToast(editingId ? 'Agreement updated' : 'Agreement created', 'success'); setModalOpen(false); load(); }
+    else { addToast(editingId ? t('agreementUpdatedSuccess') : t('agreementCreatedSuccess'), 'success'); setModalOpen(false); load(); }
     setSaving(false);
   };
 
@@ -138,7 +146,7 @@ export default function AgreementsPage() {
     if (!deleteId) return;
     const { error } = await supabase.from('rental_agreements').delete().eq('id', deleteId);
     if (error) addToast(error.message, 'error');
-    else { addToast('Agreement deleted', 'success'); load(); }
+    else { addToast(t('agreementDeletedSuccess'), 'success'); load(); }
     setDeleteId(null);
   };
 
@@ -153,10 +161,10 @@ export default function AgreementsPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Rental Agreements</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Manage lease agreements for all tenants</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('rentalAgreementsTitle')}</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{t('manageAgreements')}</p>
         </div>
-        <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>New Agreement</Button>
+        <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>{t('newAgreement')}</Button>
       </div>
 
       <div style={panelStyle}>
@@ -164,7 +172,7 @@ export default function AgreementsPage() {
           <table className="w-full">
             <thead>
               <tr style={{ borderBottom: '1px solid #e9ecef' }}>
-                {['Agreement', 'Tenant', 'Lease Period', 'Rent', 'Status', 'Actions'].map((h, i) => (
+                {[t('agreement'), t('tenant'), t('leasePeriod'), t('rentLabel'), t('status'), t('actions')].map((h, i) => (
                   <th key={h} className={`text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider ${i > 1 && i < 4 ? 'hidden lg:table-cell' : ''} ${i === 1 ? 'hidden md:table-cell' : ''} ${i === 3 ? 'text-right' : ''} ${i === 4 ? 'text-center' : ''} ${i === 5 ? 'text-right' : ''}`}>{h}</th>
                 ))}
               </tr>
@@ -176,7 +184,7 @@ export default function AgreementsPage() {
                 </td></tr>
               )}
               {!loading && agreements.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-12 text-slate-500">No agreements yet</td></tr>
+                <tr><td colSpan={6} className="text-center py-12 text-slate-500">{t('noAgreements')}</td></tr>
               )}
               {agreements.map(a => (
                 <tr key={a.id} className="hover:bg-white/[0.02] transition-colors" style={{ borderColor: '#f9fafb' }}>
@@ -196,7 +204,7 @@ export default function AgreementsPage() {
                     <p className="text-xs text-slate-500">{(a.tenants as any)?.tenant_code}</p>
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-sm text-slate-500">
-                    {new Date(a.lease_start_date).toLocaleDateString()} – {a.lease_end_date ? new Date(a.lease_end_date).toLocaleDateString() : 'Ongoing'}
+                    {new Date(a.lease_start_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB')} – {a.lease_end_date ? new Date(a.lease_end_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB') : t('ongoing')}
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-right text-sm font-semibold text-slate-900">
                     <span className="money-value">{fmt(Number(a.monthly_rent))}</span>
@@ -206,20 +214,20 @@ export default function AgreementsPage() {
                       a.status === 'active' ? 'bg-emerald-50 text-emerald-700' :
                       a.status === 'expired' ? 'bg-slate-100/50 text-slate-700' :
                       'bg-red-50 text-red-700'
-                    }`}>{a.status}</span>
+                    }`}>{a.status === 'expired' ? t('expiredStatus') : a.status === 'terminated' ? t('terminatedStatus') : t(a.status)}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setViewAgreement(a)} title="View" className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-all">
+                      <button onClick={() => setViewAgreement(a)} title={t('agreementView')} className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-all">
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handlePrint(a)} title="Download / Print" className="p-2 text-slate-500 hover:text-amber-400 hover:bg-amber-900/20 rounded-lg transition-all">
+                      <button onClick={() => handlePrint(a)} title={t('downloadPrint')} className="p-2 text-slate-500 hover:text-amber-400 hover:bg-amber-900/20 rounded-lg transition-all">
                         <Download className="w-4 h-4" />
                       </button>
-                      <button onClick={() => openEdit(a)} title="Edit" className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-all">
+                      <button onClick={() => openEdit(a)} title={t('edit')} className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-all">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button onClick={() => setDeleteId(a.id)} title="Delete" className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-all">
+                      <button onClick={() => setDeleteId(a.id)} title={t('delete')} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-all">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -232,61 +240,61 @@ export default function AgreementsPage() {
       </div>
 
       {/* Add/Edit Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Agreement' : 'New Agreement'} size="xl">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? t('editAgreement') : t('newAgreement')} size="xl">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
-            <label className="text-sm font-medium text-slate-500 block mb-1.5">Tenant *</label>
+            <label className="text-sm font-medium text-slate-500 block mb-1.5">{t('tenant')} *</label>
             <select
               value={form.tenant_id} onChange={handleTenantChange}
               className="w-full text-slate-900 text-sm rounded-xl py-2.5 px-4 focus:outline-none"
               style={{ background: '#ffffff', border: '1px solid #e5e7eb' }}
             >
-              <option value="">Select tenant</option>
+              <option value="">{t('chooseTenant')}</option>
               {tenants.map(tn => <option key={tn.id} value={tn.id}>{tn.full_name} ({tn.tenant_code})</option>)}
             </select>
           </div>
-          <Select label="House *" value={form.house_id} onChange={set('house_id')}>
-            <option value="">Select house</option>
+          <Select label={t('houseRequired')} value={form.house_id} onChange={set('house_id')}>
+            <option value="">{t('selectHouse')}</option>
             {houses.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
           </Select>
-          <Select label="Status" value={form.status} onChange={set('status')}>
-            <option value="active">Active</option>
-            <option value="expired">Expired</option>
-            <option value="terminated">Terminated</option>
+          <Select label={t('status')} value={form.status} onChange={set('status')}>
+            <option value="active">{t('active')}</option>
+            <option value="expired">{t('expiredStatus')}</option>
+            <option value="terminated">{t('terminatedStatus')}</option>
           </Select>
-          <Input label="Lease Start Date *" type="date" value={form.lease_start_date} onChange={set('lease_start_date')} />
-          <Input label="Lease End Date" type="date" value={form.lease_end_date} onChange={set('lease_end_date')} />
-          <Input label="Monthly Rent" type="number" value={form.monthly_rent} onChange={set('monthly_rent')} />
-          <Input label="Security Deposit" type="number" value={form.security_deposit} onChange={set('security_deposit')} />
-          <Input label="Landlord Signature (name)" placeholder="Landlord full name" value={form.landlord_signature} onChange={set('landlord_signature')} />
+          <Input label={t('leaseStartDate')} type="date" value={form.lease_start_date} onChange={set('lease_start_date')} />
+          <Input label={t('leaseEndDate')} type="date" value={form.lease_end_date} onChange={set('lease_end_date')} />
+          <Input label={t('monthlyRentLabel')} type="number" value={form.monthly_rent} onChange={set('monthly_rent')} />
+          <Input label={t('securityDeposit')} type="number" value={form.security_deposit} onChange={set('security_deposit')} />
+          <Input label={t('landlordSignatureName')} placeholder={t('landlordFullName')} value={form.landlord_signature} onChange={set('landlord_signature')} />
           <div className="sm:col-span-2">
-            <Textarea label="Terms and Conditions" value={form.terms_and_conditions} onChange={set('terms_and_conditions')} rows={8} />
+            <Textarea label={t('termsConditions')} value={form.terms_and_conditions} onChange={set('terms_and_conditions')} rows={8} />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
-          <Button loading={saving} onClick={handleSave}>{editingId ? 'Save Changes' : 'Create Agreement'}</Button>
+          <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
+          <Button loading={saving} onClick={handleSave}>{editingId ? t('agreementSaveChanges') : t('createAgreement')}</Button>
         </div>
       </Modal>
 
       {/* View/Print Modal */}
       {viewAgreement && (
-        <Modal open={!!viewAgreement} onClose={() => setViewAgreement(null)} title="Rental Agreement" size="xl">
+        <Modal open={!!viewAgreement} onClose={() => setViewAgreement(null)} title={t('rentalAgreement')} size="xl">
           <AgreementDocument agreement={viewAgreement} />
           <div className="flex justify-end gap-3 mt-4">
-            <Button variant="ghost" onClick={() => setViewAgreement(null)}>Close</Button>
-            <Button icon={<Download className="w-4 h-4" />} onClick={() => printDocument('agreement', 'agreement-print')}>Download / Print</Button>
+            <Button variant="ghost" onClick={() => setViewAgreement(null)}>{t('closeButton')}</Button>
+            <Button icon={<Download className="w-4 h-4" />} onClick={() => printDocument('agreement', 'agreement-print')}>{t('downloadPrint')}</Button>
           </div>
         </Modal>
       )}
 
       {/* Delete Confirm */}
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Agreement" size="sm">
-        <p className="text-slate-700 mb-2">Are you sure you want to permanently delete this agreement?</p>
-        <p className="text-red-400 text-sm mb-6">This cannot be undone.</p>
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title={t('deleteAgreement')} size="sm">
+        <p className="text-slate-700 mb-2">{t('confirmDeleteAgreement')}</p>
+        <p className="text-red-400 text-sm mb-6">{t('cannotBeUndone')}</p>
         <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancel</Button>
-          <Button variant="danger" onClick={handleDelete}>Delete Agreement</Button>
+          <Button variant="ghost" onClick={() => setDeleteId(null)}>{t('cancel')}</Button>
+          <Button variant="danger" onClick={handleDelete}>{t('deleteAgreementButton')}</Button>
         </div>
       </Modal>
 

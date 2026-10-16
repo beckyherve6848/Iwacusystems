@@ -176,14 +176,14 @@ export default function CaretakerVisitorsPage({ onNavigate }: { onNavigate: (pag
                     {v.houses?.house_number ?? '—'}
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-xs text-slate-500">
-                    {v.time_in ? new Date(v.time_in).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    {v.time_in ? new Date(v.time_in).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-xs text-slate-500">
-                    {v.time_out ? new Date(v.time_out).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    {v.time_out ? new Date(v.time_out).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                   </td>
                   <td className="px-5 py-3.5 text-center">
-                    <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full font-medium ${
-                      v.status === 'inside' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                    <span className={`visitor-status-pill inline-flex items-center text-xs px-2.5 py-1 rounded-full font-medium ${
+                      v.status === 'inside' ? 'bg-emerald-50 text-emerald-700' : 'visitor-status-left bg-slate-100 text-slate-500'
                     }`}>
                       {v.status === 'inside' ? t('inside') : t('left')}
                     </span>
@@ -247,9 +247,9 @@ export default function CaretakerVisitorsPage({ onNavigate }: { onNavigate: (pag
               <div><p className="text-xs text-slate-400">{t('apartment')}</p><p className="font-medium text-slate-700">{detailVisitor.houses?.house_number ?? '—'}</p></div>
               <div><p className="text-xs text-slate-400">{t('visitorsCount')}</p><p className="font-medium text-slate-700">{detailVisitor.number_of_visitors ?? 1}</p></div>
               <div><p className="text-xs text-slate-400">{t('status')}</p><p className="font-medium text-slate-700">{detailVisitor.status === 'inside' ? t('inside') : t('left')}</p></div>
-              <div><p className="text-xs text-slate-400">{t('checkInAt')}</p><p className="font-medium text-slate-700">{detailVisitor.time_in ? new Date(detailVisitor.time_in).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US') : '—'}</p></div>
-              <div><p className="text-xs text-slate-400">{t('checkOutAt')}</p><p className="font-medium text-slate-700">{detailVisitor.time_out ? new Date(detailVisitor.time_out).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US') : '—'}</p></div>
-              <div><p className="text-xs text-slate-400">{t('expectedDeparture')}</p><p className="font-medium text-slate-700">{detailVisitor.expected_departure ? new Date(detailVisitor.expected_departure).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US') : '—'}</p></div>
+              <div><p className="text-xs text-slate-400">{t('checkInAt')}</p><p className="font-medium text-slate-700">{detailVisitor.time_in ? new Date(detailVisitor.time_in).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB') : '—'}</p></div>
+              <div><p className="text-xs text-slate-400">{t('checkOutAt')}</p><p className="font-medium text-slate-700">{detailVisitor.time_out ? new Date(detailVisitor.time_out).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB') : '—'}</p></div>
+              <div><p className="text-xs text-slate-400">{t('expectedDeparture')}</p><p className="font-medium text-slate-700">{detailVisitor.expected_departure ? new Date(detailVisitor.expected_departure).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB') : '—'}</p></div>
               <div><p className="text-xs text-slate-400">{t('visitDate')}</p><p className="font-medium text-slate-700">{detailVisitor.visit_date ?? '—'}</p></div>
             </div>
             {detailVisitor.notes && (

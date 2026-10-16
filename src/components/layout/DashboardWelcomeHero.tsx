@@ -24,7 +24,7 @@ export default function DashboardWelcomeHero({ title, subtitle, action }: Dashbo
     return () => window.clearInterval(timer);
   }, []);
 
-  const locale = language === 'fr' ? 'fr-BI' : 'en-US';
+  const locale = language === 'fr' ? 'fr-BI' : 'en-GB';
   const date = new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     day: 'numeric',
@@ -37,9 +37,10 @@ export default function DashboardWelcomeHero({ title, subtitle, action }: Dashbo
     second: '2-digit',
     hour12: false,
   }).format(now);
+  const subtitleParts = subtitle.split(' — ');
 
   return (
-    <section className="relative isolate min-h-[160px] overflow-hidden rounded-3xl bg-slate-950 shadow-[0_12px_32px_rgba(15,23,42,0.14)] sm:min-h-[220px]">
+    <section className="relative isolate -mx-2 -mt-2 min-h-[160px] overflow-hidden rounded-3xl bg-slate-950 shadow-[0_8px_20px_rgba(15,23,42,0.22)] sm:mx-0 sm:mt-0 sm:min-h-[220px] sm:shadow-[0_12px_32px_rgba(15,23,42,0.14)]">
       {imageVisible && (
         <img
           src={imageSrc}
@@ -61,18 +62,27 @@ export default function DashboardWelcomeHero({ title, subtitle, action }: Dashbo
             <span>{appName}</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white sm:text-4xl">{title}</h1>
-          <p className="mt-1 max-w-xl text-sm leading-5 text-white/75 sm:mt-2 sm:text-base sm:leading-6">{subtitle}</p>
+          <p className="mt-1 max-w-xl text-sm leading-5 text-white/75 sm:mt-2 sm:text-base sm:leading-6">
+            {subtitleParts.length > 1 ? (
+              <>
+                {subtitleParts[0]}
+                <span className="hidden md:inline"> — </span>
+                <span className="md:hidden">, </span>
+                {subtitleParts.slice(1).join(' — ')}
+              </>
+            ) : subtitle}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {action}
-          <div className="inline-flex w-fit flex-col gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs font-medium text-white/90 shadow-lg backdrop-blur-md sm:mb-1">
-            <div className="inline-flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 shrink-0 text-white/70" strokeWidth={1.7} />
+          <div className="inline-flex w-fit flex-col gap-1 rounded-lg border border-white/15 bg-black/25 px-2 py-1.5 text-[10px] font-medium text-white/90 shadow-lg backdrop-blur-md sm:mb-1 sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-2.5 sm:text-xs">
+            <div className="inline-flex items-center gap-1.5">
+              <CalendarDays className="h-3 w-3 shrink-0 text-white/70 sm:h-4 sm:w-4" strokeWidth={1.7} />
               <span className="capitalize">{date}</span>
             </div>
-            <div className="inline-flex items-center gap-2">
-              <Clock3 className="h-4 w-4 shrink-0 text-white/70" strokeWidth={1.7} />
-              <time className="font-mono tabular-nums" aria-label={language === 'fr' ? `Heure actuelle : ${time}` : `Current time: ${time}`}>
+            <div className="inline-flex items-center gap-1.5">
+              <Clock3 className="h-3 w-3 shrink-0 text-white/70 sm:h-4 sm:w-4" strokeWidth={1.7} />
+              <time className="font-mono tabular-nums text-[10px] sm:text-xs" aria-label={language === 'fr' ? `Heure actuelle : ${time}` : `Current time: ${time}`}>
                 {time}
               </time>
             </div>
