@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, Profile, Tenant } from '@/lib/supabase';
 
@@ -25,6 +25,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [tenantRecord, setTenantRecord] = useState<Tenant | null>(null);
   const [tenantChecked, setTenantChecked] = useState(false);
   const [loading, setLoading] = useState(true);
+  const offlineCacheUserId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const nextUserId = user?.id ?? null;
+    const previousUserId = offlineCacheUserId.current;
+    if (previousUserId && previousUserId !== nextUserId) {
+      const clearUserCache = (worker: ServiceWorker | null) => worker?.postMessage({
+        type: 'CLEAR_USER_OFFLINE_CACHE',
+        userId: previousUserId,
+      });
+      if (navigator.serviceWorker?.controller) {
+        clearUserCache(navigator.serviceWorker.controller);
+      } else if (navigator.serviceWorker) {
+        void navigator.serviceWorker.ready
+          .then(registration => clearUserCache(registration.active))
+          .catch(error => console.error('Unable to request offline cache cleanup:', error));
+      }
+    }
+    offlineCacheUserId.current = nextUserId;
+  }, [user?.id]);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -190,7 +210,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: navigator.onLine ? 'global' : 'local' });
+    if (error) {
+      console.error('Unable to sign out from the server:', error.message);
+      if (navigator.onLine) {
+        const { error: localSignOutError } = await supabase.auth.signOut({ scope: 'local' });
+        if (localSignOutError) {
+          console.error('Unable to clear the local sign-in session:', localSignOutError.message);
+          throw localSignOutError;
+        }
+      } else {
+        throw error;
+      }
+    }
     setProfile(null);
     setTenantRecord(null);
     setTenantChecked(false);

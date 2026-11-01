@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.iwacusystem.app",
+        "sha256_cert_fingerprints": ["82:FE:72:FD:AB:14:4C:C4:48:DB:D2:B7:DA:4E:52:C1:D7:C9:6C:28:79:96:93:CA:A2:7A:9F:6C:7D:81:5F:17"]
+      }
+    }]

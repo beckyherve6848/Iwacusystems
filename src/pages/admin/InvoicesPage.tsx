@@ -327,31 +327,41 @@ export default function InvoicesPage() {
           <p className="mt-1 text-sm text-slate-500">{t('invoiceRentUtilities')}</p>
         </div>
         {canManageInvoices && (
-          <Button icon={<Plus className="h-4 w-4" />} onClick={openCreate}>{t('createInvoice')}</Button>
+          <Button className="page-action-button" icon={<Plus className="h-4 w-4" />} onClick={openCreate}>{t('createInvoice')}</Button>
         )}
       </div>
 
       {canManageInvoices && (
-        <section className="overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/70">
-          <div className="flex items-center gap-3 border-b border-amber-100 px-5 py-4">
+        <section className={`invoice-rent-due-panel overflow-hidden rounded-2xl border ${
+          rentDueTenants.length === 0
+            ? 'invoice-rent-due-panel-empty border-red-500 bg-red-50/70'
+            : 'border-amber-200 bg-amber-50/70'
+        }`}>
+          <div className={`invoice-rent-due-header flex items-center gap-3 border-b px-5 py-4 ${
+            rentDueTenants.length === 0 ? 'border-red-200' : 'border-amber-100'
+          }`}>
             <CalendarDays className="h-5 w-5 text-amber-700" />
             <div>
-              <h2 className="font-semibold text-slate-900">{t('rentDueThisMonth')}</h2>
-              <p className="mt-0.5 text-sm text-slate-600">{t('rentDueThisMonthDescription')}</p>
+              <h2 className="invoice-rent-due-title font-semibold text-slate-900">{t('rentDueThisMonth')}</h2>
+              <p className="invoice-rent-due-description mt-0.5 text-sm text-slate-600">{t('rentDueThisMonthDescription')}</p>
             </div>
-            <span className="ml-auto rounded-full bg-white px-3 py-1 text-sm font-semibold text-amber-800">
+            <span className={`invoice-rent-due-count ml-auto rounded-full border px-3 py-1 text-sm font-semibold ${
+              rentDueTenants.length === 0
+                ? 'border-red-500 bg-transparent text-red-600'
+                : 'border-amber-200 bg-white text-amber-800'
+            }`}>
               {rentDueTenants.length}
             </span>
           </div>
           {rentDueTenants.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-slate-600">{t('noRentDue')}</p>
+            <p className="invoice-rent-due-empty px-5 py-4 text-sm text-slate-600">{t('noRentDue')}</p>
           ) : (
-            <div className="divide-y divide-amber-100">
+            <div className="invoice-rent-due-list divide-y divide-amber-100">
               {rentDueTenants.map(({ tenant, dueDate }) => (
-                <div key={tenant.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                <div key={tenant.id} className="invoice-rent-due-row flex flex-wrap items-center justify-between gap-3 px-5 py-3">
                   <div>
-                    <p className="font-medium text-slate-900">{tenant.full_name}</p>
-                    <p className="text-xs text-slate-600">
+                    <p className="invoice-rent-due-tenant font-medium text-slate-900">{tenant.full_name}</p>
+                    <p className="invoice-rent-due-meta text-xs text-slate-600">
                       {tenant.houses?.house_number ?? '—'} · {t('invoiceDueDate')}: {new Date(`${dueDate}T00:00:00`).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB')}
                     </p>
                   </div>
@@ -361,6 +371,7 @@ export default function InvoicesPage() {
                     </span>
                     <Button
                       size="sm"
+                      className="page-action-button"
                       onClick={() => openCreateForTenant(tenant, currentMonth, dueDate)}
                     >
                       {t('createRentInvoice')}

@@ -48,7 +48,9 @@ export default function ToastContainer({ toasts, onRemove }: ToastContainerProps
       {toasts.map(toast => (
         <div
           key={toast.id}
-          className="flex items-start gap-3 rounded-2xl border p-4 text-slate-900 pointer-events-auto animate-slide-in backdrop-blur-xl"
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+          className={`toast-notification toast-${toast.type} flex items-start gap-3 rounded-2xl border p-4 pointer-events-auto animate-slide-in backdrop-blur-xl`}
           style={{
             ...toastStyles[toast.type],
             backdropFilter: 'blur(22px) saturate(165%)',
@@ -56,11 +58,11 @@ export default function ToastContainer({ toasts, onRemove }: ToastContainerProps
           }}
         >
           {icons[toast.type]}
-          <p className="text-sm font-medium text-slate-800 flex-1 leading-snug">{toast.message}</p>
+          <p className="toast-message text-sm font-medium flex-1 leading-snug">{toast.message}</p>
           <button
             onClick={() => onRemove(toast.id)}
             aria-label="Dismiss notification"
-            className="text-slate-500 hover:text-slate-900 transition-colors mt-0.5 shrink-0"
+            className="toast-dismiss mt-0.5 shrink-0 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

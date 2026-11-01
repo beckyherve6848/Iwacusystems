@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Home, Users, Wallet, ClipboardList,
   UserCheck, Bell, Settings, FileText, LogOut, X,
@@ -7,6 +7,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
+import { supabase } from '@/lib/supabase';
 
 interface SidebarProps {
   currentPage: string;
@@ -74,6 +75,7 @@ const propertyManagerNavItems = [
 export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }: SidebarProps) {
   const { profile, tenantRecord, signOut } = useAuth();
   const { t, appName, appLogoUrl } = useTheme();
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const navItems = profile?.role === 'admin'
     ? adminNavItems
@@ -86,6 +88,42 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
     : tenantNavItems;
 
   const roleLabel = profile?.role === 'admin' ? t('administrator') : profile?.role === 'gatekeeper' ? t('gatekeeper') : profile?.role === 'caretaker' ? t('caretaker') : profile?.role === 'property_manager' ? t('propertyManager') : t('tenant');
+
+  useEffect(() => {
+    if (!profile?.id || profile.role === 'gatekeeper') {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const loadUnreadChatCount = async () => {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('sender_id, read_at, admin_read_at, chat_conversations(conversation_type)')
+        .neq('sender_id', profile.id);
+      if (error) {
+        console.error('Unable to load unread chat message count:', error.message);
+        return;
+      }
+
+      const count = (data ?? []).filter(message => {
+        const conversation = Array.isArray(message.chat_conversations)
+          ? message.chat_conversations[0]
+          : message.chat_conversations;
+        const readAt = profile.role === 'admin' && conversation?.conversation_type === 'manager_tenant'
+          ? message.admin_read_at
+          : message.read_at;
+        return !readAt;
+      }).length;
+      setUnreadChatCount(count);
+    };
+
+    void loadUnreadChatCount();
+    const channel = supabase
+      .channel(`sidebar-chat-unread-${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, loadUnreadChatCount)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, profile?.role]);
 
   return (
     <>
@@ -140,6 +178,15 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
                   ? <WhatsAppIcon className="shrink-0 w-[18px] h-[18px]" />
                   : <Icon className="shrink-0 w-[18px] h-[18px]" />}
                 <span className="truncate">{t(item.labelKey)}</span>
+                {['admin-chat', 'manager-chat', 'caretaker-chat', 'tenant-chat'].includes(item.id) && unreadChatCount > 0 && (
+                  <span
+                    aria-label={`${unreadChatCount} unread messages`}
+                    title={`${unreadChatCount} unread messages`}
+                    className="ml-auto inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white"
+                  >
+                    {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                  </span>
+                )}
               </button>
             );
           })}

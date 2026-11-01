@@ -276,7 +276,7 @@ export default function NotificationsPage() {
             </Button>
           )}
           {isAdmin && (
-            <Button className="notification-send-trigger" icon={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
+            <Button className="notification-send-trigger page-action-button" icon={<Plus className="w-4 h-4" />} onClick={() => setModalOpen(true)}>
               {t('sendNotification')}
             </Button>
           )}
@@ -293,7 +293,7 @@ export default function NotificationsPage() {
       {isAdmin && !loading && (
         <div className="space-y-3">
           {announcements.length === 0 && (
-            <div className="notification-empty-state rounded-2xl p-12 text-center" style={panelStyle}>
+            <div className="notification-empty-state dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
               <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-500">
                 {language === 'fr' ? "Aucune notification envoyée pour l'instant" : 'No notifications sent yet'}
@@ -303,7 +303,7 @@ export default function NotificationsPage() {
           {announcements.map(a => (
             <div
               key={a.id}
-              className="notification-announcement-card rounded-xl p-4"
+              className="notification-announcement-card dark-theme-surface rounded-xl p-4"
               style={{
                 background: '#ffffff',
                 border: '1px solid #e9ecef',
@@ -364,7 +364,7 @@ export default function NotificationsPage() {
       {!isAdmin && !loading && (
         <div className="space-y-2">
           {notifications.length === 0 && (
-            <div className="notification-empty-state rounded-2xl p-12 text-center" style={panelStyle}>
+            <div className="notification-empty-state dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
               <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-500">{t('noNotifications')}</p>
             </div>
@@ -373,7 +373,7 @@ export default function NotificationsPage() {
             <div
               key={n.id}
               onClick={() => !n.is_read && markRead(n.id)}
-              className="notification-item rounded-xl p-4 transition-all cursor-pointer"
+              className={`notification-item dark-theme-surface rounded-xl p-4 transition-all cursor-pointer ${n.is_read ? '' : 'notification-item-unread'}`}
               style={{
                 background: n.is_read ? '#f9fafb' : '#f0fdf4',
                 border: '1px solid #e9ecef',

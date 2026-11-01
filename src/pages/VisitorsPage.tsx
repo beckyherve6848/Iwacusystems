@@ -138,7 +138,7 @@ export default function VisitorsPage() {
             <span className="text-emerald-400 font-semibold">{insideCount}</span> {t('visitorInsideCount')}
           </p>
         </div>
-        <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setForm({ ...emptyForm }); setModalOpen(true); }}>
+        <Button className="page-action-button" icon={<Plus className="w-4 h-4" />} onClick={() => { setForm({ ...emptyForm }); setModalOpen(true); }}>
           {t('registerVisitorButton')}
         </Button>
       </div>
@@ -150,17 +150,17 @@ export default function VisitorsPage() {
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-white border border-slate-200 text-slate-900 placeholder-slate-500 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
         </div>
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
+        <Select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
           <option value="">{t('allVisitors')}</option>
           <option value="inside">{t('insideStatus')}</option>
           <option value="left">{t('leftStatus')}</option>
-        </select>
+        </Select>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="visitor-log-table w-full">
             <thead>
               <tr className="border-b border-slate-200">
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('visitor')}</th>
@@ -176,7 +176,7 @@ export default function VisitorsPage() {
               {loading && <tr><td colSpan={7} className="text-center py-12"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" /></td></tr>}
               {!loading && visitors.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-slate-500">{t('noVisitors')}</td></tr>}
               {visitors.map(v => (
-                <tr key={v.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={v.id} className="visitor-log-row hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3.5">
                     <p className="font-semibold text-slate-900 text-sm">{v.visitor_name}</p>
                     <p className="text-xs text-slate-500">{v.phone ?? v.national_id ?? '—'}</p>
@@ -185,8 +185,8 @@ export default function VisitorsPage() {
                     <p className="text-sm text-slate-700">{(v.houses as any)?.house_number ?? '—'}</p>
                     <p className="text-xs text-slate-500">{(v.tenants as any)?.full_name ?? '—'}</p>
                   </td>
-                  <td className="px-5 py-3.5 hidden md:table-cell text-sm text-slate-500 max-w-[160px] truncate">{v.purpose}</td>
-                  <td className="px-5 py-3.5 hidden lg:table-cell text-sm text-slate-500">
+                  <td className="visitor-log-green-text px-5 py-3.5 hidden md:table-cell text-sm max-w-[160px] truncate">{v.purpose}</td>
+                  <td className="visitor-log-green-text px-5 py-3.5 hidden lg:table-cell text-sm">
                     {new Date(v.time_in).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB')}
                   </td>
                   <td className="px-5 py-3.5 hidden lg:table-cell text-sm text-slate-500">
@@ -194,7 +194,7 @@ export default function VisitorsPage() {
                   </td>
                   <td className="px-5 py-3.5 text-center">
                     <span className={`visitor-status-pill inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${
-                      v.status === 'inside' ? 'bg-green-50 text-green-700 border-green-700/50' : 'visitor-status-left bg-slate-100/50 text-slate-500 border-slate-600/50'
+                      v.status === 'inside' ? 'bg-green-600 text-white border-green-700' : 'visitor-status-left bg-red-600 text-white border-red-700'
                     }`}>{v.status === 'inside' ? t('insideStatus') : t('leftStatus')}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">

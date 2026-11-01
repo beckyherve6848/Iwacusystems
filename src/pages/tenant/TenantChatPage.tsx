@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { useChatPresence } from '@/hooks/useChatPresence';
 import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
+import { Select } from '@/components/ui/Input';
 
 interface ChatMessage {
   id: string;
@@ -418,7 +419,7 @@ export default function TenantChatPage() {
           </div>
           <div className="min-w-0">
             {conversations.length > 1 ? (
-              <select
+              <Select
                 value={conversationId ?? ''}
                 onChange={event => {
                   setConversationId(event.target.value);
@@ -426,7 +427,19 @@ export default function TenantChatPage() {
                   setMessages([]);
                 }}
                 aria-label={t('selectConversation')}
-                className="max-w-full truncate bg-transparent text-sm font-semibold text-white outline-none"
+                className="chat-conversation-select max-w-full truncate text-sm font-semibold text-white outline-none"
+                style={{
+                  width: 'auto',
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  minHeight: 'auto',
+                  border: 0,
+                  padding: 0,
+                  background: 'transparent',
+                  color: '#ffffff',
+                  boxShadow: 'none',
+                  backdropFilter: 'none',
+                }}
               >
                 {conversations.map(conversation => (
                   <option key={conversation.id} value={conversation.id}>
@@ -435,7 +448,7 @@ export default function TenantChatPage() {
                       : t('adminSupport')}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               <p className="truncate text-sm font-semibold text-white">
                 {activeConversation?.conversation_type === 'manager_tenant'

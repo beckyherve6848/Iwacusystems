@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, Bell, Search, Menu, DollarSign, UserRound, X } from 'lucide-react';
+import { ArrowRight, Bell, Search, Menu, DollarSign, UserRound, X, Moon, Sun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme, CURRENCY_SYMBOLS, Currency } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import {
+  getThemeModeForCurrentDevice,
+  PHONE_THEME_MODE_EVENT,
+  PhoneThemeMode,
+  saveThemeModeForDevice,
+  isPhoneViewport,
+} from '@/lib/phoneThemeMode';
 
 interface TopNavProps {
   onMenuToggle: () => void;
@@ -25,6 +32,7 @@ interface SearchSpec {
   detailField: keyof SearchRecord;
   page: string;
   categoryKey: string;
+  profileRole?: 'property_manager' | 'caretaker';
 }
 
 interface SearchRecord {
@@ -35,6 +43,8 @@ interface SearchRecord {
   title?: string | null;
   full_name?: string | null;
   tenant_code?: string | null;
+  email?: string | null;
+  staff_id?: string | null;
   house_number?: string | null;
   visitor_name?: string | null;
   phone?: string | null;
@@ -111,6 +121,7 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
           ? t('propertyManager')
         : t('tenant');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [themeMode, setThemeMode] = useState<PhoneThemeMode>(() => getThemeModeForCurrentDevice());
   const [langOpen, setLangOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -120,6 +131,18 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeResult, setActiveResult] = useState(0);
   const searchRef = useRef<HTMLDivElement>(null);
+  const showThemeToggle = ['admin', 'tenant', 'caretaker', 'property_manager'].includes(profile?.role ?? '');
+
+  useEffect(() => {
+    const updateThemeMode = () => setThemeMode(getThemeModeForCurrentDevice());
+    const viewport = window.matchMedia('(max-width: 767px)');
+    window.addEventListener(PHONE_THEME_MODE_EVENT, updateThemeMode);
+    viewport.addEventListener('change', updateThemeMode);
+    return () => {
+      window.removeEventListener(PHONE_THEME_MODE_EVENT, updateThemeMode);
+      viewport.removeEventListener('change', updateThemeMode);
+    };
+  }, []);
 
   useEffect(() => {
     if (!profile) return;
@@ -184,6 +207,24 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
                 { table: 'tenants', titleField: 'full_name', detailField: 'tenant_code', page: 'tenants', categoryKey: 'tenants' },
                 { table: 'houses', titleField: 'house_number', detailField: 'status', page: 'houses', categoryKey: 'houses' },
                 { table: 'visitors', titleField: 'visitor_name', detailField: 'status', page: 'visitors', categoryKey: 'visitors' },
+                ...(role === 'admin' ? [
+                  {
+                    table: 'profiles',
+                    titleField: 'full_name',
+                    detailField: 'staff_id',
+                    page: 'property-managers',
+                    categoryKey: 'propertyManager',
+                    profileRole: 'property_manager',
+                  } satisfies SearchSpec,
+                  {
+                    table: 'profiles',
+                    titleField: 'full_name',
+                    detailField: 'staff_id',
+                    page: 'caretakers',
+                    categoryKey: 'caretaker',
+                    profileRole: 'caretaker',
+                  } satisfies SearchSpec,
+                ] : []),
               ];
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(term);
@@ -215,20 +256,47 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
           data = response.data;
           failed = Boolean(response.error);
         } else if (spec.table === 'tenants') {
-          const query = supabase.from('tenants').select('id, full_name, tenant_code').limit(5);
+          const query = supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').limit(5);
           if (isUuid) {
             const response = await query.eq('id', term);
             data = response.data;
             failed = Boolean(response.error);
           } else {
-            const [names, codes] = await Promise.all([
-              supabase.from('tenants').select('id, full_name, tenant_code').ilike('full_name', pattern).limit(5),
-              supabase.from('tenants').select('id, full_name, tenant_code').ilike('tenant_code', pattern).limit(5),
+            const [names, codes, nationalIds, phones] = await Promise.all([
+              supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').ilike('full_name', pattern).limit(5),
+              supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').ilike('tenant_code', pattern).limit(5),
+              supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').ilike('national_id', pattern).limit(5),
+              supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').ilike('phone', pattern).limit(5),
             ]);
-            data = [...(names.data ?? []), ...(codes.data ?? [])].filter(
+            data = [...(names.data ?? []), ...(codes.data ?? []), ...(nationalIds.data ?? []), ...(phones.data ?? [])].filter(
               (record, index, all) => all.findIndex(item => item.id === record.id) === index,
             );
-            failed = Boolean(names.error || codes.error);
+            failed = Boolean(names.error || codes.error || nationalIds.error || phones.error);
+          }
+        } else if (spec.table === 'profiles' && spec.profileRole) {
+          if (isUuid) {
+            const { data: profileData, error } = await supabase
+              .from('profiles')
+              .select('id, full_name, email, phone, national_id, staff_id')
+              .eq('role', spec.profileRole)
+              .eq('id', term)
+              .limit(5);
+            data = profileData;
+            failed = Boolean(error);
+          } else {
+            const columns = ['full_name', 'email', 'phone', 'national_id', 'staff_id'] as const;
+            const profileSearches = await Promise.all(columns.map(column =>
+              supabase
+                .from('profiles')
+                .select('id, full_name, email, phone, national_id, staff_id')
+                .eq('role', spec.profileRole)
+                .ilike(column, pattern)
+                .limit(5),
+            ));
+            data = profileSearches.flatMap(result => result.data ?? []).filter(
+              (record, index, all) => all.findIndex(item => item.id === record.id) === index,
+            );
+            failed = profileSearches.some(result => Boolean(result.error));
           }
         } else if (spec.table === 'houses') {
           const query = supabase.from('houses').select('id, house_number, status').limit(5);
@@ -265,7 +333,9 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
         const results = (data ?? []).map(record => ({
           id: `${spec.table}-${record.id}`,
           title: String(record[spec.titleField] ?? t(spec.categoryKey)),
-          detail: t(String(record[spec.detailField] ?? record.id)),
+          detail: spec.profileRole
+            ? String(record.staff_id ?? record.email ?? record.phone ?? '')
+            : t(String(record[spec.detailField] ?? record.id)),
           page: spec.page,
           category: t(spec.categoryKey),
         }));
@@ -273,10 +343,16 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
       }));
 
       if (cancelled) return;
-      const records = searched.flatMap(result => result.results);
+      const records: SearchResult[] = [];
+      const maxResultsPerSpec = Math.max(0, ...searched.map(result => result.results.length));
+      for (let index = 0; index < maxResultsPerSpec; index += 1) {
+        searched.forEach(result => {
+          if (result.results[index]) records.push(result.results[index]);
+        });
+      }
       const uniqueResults = [...pages, ...records.filter(
         (result, index, all) => all.findIndex(item => item.id === result.id) === index,
-      )].slice(0, 8);
+      )].slice(0, 12);
       setSearchResults(uniqueResults);
       setSearchError(searched.some(result => result.failed));
       setActiveResult(0);
@@ -307,7 +383,7 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
 
   return (
     <header
-      className="phone-app-navbar fixed left-0 right-0 top-10 z-10 flex h-[72px] items-center gap-2 px-3 transition-all duration-300 ease-in-out sm:gap-3 sm:px-4 md:top-0 md:px-6 lg:left-[260px]"
+      className="phone-app-navbar fixed left-0 right-0 top-[env(safe-area-inset-top)] z-10 flex h-[72px] items-center gap-2 px-3 transition-all duration-300 ease-in-out sm:gap-3 sm:px-4 md:top-0 md:px-6 lg:left-[260px]"
       style={{
         background: 'rgba(226,232,240,0.78)',
         backdropFilter: 'blur(22px) saturate(160%)',
@@ -378,7 +454,7 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
             <div
               id="topnav-search-results"
               role="listbox"
-              className="absolute left-0 top-full z-50 mt-2 w-[min(90vw,24rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+              className="absolute left-0 top-full z-50 mt-2 max-h-[min(70vh,32rem)] w-[min(90vw,24rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl"
             >
               {searching ? (
                 <p className="px-4 py-3 text-sm text-slate-500" role="status">{t('searchLoading')}</p>
@@ -471,6 +547,24 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
           </div>
         )}
 
+        {showThemeToggle && (
+          <button
+            type="button"
+            onClick={() => {
+              const nextMode = themeMode === 'dark' ? 'light' : 'dark';
+              saveThemeModeForDevice(isPhoneViewport() ? 'phone' : 'desktop', nextMode);
+              closePanels();
+            }}
+            aria-label={t(themeMode === 'dark' ? 'switchToLightMode' : 'switchToDarkMode')}
+            title={t(themeMode === 'dark' ? 'switchToLightMode' : 'switchToDarkMode')}
+            className="phone-navbar-control flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900"
+          >
+            {themeMode === 'dark'
+              ? <Sun className="h-4 w-4" aria-hidden="true" />
+              : <Moon className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        )}
+
         {/* Language toggle */}
         <div className="relative">
           <button
@@ -535,8 +629,8 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
               : <img src={appLogoUrl} alt="" className="h-full w-full rounded-full object-contain" />}
           </div>
           <div className="hidden md:block">
-            <p className="text-sm font-semibold text-slate-900 leading-tight">{profile?.full_name}</p>
-            <p className="text-xs text-slate-500">{roleLabel}</p>
+            <p className="phone-navbar-profile-name whitespace-nowrap text-sm font-semibold text-slate-900 leading-tight" title={profile?.full_name ?? undefined}>{profile?.full_name}</p>
+            <p className="phone-navbar-profile-role whitespace-nowrap text-xs text-slate-500">{roleLabel}</p>
           </div>
         </div>
       </div>

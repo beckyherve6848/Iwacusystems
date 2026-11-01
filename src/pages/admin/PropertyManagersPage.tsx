@@ -245,30 +245,33 @@ export default function PropertyManagersPage() {
                 key={item.id}
                 type="button"
                 onClick={() => chooseManager(item.id)}
-                className={`property-manager-card w-full rounded-2xl border p-4 text-left transition-colors ${
+                className={`property-manager-card ${managerPhotoUrls[item.id] ? 'property-manager-card-photo-background' : ''} w-full rounded-2xl border p-4 text-left transition-colors ${
                   selectedManager === item.id ? 'border-emerald-500 bg-emerald-50/60' : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
                 style={managerPhotoUrls[item.id] ? {
-                  backgroundImage: `linear-gradient(105deg, rgba(9, 15, 22, 0.94) 0%, rgba(9, 15, 22, 0.82) 58%, rgba(9, 15, 22, 0.58) 100%), url("${managerPhotoUrls[item.id]}")`,
+                  backgroundImage: `linear-gradient(90deg, rgba(24, 25, 26, 0.98) 0%, rgba(36, 37, 38, 0.92) 42%, rgba(36, 37, 38, 0.54) 72%, rgba(36, 37, 38, 0.24) 100%), url("${managerPhotoUrls[item.id]}")`,
+                  backgroundPosition: 'center, right center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '100% 100%, cover',
                 } : undefined}
               >
-                <div className="property-manager-card-content flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="property-manager-card-content flex min-h-24 items-center">
+                  <div className="min-w-0 w-[72%]">
                     <p className="property-manager-card-name property-manager-brand-font truncate font-semibold text-slate-900">{item.full_name}</p>
                     <p className="property-manager-card-contact mt-1 truncate text-xs text-slate-500">{item.email}</p>
                     {item.phone && <p className="property-manager-card-contact mt-0.5 text-xs text-slate-500">{item.phone}</p>}
+                    <div className="property-manager-card-footer mt-3 flex flex-wrap items-center gap-2">
+                      <p className="property-manager-card-assignment text-xs text-slate-500">
+                        {assignedPropertyIds(item.id).length} {text('assigned', 'attribué(s)')} {assignedPropertyIds(item.id).length === 1 ? text('property', 'bien immobilier') : text('properties', 'biens immobiliers')}
+                      </p>
+                      <span className={`property-manager-card-status inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                        item.is_active ? 'border-emerald-500 text-emerald-700' : 'border-amber-500 text-amber-700'
+                      }`}>
+                        {item.is_active ? <Check className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                        {item.is_active ? text('Approved', 'Approuvé') : text('Pending', 'En attente')}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="property-manager-card-footer mt-3 flex items-center gap-2">
-                  <p className="property-manager-card-assignment text-xs text-slate-500">
-                    {assignedPropertyIds(item.id).length} {text('assigned', 'attribué(s)')} {assignedPropertyIds(item.id).length === 1 ? text('property', 'bien immobilier') : text('properties', 'biens immobiliers')}
-                  </p>
-                  <span className={`property-manager-card-status inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    item.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {item.is_active ? <Check className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                    {item.is_active ? text('Approved', 'Approuvé') : text('Pending', 'En attente')}
-                  </span>
                 </div>
               </button>
             ))}

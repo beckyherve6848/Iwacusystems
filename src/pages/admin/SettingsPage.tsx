@@ -8,13 +8,12 @@ import { Save, Settings, Upload, Image as ImageIcon, Plus, Trash2, Smartphone, S
 import { DEFAULT_STAFF_CARD_FOOTER, DEFAULT_STAFF_CARD_FOOTER_FR, useTheme } from '@/contexts/ThemeContext';
 import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
 import {
-  getPhoneStatusStyle,
-  getPhoneThemeMode,
+  getThemeModeForCurrentDevice,
+  getThemeModeForDevice,
+  isPhoneViewport,
   PhoneThemeMode,
-  PhoneStatusStyle,
-  savePhoneThemeMode,
-  savePhoneStatusStyle,
-} from '@/lib/phoneStatusStyle';
+  saveThemeModeForDevice,
+} from '@/lib/phoneThemeMode';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -24,12 +23,23 @@ export default function SettingsPage() {
   const [uploading, setUploading] = useState(false);
   const [logoPreview, setLogoPreview] = useState('/iwacu-mark-512.png');
   const [familyPreview, setFamilyPreview] = useState('/Bck.png');
-  const [phoneStatusStyle, setPhoneStatusStyle] = useState<PhoneStatusStyle>(() => getPhoneStatusStyle());
-  const [phoneThemeMode, setPhoneThemeMode] = useState<PhoneThemeMode>(() => getPhoneThemeMode());
+  const [phoneThemeMode, setPhoneThemeMode] = useState<PhoneThemeMode>(() => getThemeModeForCurrentDevice());
+  const [isPhoneDevice, setIsPhoneDevice] = useState(() => isPhoneViewport());
   const logoFileRef = useRef<HTMLInputElement>(null);
   const familyFileRef = useRef<HTMLInputElement>(null);
   const { toasts, addToast, removeToast } = useToast();
   const { updateBranding, t } = useTheme();
+
+  useEffect(() => {
+    const viewport = window.matchMedia('(max-width: 767px)');
+    const updateDevice = () => {
+      setIsPhoneDevice(viewport.matches);
+      setPhoneThemeMode(getThemeModeForDevice(viewport.matches ? 'phone' : 'desktop'));
+    };
+    updateDevice();
+    viewport.addEventListener('change', updateDevice);
+    return () => viewport.removeEventListener('change', updateDevice);
+  }, []);
 
   useEffect(() => {
     supabase.from('settings').select('key, value').then(({ data, error }) => {
@@ -188,13 +198,13 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-4">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 md:hidden">
+        <section className="phone-appearance-card rounded-2xl border border-slate-200 bg-white p-5">
           <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <Smartphone className="h-4 w-4" />
-            {t('phoneStatusStyle')}
+            {t('phoneAppearance')}
           </h3>
-          <p className="mb-4 text-xs text-slate-500">{t('phoneStatusStyleDescription')}</p>
-          <div className="mb-4 grid grid-cols-2 gap-3">
+          <p className="mb-4 text-xs text-slate-500">{t('phoneAppearanceDescription')}</p>
+          <div className="grid grid-cols-2 gap-3">
             {([
               { value: 'light', label: t('lightMode'), Icon: Sun },
               { value: 'dark', label: t('darkMode'), Icon: Moon },
@@ -204,44 +214,16 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => {
                   setPhoneThemeMode(option.value);
-                  savePhoneThemeMode(option.value);
+                  saveThemeModeForDevice(isPhoneDevice ? 'phone' : 'desktop', option.value);
                 }}
                 aria-pressed={phoneThemeMode === option.value}
-                className={`flex min-h-14 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-medium transition-colors ${
+                className={`phone-appearance-option flex min-h-14 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-medium transition-colors ${
                   phoneThemeMode === option.value
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                    ? 'phone-appearance-option-selected border-emerald-600 bg-emerald-50 text-emerald-800'
                     : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 <option.Icon className="h-4 w-4" />
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {([
-              { value: 'dynamic-island', label: t('dynamicIsland') },
-              { value: 'camera-cutout', label: t('cameraCutout') },
-            ] as const).map(option => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  setPhoneStatusStyle(option.value);
-                  savePhoneStatusStyle(option.value);
-                }}
-                aria-pressed={phoneStatusStyle === option.value}
-                className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-medium transition-colors ${
-                  phoneStatusStyle === option.value
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span className="flex h-8 w-16 items-start justify-center rounded-lg bg-slate-900 pt-1.5">
-                  <span className={option.value === 'dynamic-island'
-                    ? 'h-3 w-9 rounded-full bg-black'
-                    : 'h-3 w-3 rounded-full border border-slate-700 bg-black'} />
-                </span>
                 {option.label}
               </button>
             ))}
@@ -258,14 +240,14 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm font-medium text-slate-700 mb-2">{t('appLogo')}</p>
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center p-2">
+                <div className="w-20 h-20 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center p-2">
                   <img src={logoPreview} alt={t('appLogoPreview')} className="max-w-full max-h-full object-contain" />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="ghost" size="sm" disabled={uploading} icon={<Upload className="w-4 h-4" />} onClick={() => logoFileRef.current?.click()}>
+                  <Button variant="ghost" size="sm" className="settings-logo-action" disabled={uploading} icon={<Upload className="w-4 h-4" />} onClick={() => logoFileRef.current?.click()}>
                     {t('replaceLogo')}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={handleRemoveLogo}>{t('useDefault')}</Button>
+                  <Button variant="ghost" size="sm" className="settings-logo-action" onClick={handleRemoveLogo}>{t('useDefault')}</Button>
                 </div>
               </div>
               <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={e => {
@@ -315,8 +297,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+        <div className="settings-staff-footer-card bg-white border border-slate-200 rounded-2xl p-5">
+          <h3 className="settings-staff-footer-heading text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
             <Settings className="w-4 h-4" /> {t('staffCardFooter')}
           </h3>
           <p className="mb-3 text-xs text-slate-500">
@@ -324,6 +306,7 @@ export default function SettingsPage() {
           </p>
           <div className="grid gap-4 md:grid-cols-2">
             <Textarea
+              className="settings-footer-message"
               label={t('footerMessageEnglish')}
               rows={3}
               maxLength={300}
@@ -331,6 +314,7 @@ export default function SettingsPage() {
               onChange={event => setSettings(current => ({ ...current, staff_card_footer: event.target.value }))}
             />
             <Textarea
+              className="settings-footer-message"
               label={t('footerMessageFrench')}
               rows={3}
               maxLength={300}
@@ -350,6 +334,7 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               size="sm"
+              className="settings-add-method shrink-0 whitespace-nowrap"
               icon={<Plus className="w-4 h-4" />}
               onClick={() => setPaymentMethods(methods => [...methods, { id: crypto.randomUUID(), name: '', instructions: '' }])}
             >

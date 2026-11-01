@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Search, Eye, UserPlus, UserCheck, UserX } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Eye, UserPlus, UserCheck, UserX, UserRound } from 'lucide-react';
 import { Profile, supabase, Tenant } from '@/lib/supabase';
 import Button from '@/components/ui/Button';
 import Input, { Select, Textarea } from '@/components/ui/Input';
@@ -498,7 +498,7 @@ export default function TenantsPage() {
               <div key={u.id} className="pending-account-row flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="pending-account-avatar w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-amber-700">{u.full_name.charAt(0).toUpperCase()}</span>
+                    <UserRound className="h-4 w-4 text-amber-700" aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <p className="pending-account-name text-slate-900 text-sm font-medium truncate">{u.full_name}</p>
@@ -564,7 +564,7 @@ export default function TenantsPage() {
             className="w-full bg-white border border-slate-200 text-slate-900 placeholder-slate-500 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
           />
         </div>
-        <select
+        <Select
           value={filterStatus}
           onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -573,7 +573,7 @@ export default function TenantsPage() {
           <option value="active">{text('Active', 'Actif')}</option>
           <option value="vacated">{text('Vacated', 'Parti')}</option>
           <option value="blacklisted">{text('Blacklisted', 'Sur liste noire')}</option>
-        </select>
+        </Select>
       </div>
 
       <div className="tenant-list-table bg-white border border-slate-200 rounded-2xl overflow-hidden">

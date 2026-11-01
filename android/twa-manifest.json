@@ -1,0 +1,54 @@
+{
+  "packageId": "com.iwacusystem.app",
+  "host": "iwacusystem.vercel.app",
+  "name": "Iwacusystem",
+  "launcherName": "Iwacusystem",
+  "display": "standalone",
+  "themeColor": "#000000",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#000000",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://iwacusystem.vercel.app/iwacu-app-icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "C:\\Users\\Becky Herve\\AppData\\Local\\IwacuAndroidBuild\\signing\\iwacusystem-release.keystore",
+    "alias": "iwacusystem"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://iwacusystem.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://iwacusystem.vercel.app/",
+  "minSdkVersion": 24,
+  "orientation": "any",
+  "fingerprints": [
+    {
+      "name": "Iwacusystem release signing key",
+      "value": "82:FE:72:FD:AB:14:4C:C4:48:DB:D2:B7:DA:4E:52:C1:D7:C9:6C:28:79:96:93:CA:A2:7A:9F:6C:7D:81:5F:17"
+    }
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "appVersion": "1"
+}

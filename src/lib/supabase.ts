@@ -1,9 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
+import { isNetworkAvailable } from '@/lib/offlineNetwork';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const offlineReadOnlyFetch: typeof fetch = (input, init) => {
+  const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD' && !isNetworkAvailable()) {
+    return Promise.resolve(new Response(JSON.stringify({
+      message: 'Offline mode is read-only. Reconnect to save changes.',
+      code: 'OFFLINE_READ_ONLY',
+      details: '',
+      hint: '',
+    }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+  }
+  return fetch(input, init);
+};
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: { fetch: offlineReadOnlyFetch },
+});
 
 export type UserRole = 'admin' | 'gatekeeper' | 'tenant' | 'caretaker' | 'property_manager';
 
@@ -38,7 +57,6 @@ export interface House {
   house_number: string;
   property_id?: string | null;
   properties?: Pick<Property, 'id' | 'name'> | null;
-  block_wing?: string;
   floor?: string;
   category_id?: string;
   monthly_rent: number;

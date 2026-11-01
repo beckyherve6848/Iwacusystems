@@ -142,7 +142,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
   const panelClass = 'bg-white border border-slate-200 rounded-2xl p-5';
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-content space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <DashboardWelcomeHero

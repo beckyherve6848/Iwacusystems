@@ -2,10 +2,12 @@ import React from 'react';
 import { Clock, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { getThemeModeForCurrentDevice } from '@/lib/phoneThemeMode';
 
 export default function TenantPendingScreen() {
   const { profile, signOut } = useAuth();
   const { language, appName, appLogoUrl } = useTheme();
+  const isDark = getThemeModeForCurrentDevice() === 'dark';
   const isPropertyManager = profile?.role === 'property_manager';
   const content = language === 'fr'
     ? isPropertyManager ? {
@@ -44,42 +46,38 @@ export default function TenantPendingScreen() {
       };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#f7f8fa' }}>
-      <div className="max-w-md w-full text-center">
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-white shadow-md">
-            <img src={appLogoUrl} alt={`${appName} logo`} className="h-12 w-12 object-contain" />
-          </div>
+    <main className={`tenant-pending-screen${isDark ? ' phone-dark' : ''}`}>
+      <div className="tenant-pending-shell">
+        <div className="tenant-pending-brand">
+          <img src={appLogoUrl} alt={`${appName} logo`} />
         </div>
 
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <Clock className="w-5 h-5 text-amber-400" />
-          <h1 className="text-xl font-bold text-slate-900">{content.title}</h1>
+        <div className="tenant-pending-heading">
+          <span className="tenant-pending-clock" aria-hidden="true">
+            <Clock />
+          </span>
+          <h1>{content.title}</h1>
         </div>
 
-        <div className="rounded-2xl p-6 mb-6" style={{ background: '#ffffff', border: '1px solid #e9ecef' }}>
-          <p className="text-slate-700 text-sm leading-relaxed mb-4">
-            {content.greeting} <span className="font-semibold text-slate-900">{profile?.full_name}</span>,
+        <section className="tenant-pending-card" aria-label={content.title}>
+          <p className="tenant-pending-greeting">
+            {content.greeting} <span>{profile?.full_name}</span>,
           </p>
-          <p className="text-slate-500 text-sm leading-relaxed">{content.message}</p>
-          <p className="text-slate-500 text-sm leading-relaxed mt-3">{content.contact}</p>
-        </div>
+          <p className="tenant-pending-message">{content.message}</p>
+          <p className="tenant-pending-contact">{content.contact}</p>
+        </section>
 
-        <div className="rounded-xl p-4 mb-6" style={{ background: 'rgba(17,24,39,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-          <p className="text-amber-700 text-xs">
-            {content.loggedIn} <span className="font-semibold">{profile?.email}</span>. {content.pending}
+        <div className="tenant-pending-notice" role="status">
+          <p>
+            {content.loggedIn} <span>{profile?.email}</span>. {content.pending}
           </p>
         </div>
 
-        <button
-          onClick={signOut}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:text-slate-900 transition-all"
-          style={{ background: '#f3f4f6', border: '1px solid #e5e7eb' }}
-        >
-          <LogOut className="w-4 h-4" />
+        <button onClick={signOut} className="tenant-pending-signout">
+          <LogOut aria-hidden="true" />
           {content.signOut}
         </button>
       </div>
-    </div>
+    </main>
   );
 }

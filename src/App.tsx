@@ -1,38 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import AppLayout from '@/components/layout/AppLayout';
-import AuthPage from '@/pages/AuthPage';
-import AdminDashboard from '@/pages/admin/AdminDashboard';
-import HousesPage from '@/pages/admin/HousesPage';
-import TenantsPage from '@/pages/admin/TenantsPage';
-import CaretakersPage from '@/pages/admin/CaretakersPage';
-import InvoicesPage from '@/pages/admin/InvoicesPage';
-import PaymentsPage from '@/pages/admin/PaymentsPage';
-import MaintenancePage from '@/pages/admin/MaintenancePage';
-import AgreementsPage from '@/pages/admin/AgreementsPage';
-import ReportsPage from '@/pages/admin/ReportsPage';
-import SettingsPage from '@/pages/admin/SettingsPage';
-import GatekeeperDashboard from '@/pages/gatekeeper/GatekeeperDashboard';
-import AdminChatPage from '@/pages/admin/AdminChatPage';
-import TenantDashboard from '@/pages/tenant/TenantDashboard';
-import TenantPaymentsPage from '@/pages/tenant/TenantPaymentsPage';
-import TenantInvoicesPage from '@/pages/tenant/TenantInvoicesPage';
-import TenantMaintenancePage from '@/pages/tenant/TenantMaintenancePage';
-import TenantAgreementPage from '@/pages/tenant/TenantAgreementPage';
-import TenantChatPage from '@/pages/tenant/TenantChatPage';
 import TenantPendingScreen from '@/pages/tenant/TenantPendingScreen';
-import CaretakerDashboard from '@/pages/caretaker/CaretakerDashboard';
-import CaretakerVisitorsPage from '@/pages/caretaker/CaretakerVisitorsPage';
-import CaretakerRegisterVisitorPage from '@/pages/caretaker/CaretakerRegisterVisitorPage';
-import CaretakerProfilePage from '@/pages/caretaker/CaretakerProfilePage';
-import PropertyManagersPage from '@/pages/admin/PropertyManagersPage';
-import PropertyManagerDashboard from '@/pages/property-manager/PropertyManagerDashboard';
-import VisitorsPage from '@/pages/VisitorsPage';
-import NotificationsPage from '@/pages/NotificationsPage';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
-import UserActivityPage from '@/pages/admin/UserActivityPage';
 import { supabase } from '@/lib/supabase';
+
+const AuthPage = lazy(() => import('@/pages/AuthPage'));
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'));
+const HousesPage = lazy(() => import('@/pages/admin/HousesPage'));
+const TenantsPage = lazy(() => import('@/pages/admin/TenantsPage'));
+const CaretakersPage = lazy(() => import('@/pages/admin/CaretakersPage'));
+const InvoicesPage = lazy(() => import('@/pages/admin/InvoicesPage'));
+const PaymentsPage = lazy(() => import('@/pages/admin/PaymentsPage'));
+const MaintenancePage = lazy(() => import('@/pages/admin/MaintenancePage'));
+const AgreementsPage = lazy(() => import('@/pages/admin/AgreementsPage'));
+const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage'));
+const SettingsPage = lazy(() => import('@/pages/admin/SettingsPage'));
+const GatekeeperDashboard = lazy(() => import('@/pages/gatekeeper/GatekeeperDashboard'));
+const AdminChatPage = lazy(() => import('@/pages/admin/AdminChatPage'));
+const TenantDashboard = lazy(() => import('@/pages/tenant/TenantDashboard'));
+const TenantPaymentsPage = lazy(() => import('@/pages/tenant/TenantPaymentsPage'));
+const TenantInvoicesPage = lazy(() => import('@/pages/tenant/TenantInvoicesPage'));
+const TenantMaintenancePage = lazy(() => import('@/pages/tenant/TenantMaintenancePage'));
+const TenantAgreementPage = lazy(() => import('@/pages/tenant/TenantAgreementPage'));
+const TenantChatPage = lazy(() => import('@/pages/tenant/TenantChatPage'));
+const CaretakerDashboard = lazy(() => import('@/pages/caretaker/CaretakerDashboard'));
+const CaretakerVisitorsPage = lazy(() => import('@/pages/caretaker/CaretakerVisitorsPage'));
+const CaretakerRegisterVisitorPage = lazy(() => import('@/pages/caretaker/CaretakerRegisterVisitorPage'));
+const CaretakerProfilePage = lazy(() => import('@/pages/caretaker/CaretakerProfilePage'));
+const PropertyManagersPage = lazy(() => import('@/pages/admin/PropertyManagersPage'));
+const PropertyManagerDashboard = lazy(() => import('@/pages/property-manager/PropertyManagerDashboard'));
+const VisitorsPage = lazy(() => import('@/pages/VisitorsPage'));
+const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
+const UserActivityPage = lazy(() => import('@/pages/admin/UserActivityPage'));
 
 const propertyManagerPages = new Set([
   'manager-dashboard', 'houses', 'tenants', 'invoices', 'payments', 'maintenance', 'visitors', 'reports', 'notifications', 'manager-chat',
@@ -66,10 +67,28 @@ const pagesByRole: Record<string, Set<string>> = {
 
 function AppContent() {
   const { session, profile, tenantRecord, tenantChecked, loading } = useAuth();
-  const { appLogoUrl } = useTheme();
+  const { appLogoUrl, appName, language } = useTheme();
   const [currentPage, setCurrentPage] = useState('');
   const profileId = profile?.id;
   const profileRole = profile?.role;
+
+  useEffect(() => {
+    const title = language === 'fr'
+      ? `${appName} | Gestion locative au Burundi`
+      : `${appName} | Rental Property Management in Burundi`;
+    const description = language === 'fr'
+      ? `Gérez vos biens locatifs au Burundi avec ${appName}. Suivez locataires, contrats, factures, paiements, maintenance et visiteurs au même endroit.`
+      : `Manage rental properties in Burundi with ${appName}. Track tenants, lease agreements, rent invoices, payments, maintenance, and visitors in one place.`;
+
+    document.documentElement.lang = language === 'fr' ? 'fr-BI' : 'en';
+    document.title = title;
+    document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute('content', description);
+    document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.setAttribute('content', title);
+    document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.setAttribute('content', description);
+    document.querySelector<HTMLMetaElement>('meta[property="og:locale"]')?.setAttribute('content', language === 'fr' ? 'fr_BI' : 'en_BI');
+    document.querySelector<HTMLMetaElement>('meta[name="twitter:title"]')?.setAttribute('content', title);
+    document.querySelector<HTMLMetaElement>('meta[name="twitter:description"]')?.setAttribute('content', description);
+  }, [appName, language]);
 
   useEffect(() => {
     if (!profileId || !profileRole) return;
@@ -142,7 +161,11 @@ function AppContent() {
   }
 
   if (!session || !profile) {
-    return <AuthPage onSuccess={() => {}} />;
+    return (
+      <Suspense fallback={<PageLoadingFallback />}>
+        <AuthPage onSuccess={() => {}} />
+      </Suspense>
+    );
   }
 
   // Tenants without a completed profile see a waiting screen instead of the dashboard
@@ -200,8 +223,25 @@ function AppContent() {
 
   return (
     <AppLayout currentPage={currentPage} onNavigate={navigate}>
-      {renderPage()}
+      <Suspense fallback={<PageLoadingFallback />}>
+        {renderPage()}
+      </Suspense>
     </AppLayout>
+  );
+}
+
+function PageLoadingFallback() {
+  return (
+    <div className="min-h-[50vh] space-y-5 py-2" role="status" aria-label="Loading page">
+      <span className="sr-only">Loading page...</span>
+      <div className="h-36 animate-pulse rounded-3xl bg-slate-200 sm:h-48" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="h-28 animate-pulse rounded-2xl bg-white shadow-sm" />
+        ))}
+      </div>
+      <div className="h-48 animate-pulse rounded-2xl bg-white shadow-sm" />
+    </div>
   );
 }
 

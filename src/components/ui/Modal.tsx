@@ -23,7 +23,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', cla
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
-        className={`relative w-full ${sizes[size]} flex flex-col max-h-[90vh] animate-fade-up ${className}`}
+        className={`app-modal relative w-full ${sizes[size]} flex flex-col max-h-[90vh] animate-fade-up ${className}`}
         style={{
           background: '#ffffff',
           border: '1px solid #e5e7eb',
@@ -31,11 +31,11 @@ export default function Modal({ open, onClose, title, children, size = 'md', cla
           boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
         }}
       >
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #f3f4f6' }}>
+        <div className="app-modal-header flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #f3f4f6' }}>
           <h2 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-900 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+            className="app-modal-close text-slate-400 hover:text-slate-900 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
           >
             <X className="w-4 h-4" />
           </button>

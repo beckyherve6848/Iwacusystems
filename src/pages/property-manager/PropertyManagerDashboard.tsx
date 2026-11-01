@@ -125,7 +125,7 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
   ];
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="dashboard-content flex flex-col gap-4 sm:gap-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <DashboardWelcomeHero
         title={`${labels.title}${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
@@ -161,7 +161,7 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
               <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-full sm:mb-4 sm:h-10 sm:w-10 ${card.color}`}>
                 <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.8} />
               </div>
-              <p className={`break-words font-bold tracking-tight text-slate-900 ${card.money ? 'money-value text-sm sm:text-lg' : 'text-xl sm:text-2xl'}`}>
+              <p className={`break-words font-bold tracking-tight ${card.label === labels.collected ? 'phone-dashboard-collected' : 'text-slate-900'} ${card.money ? 'money-value text-sm sm:text-lg' : 'text-xl sm:text-2xl'}`}>
                 {loading ? '—' : card.value}
               </p>
               <p className="mt-1 text-[11px] font-medium leading-4 text-slate-500 sm:text-sm sm:leading-5">{card.label}</p>

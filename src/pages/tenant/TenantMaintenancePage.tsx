@@ -156,7 +156,7 @@ export default function TenantMaintenancePage() {
             onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
               filter === f ? 'text-[#f7f8fa]' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+            } ${filter !== 'active' ? 'dark-theme-surface' : ''}`}
             style={filter === f ? {
               background: 'linear-gradient(135deg,#fdb022,#f59e0b)',
               boxShadow: '0 4px 12px rgba(245,158,11,0.25)',
@@ -179,7 +179,7 @@ export default function TenantMaintenancePage() {
 
       {/* Empty state */}
       {!loading && displayed.length === 0 && (
-        <div className="rounded-2xl p-12 text-center" style={panelStyle}>
+        <div className="dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
           <Wrench className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-500">
             {filter === 'active'
@@ -202,7 +202,7 @@ export default function TenantMaintenancePage() {
       {/* List */}
       <div className="space-y-3">
         {displayed.map(r => (
-          <div key={r.id} className="rounded-2xl p-5 transition-all" style={{
+          <div key={r.id} className="dark-theme-surface rounded-2xl p-5 transition-all" style={{
             background: '#ffffff',
             border: `1px solid ${r.status === 'completed' ? 'rgba(16,185,129,0.2)' : r.status === 'rejected' ? 'rgba(239,68,68,0.2)' : '#e9ecef'}`,
           }}>
@@ -225,7 +225,7 @@ export default function TenantMaintenancePage() {
               <span>{new Date(r.created_at).toLocaleDateString('en-GB')}</span>
             </div>
             {r.admin_notes && (
-              <div className="mt-3 p-3 rounded-xl" style={{ background: '#f9fafb', border: '1px solid #e9ecef' }}>
+              <div className="dark-theme-subtle-surface mt-3 p-3 rounded-xl" style={{ background: '#f9fafb', border: '1px solid #e9ecef' }}>
                 <p className="text-xs text-slate-500 mb-1">
                   {language === 'fr' ? 'Notes de l\'administrateur' : 'Admin Notes'}:
                 </p>

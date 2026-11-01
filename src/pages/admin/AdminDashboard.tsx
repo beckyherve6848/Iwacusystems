@@ -45,7 +45,7 @@ function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, mo
     ? moneyAmount && moneyAmount > 0
       ? 'phone-dashboard-outstanding-positive'
       : 'phone-dashboard-outstanding-zero'
-    : 'text-[#25D366]';
+    : 'phone-dashboard-collected';
 
   return (
     <div
@@ -114,26 +114,9 @@ function AdminOverviewDiagram({
   const { loginFamilyImageUrl } = useTheme();
   const ringRef = useRef<SVGGElement | null>(null);
   const rotationRef = useRef(0);
-  const lastFrameTimeRef = useRef<number | null>(null);
   const lastPointerAngleRef = useRef<number | null>(null);
   const draggingRef = useRef(false);
   const draggedRef = useRef(false);
-
-  useEffect(() => {
-    let frameId: number;
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const animate = (time: number) => {
-      const previousTime = lastFrameTimeRef.current;
-      if (previousTime !== null && !draggingRef.current && !reducedMotion && window.matchMedia('(max-width: 767px)').matches) {
-        rotationRef.current += (time - previousTime) * 0.0025;
-      }
-      ringRef.current?.setAttribute('transform', `rotate(${rotationRef.current} 200 200)`);
-      lastFrameTimeRef.current = time;
-      frameId = window.requestAnimationFrame(animate);
-    };
-    frameId = window.requestAnimationFrame(animate);
-    return () => window.cancelAnimationFrame(frameId);
-  }, []);
 
   const getPointerAngle = (event: React.PointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -175,7 +158,7 @@ function AdminOverviewDiagram({
     <section className="phone-overview-card relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] sm:p-6">
       <div className="pointer-events-none absolute inset-0 z-0 md:hidden" aria-hidden="true">
         <img src={loginFamilyImageUrl || '/Bck.png'} alt="" className="h-full w-full object-cover object-center" />
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/90 via-slate-900/75 to-slate-800/90" />
+        <div className="phone-overview-gradient absolute inset-0 bg-gradient-to-br from-slate-950/90 via-slate-900/75 to-slate-800/90" />
       </div>
       <div className="relative z-10 mb-4">
         <h2 className="phone-overview-heading text-base font-semibold text-slate-900">{centerLabel}</h2>
@@ -477,7 +460,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="dashboard-content flex flex-col gap-4 sm:gap-6">
       <DashboardWelcomeHero title={t('dashboard')} subtitle={t('welcomeBackMsg')} />
 
       <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
@@ -493,8 +476,8 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           onClick={() => onNavigate('tenants')}
           className="pending-registration-card flex w-full items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-3 text-left shadow-sm transition-colors hover:bg-red-100 sm:gap-4 sm:p-5"
         >
-          <span className="pending-registration-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-700 sm:h-12 sm:w-12">
-            <Users className="h-4 w-4 sm:h-6 sm:w-6" aria-hidden="true" />
+          <span className="pending-registration-icon flex h-9 w-9 shrink-0 items-center justify-center text-red-700 sm:h-12 sm:w-12">
+            <Users className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
           </span>
           <span className="pending-registration-content min-w-0 flex-1">
             <span className="pending-registration-header">

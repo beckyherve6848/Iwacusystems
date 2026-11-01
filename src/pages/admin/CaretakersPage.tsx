@@ -100,7 +100,13 @@ export default function CaretakersPage() {
             <h1 className="text-2xl font-bold text-slate-900">{t('caretakers')}</h1>
             <p className="mt-1 text-sm text-slate-500">{t('caretakerManagement')}</p>
           </div>
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setStaffForm(null)}>{t('addCaretaker')}</Button>
+          <Button
+            icon={<Plus className="h-4 w-4" />}
+            onClick={() => setStaffForm(null)}
+            className="page-action-button"
+          >
+            {t('addCaretaker')}
+          </Button>
         </div>
       </div>
 
@@ -114,7 +120,7 @@ export default function CaretakersPage() {
             <section key={caretaker.id} className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
                     <span className="text-lg font-bold uppercase">{caretaker.full_name.trim().charAt(0) || '?'}</span>
                   </div>
                   <div className="min-w-0">

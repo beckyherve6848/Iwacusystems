@@ -9,8 +9,6 @@ import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { useTheme } from '@/contexts/ThemeContext';
 
-const PER_PAGE = 10;
-
 const statusColors: Record<string, string> = {
   vacant: 'bg-emerald-50 text-emerald-700 border-emerald-700/50',
   occupied: 'bg-blue-50 text-blue-700 border-blue-700/50',
@@ -19,7 +17,7 @@ const statusColors: Record<string, string> = {
 };
 
 const emptyForm = {
-  house_number: '', property_id: '', block_wing: '', floor: '', category_id: '',
+  house_number: '', property_id: '', floor: '', category_id: '',
   monthly_rent: '', security_deposit: '', description: '', status: 'vacant', image_url: '',
 };
 
@@ -29,6 +27,7 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [loading, setLoading] = useState(true);
@@ -44,6 +43,14 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
   const { toasts, addToast, removeToast } = useToast();
   const { fmt, t, language } = useTheme();
   const text = (english: string, french: string) => language === 'fr' ? french : english;
+  const categoryName = (name: string) => language === 'fr' ? ({
+    'Single Room': 'Chambre individuelle',
+    Bedsitter: 'Studio',
+    'One Bedroom': 'Appartement d’une chambre',
+    'Two Bedroom': 'Appartement de deux chambres',
+    'Three Bedroom': 'Appartement de trois chambres',
+    'Four Bedroom': 'Appartement de quatre chambres',
+  }[name] ?? name) : name;
   const houseStatus = (status: string) => ({
     vacant: text('Vacant', 'Libre'),
     occupied: text('Occupied', 'Occupée'),
@@ -64,13 +71,13 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
     if (search) q = q.ilike('house_number', `%${search}%`);
     if (filterStatus) q = q.eq('status', filterStatus);
 
-    const from = (page - 1) * PER_PAGE;
-    q = q.range(from, from + PER_PAGE - 1);
+    const from = (page - 1) * pageSize;
+    q = q.range(from, from + pageSize - 1);
 
     const { data, count, error } = await q;
     if (!error) { setHouses(data ?? []); setTotal(count ?? 0); }
     setLoading(false);
-  }, [page, search, filterStatus]);
+  }, [page, pageSize, search, filterStatus]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -91,7 +98,6 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
     setForm({
       house_number: h.house_number,
       property_id: h.property_id ?? '',
-      block_wing: h.block_wing ?? '',
       floor: h.floor ?? '',
       category_id: h.category_id ?? '',
       monthly_rent: String(h.monthly_rent),
@@ -111,7 +117,6 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
     const payload = {
       house_number: form.house_number.trim(),
       property_id: form.property_id,
-      block_wing: form.block_wing || null,
       floor: form.floor || null,
       category_id: form.category_id || null,
       monthly_rent: Number(form.monthly_rent) || 0,
@@ -170,8 +175,8 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
         </div>
         {!managerMode && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" icon={<Building2 className="w-4 h-4" />} onClick={() => setPropertyModalOpen(true)}>{t('addProperty')}</Button>
-            <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>{t('addHouse')}</Button>
+            <Button className="page-action-button" variant="outline" icon={<Building2 className="w-4 h-4" />} onClick={() => setPropertyModalOpen(true)}>{t('addProperty')}</Button>
+            <Button className="page-action-button" icon={<Plus className="w-4 h-4" />} onClick={openAdd}>{t('addHouse')}</Button>
           </div>
         )}
       </div>
@@ -187,7 +192,7 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
             className="w-full bg-white border border-slate-200 text-slate-900 placeholder-slate-500 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
           />
         </div>
-        <select
+        <Select
           value={filterStatus}
           onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -197,22 +202,22 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
           <option value="occupied">{text('Occupied', 'Occupée')}</option>
           <option value="reserved">{text('Reserved', 'Réservée')}</option>
           <option value="maintenance">{text('Maintenance', 'En maintenance')}</option>
-        </select>
+        </Select>
       </div>
 
       {/* Table */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="overflow-hidden">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="border-b border-slate-200">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('House', 'Maison')}</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Property', 'Bien immobilier')}</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">{text('Category', 'Catégorie')}</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden lg:table-cell">{text('Floor/Block', 'Étage/Bloc')}</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Rent', 'Loyer')}</th>
-                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Status', 'Statut')}</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{text('Actions', 'Actions')}</th>
+                <th className="w-[25%] px-1.5 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('House', 'Maison')}</th>
+                <th className="w-[16%] px-1 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('Property', 'Bien immobilier')}</th>
+                <th className="hidden px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 xl:table-cell">{text('Category', 'Catégorie')}</th>
+                <th className="hidden px-3 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">{text('Floor', 'Étage')}</th>
+                <th className="w-[29%] px-1 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('Rent', 'Loyer')}</th>
+                <th className="w-[20%] px-1 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto">{text('Status', 'Statut')}</th>
+                <th className="w-[10%] px-1 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-4">{text('Actions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -225,47 +230,49 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
                 <tr><td colSpan={7} className="text-center py-12 text-slate-500">{text('No houses found', 'Aucune maison trouvée')}</td></tr>
               )}
               {houses.map(h => (
-                <tr key={h.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                <tr key={h.id} className="house-list-row hover:bg-slate-50 transition-colors">
+                  <td className="overflow-hidden px-1.5 py-2 sm:px-2 sm:py-3 lg:px-5 lg:py-3.5">
+                    <div className="flex min-w-0 items-center gap-1.5 lg:gap-3">
+                      <div className="hidden h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 lg:flex">
                         {h.image_url
                           ? <img src={h.image_url} alt="" className="w-full h-full object-cover" />
                           : <Home className="w-4 h-4 text-slate-500" />
                         }
                       </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm">{h.house_number}</p>
-                        <p className="text-xs text-slate-500">{(h.house_categories as any)?.name ?? '—'}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-[11px] font-semibold text-slate-900 sm:text-sm">{h.house_number}</p>
+                        <p className="hidden truncate text-xs text-slate-500 sm:block">{categoryName((h.house_categories as any)?.name ?? '—')}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-sm font-medium text-slate-700">
+                  <td className="overflow-hidden px-1 py-2 text-[11px] font-medium text-slate-700 sm:px-2 sm:py-3 sm:text-sm lg:px-5 lg:py-3.5">
+                    <span className="block truncate">
                     {h.properties?.name ?? text('Unassigned', 'Non attribué')}
+                    </span>
                   </td>
-                  <td className="px-5 py-3.5 hidden md:table-cell text-sm text-slate-700">
-                    {(h.house_categories as any)?.name ?? '—'}
+                  <td className="hidden break-words px-5 py-3.5 text-sm text-slate-700 xl:table-cell">
+                    {categoryName((h.house_categories as any)?.name ?? '—')}
                   </td>
-                  <td className="px-5 py-3.5 hidden lg:table-cell text-sm text-slate-500">
-                    {[h.floor && `${text('Floor', 'Étage')} ${h.floor}`, h.block_wing].filter(Boolean).join(' · ') || '—'}
+                  <td className="hidden break-words px-3 py-3.5 text-sm text-slate-500 lg:table-cell">
+                    {h.floor ? `${text('Floor', 'Étage')} ${h.floor}` : '—'}
                   </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <p className="text-sm font-semibold text-slate-900"><span className="money-value">{fmt(Number(h.monthly_rent))}</span></p>
-                    <p className="text-xs text-slate-500">{text('Deposit:', 'Dépôt :')} <span className="money-value">{fmt(Number(h.security_deposit))}</span></p>
+                  <td className="overflow-hidden px-1 py-2 text-right sm:px-2 sm:py-3 lg:px-5 lg:py-3.5">
+                    <p className="truncate text-[10px] font-semibold text-slate-900 sm:text-sm"><span className="money-value">{fmt(Number(h.monthly_rent))}</span></p>
+                    <p className="hidden truncate text-xs text-slate-500 sm:block">{text('Deposit:', 'Dépôt :')} <span className="money-value">{fmt(Number(h.security_deposit))}</span></p>
                   </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[h.status]}`}>
+                  <td className="overflow-hidden px-1 py-2 text-center sm:px-2 sm:py-3 lg:py-3.5">
+                    <span className={`house-list-status inline-flex max-w-full items-center justify-center truncate rounded-full border px-1.5 py-1 text-[9px] font-medium capitalize sm:px-2.5 sm:text-xs ${statusColors[h.status]}`}>
                       {houseStatus(h.status)}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEdit(h)} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-                        <Pencil className="w-4 h-4" />
+                  <td className="overflow-hidden px-0.5 py-2 text-right sm:px-1 lg:px-4 lg:py-3.5">
+                    <div className="flex items-center justify-end gap-0">
+                      <button onClick={() => openEdit(h)} aria-label={text(`Edit ${h.house_number}`, `Modifier ${h.house_number}`)} className="rounded-lg p-1 text-slate-500 transition-all hover:bg-blue-50 hover:text-blue-600 sm:p-1.5 lg:p-2">
+                        <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </button>
                       {!managerMode && (
-                        <button onClick={() => setDeleteId(h.id)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
-                          <Trash2 className="w-4 h-4" />
+                        <button onClick={() => setDeleteId(h.id)} aria-label={text(`Delete ${h.house_number}`, `Supprimer ${h.house_number}`)} className="rounded-lg p-1 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 sm:p-1.5 lg:p-2">
+                          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </button>
                       )}
                     </div>
@@ -276,7 +283,14 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
           </table>
         </div>
         <div className="border-t border-slate-200 px-5 py-3">
-          <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
+          <Pagination
+            page={page}
+            total={total}
+            perPage={pageSize}
+            onChange={setPage}
+            onPerPageChange={size => { setPageSize(size); setPage(1); }}
+            totalLabel={text('Total houses', 'Total des maisons')}
+          />
         </div>
       </div>
 
@@ -293,11 +307,10 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
               {text('Create a Property first, then add houses under it.', 'Créez d’abord un bien immobilier, puis ajoutez-y des maisons.')}
             </p>
           )}
-          <Input label={text('Block / Wing', 'Bloc / Aile')} placeholder={text('e.g. Block A', 'ex. Bloc A')} value={form.block_wing} onChange={set('block_wing')} />
           <Input label={text('Floor', 'Étage')} placeholder={text('e.g. Ground, 1st', 'ex. Rez-de-chaussée, 1er')} value={form.floor} onChange={set('floor')} />
           <Select label={text('Category', 'Catégorie')} value={form.category_id} onChange={set('category_id')}>
             <option value="">{text('Select category', 'Sélectionner une catégorie')}</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {categories.map(c => <option key={c.id} value={c.id}>{categoryName(c.name)}</option>)}
           </Select>
           <Input label={text('Monthly Rent (Fbu)', 'Loyer mensuel (Fbu)')} type="number" placeholder="0" value={form.monthly_rent} onChange={set('monthly_rent')} />
           <Input label={text('Security Deposit (Fbu)', 'Dépôt de garantie (Fbu)')} type="number" placeholder="0" value={form.security_deposit} onChange={set('security_deposit')} />

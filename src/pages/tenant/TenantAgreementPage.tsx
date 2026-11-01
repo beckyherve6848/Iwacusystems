@@ -57,7 +57,7 @@ export default function TenantAgreementPage() {
       </div>
 
       {!agreement ? (
-        <div className="rounded-2xl p-12 text-center" style={panelStyle}>
+        <div className="dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
           <FileText className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-500">No active rental agreement found</p>
           <p className="text-slate-500 text-sm mt-1">Contact your landlord to get your agreement set up</p>
@@ -65,7 +65,7 @@ export default function TenantAgreementPage() {
       ) : (
         <>
           {/* Summary card */}
-          <div style={panelStyle}>
+          <div className="dark-theme-surface" style={panelStyle}>
             <div className="flex items-center gap-3 mb-5">
               <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
                 <FileText className="w-5 h-5 text-indigo-300" />
@@ -87,7 +87,7 @@ export default function TenantAgreementPage() {
                 { label: 'Security Deposit', value: fmt(Number(agreement.security_deposit)) },
                 { label: 'Landlord', value: agreement.landlord_signature ?? 'Property Management' },
               ].map(item => (
-                <div key={item.label} className="rounded-xl p-3" style={{ background: '#f9fafb' }}>
+                <div key={item.label} className="dark-theme-subtle-surface rounded-xl p-3" style={{ background: '#f9fafb' }}>
                   <p className="text-slate-500 text-xs mb-0.5">{item.label}</p>
                   <p className={`text-slate-900 font-medium ${item.label === 'Monthly Rent' || item.label === 'Security Deposit' ? 'money-value' : ''}`}>{item.value}</p>
                 </div>
@@ -115,7 +115,7 @@ export default function TenantAgreementPage() {
 
           {/* Terms preview */}
           {agreement.terms_and_conditions && (
-            <div style={panelStyle}>
+            <div className="dark-theme-surface" style={panelStyle}>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Terms &amp; Conditions Preview</p>
               <pre className="text-slate-500 text-sm whitespace-pre-wrap font-sans leading-relaxed line-clamp-6 overflow-hidden">
                 {agreement.terms_and_conditions}

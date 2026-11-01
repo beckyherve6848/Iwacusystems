@@ -370,14 +370,14 @@ export default function PaymentsPage() {
             className="w-full bg-white border border-slate-200 text-slate-900 placeholder-slate-500 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
           />
         </div>
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
+        <Select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
           <option value="">{t('allPaymentStatuses')}</option>
           <option value="paid">{t('paid')}</option>
           <option value="pending">{t('pending')}</option>
           <option value="partial">{t('partial')}</option>
           <option value="overdue">{t('overdue')}</option>
-        </select>
+        </Select>
         <input type="month" value={filterMonth} onChange={e => { setFilterMonth(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
       </div>

@@ -160,7 +160,7 @@ export default function MaintenancePage() {
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-white border border-slate-200 text-slate-900 placeholder-slate-500 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
         </div>
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
+        <Select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
           className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
           <option value="">{t('allStatuses')}</option>
           <option value="pending">{t('pending')}</option>
@@ -168,7 +168,7 @@ export default function MaintenancePage() {
           <option value="in_progress">{t('inProgressStatus')}</option>
           <option value="completed">{t('completedStatus')}</option>
           <option value="rejected">{t('rejectedStatus')}</option>
-        </select>
+        </Select>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">

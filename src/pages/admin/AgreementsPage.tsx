@@ -167,9 +167,9 @@ export default function AgreementsPage() {
         <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>{t('newAgreement')}</Button>
       </div>
 
-      <div style={panelStyle}>
+      <div className="agreement-table-panel dark-theme-surface" style={panelStyle}>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="agreement-table w-full">
             <thead>
               <tr style={{ borderBottom: '1px solid #e9ecef' }}>
                 {[t('agreement'), t('tenant'), t('leasePeriod'), t('rentLabel'), t('status'), t('actions')].map((h, i) => (
@@ -244,14 +244,14 @@ export default function AgreementsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <label className="text-sm font-medium text-slate-500 block mb-1.5">{t('tenant')} *</label>
-            <select
+            <Select
               value={form.tenant_id} onChange={handleTenantChange}
-              className="w-full text-slate-900 text-sm rounded-xl py-2.5 px-4 focus:outline-none"
+              className="dark-theme-surface w-full text-slate-900 text-sm rounded-xl py-2.5 px-4 focus:outline-none"
               style={{ background: '#ffffff', border: '1px solid #e5e7eb' }}
             >
               <option value="">{t('chooseTenant')}</option>
               {tenants.map(tn => <option key={tn.id} value={tn.id}>{tn.full_name} ({tn.tenant_code})</option>)}
-            </select>
+            </Select>
           </div>
           <Select label={t('houseRequired')} value={form.house_id} onChange={set('house_id')}>
             <option value="">{t('selectHouse')}</option>

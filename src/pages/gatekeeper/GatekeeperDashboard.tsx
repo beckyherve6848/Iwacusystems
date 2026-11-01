@@ -26,7 +26,7 @@ export default function GatekeeperDashboard({ onNavigate }: { onNavigate: (p: st
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-content space-y-6">
       <DashboardWelcomeHero
         title="Gatekeeper Dashboard"
         subtitle={`Welcome, ${profile?.full_name ?? ''}`}

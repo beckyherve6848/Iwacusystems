@@ -16,6 +16,12 @@ dist-ssr
 .devburundi/
 .vercel/
 supabase/.temp/
+android/.gradle/
+android/**/build/
+android/*.apk
+android/*.aab
+android/*.idsig
+Iwacusystem-Android-Source.zip
 
 .vscode/*
 !.vscode/extensions.json

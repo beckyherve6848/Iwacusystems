@@ -115,7 +115,7 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="dashboard-content flex flex-col gap-4 sm:gap-6">
       {/* Welcome */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}

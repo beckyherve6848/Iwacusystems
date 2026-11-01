@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
+import { Select } from '@/components/ui/Input';
 
 type TrackedRole = 'tenant' | 'property_manager' | 'caretaker';
 type ActivityType = 'page_view' | 'data_change' | 'chat_message';
@@ -282,7 +283,7 @@ export default function UserActivityPage() {
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_1.4fr_auto]">
           <label className="text-xs font-medium text-slate-600">
             {t('userActivityRole')}
-            <select
+            <Select
               value={roleFilter}
               onChange={event => {
                 setRoleFilter(event.target.value as TrackedRole | '');
@@ -296,11 +297,11 @@ export default function UserActivityPage() {
               <option value="tenant">{t('tenant')}</option>
               <option value="property_manager">{t('propertyManager')}</option>
               <option value="caretaker">{t('caretaker')}</option>
-            </select>
+            </Select>
           </label>
           <label className="text-xs font-medium text-slate-600">
             {t('userActivityType')}
-            <select
+            <Select
               value={activityFilter}
               onChange={event => { setActivityFilter(event.target.value as ActivityType | ''); setPage(0); }}
               className="mt-1.5 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800"
@@ -309,7 +310,7 @@ export default function UserActivityPage() {
               <option value="page_view">{t('userActivityPageView')}</option>
               <option value="data_change">{t('userActivityChangedData')}</option>
               <option value="chat_message">{t('userActivityMessageSent')}</option>
-            </select>
+            </Select>
           </label>
           <div className="relative text-xs font-medium text-slate-600">
             {t('userActivitySearchPerson')}
