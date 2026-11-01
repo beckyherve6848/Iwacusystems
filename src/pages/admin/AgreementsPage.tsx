@@ -168,12 +168,12 @@ export default function AgreementsPage() {
       </div>
 
       <div className="agreement-table-panel dark-theme-surface" style={panelStyle}>
-        <div className="overflow-x-auto">
-          <table className="agreement-table w-full">
+        <div className="overflow-hidden">
+          <table className="agreement-table w-full table-fixed">
             <thead>
               <tr style={{ borderBottom: '1px solid #e9ecef' }}>
                 {[t('agreement'), t('tenant'), t('leasePeriod'), t('rentLabel'), t('status'), t('actions')].map((h, i) => (
-                  <th key={h} className={`text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider ${i > 1 && i < 4 ? 'hidden lg:table-cell' : ''} ${i === 1 ? 'hidden md:table-cell' : ''} ${i === 3 ? 'text-right' : ''} ${i === 4 ? 'text-center' : ''} ${i === 5 ? 'text-right' : ''}`}>{h}</th>
+                  <th key={h} className={`px-2 py-3 text-left text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:px-5 sm:py-3.5 sm:text-xs sm:tracking-wider ${i === 0 ? 'w-[38%] sm:w-auto' : ''} ${i === 4 ? 'w-[22%] text-center sm:w-auto' : ''} ${i === 5 ? 'w-[40%] text-right sm:w-auto' : ''} ${i > 1 && i < 4 ? 'hidden lg:table-cell' : ''} ${i === 1 ? 'hidden md:table-cell' : ''} ${i === 3 ? 'text-right' : ''}`}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -188,14 +188,14 @@ export default function AgreementsPage() {
               )}
               {agreements.map(a => (
                 <tr key={a.id} className="hover:bg-white/[0.02] transition-colors" style={{ borderColor: '#f9fafb' }}>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
+                  <td className="overflow-hidden px-2 py-3 sm:px-5 sm:py-3.5">
+                    <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+                      <div className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:flex" style={{ background: 'rgba(99,102,241,0.15)' }}>
                         <FileText className="w-4 h-4 text-indigo-300" />
                       </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm">{a.agreement_number}</p>
-                        <p className="text-xs text-slate-500">{(a.houses as any)?.house_number}</p>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-900 text-[11px] sm:text-sm">{a.agreement_number}</p>
+                        <p className="truncate text-[9px] text-slate-500 sm:text-xs">{(a.houses as any)?.house_number}</p>
                       </div>
                     </div>
                   </td>
@@ -209,25 +209,25 @@ export default function AgreementsPage() {
                   <td className="px-5 py-3.5 hidden lg:table-cell text-right text-sm font-semibold text-slate-900">
                     <span className="money-value">{fmt(Number(a.monthly_rent))}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full font-medium capitalize ${
+                  <td className="overflow-hidden px-1 py-3 text-center sm:px-5 sm:py-3.5">
+                    <span className={`inline-flex max-w-full items-center truncate rounded-full px-1.5 py-1 text-[9px] font-medium capitalize sm:px-2.5 sm:text-xs ${
                       a.status === 'active' ? 'bg-emerald-50 text-emerald-700' :
                       a.status === 'expired' ? 'bg-slate-100/50 text-slate-700' :
                       'bg-red-50 text-red-700'
                     }`}>{a.status === 'expired' ? t('expiredStatus') : a.status === 'terminated' ? t('terminatedStatus') : t(a.status)}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setViewAgreement(a)} title={t('agreementView')} className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-all">
+                  <td className="overflow-hidden px-1 py-2 text-right sm:px-5 sm:py-3.5">
+                    <div className="flex items-center justify-end gap-0 sm:gap-1">
+                      <button onClick={() => setViewAgreement(a)} title={t('agreementView')} aria-label={`${t('agreementView')} ${a.agreement_number}`} className="rounded-lg p-1 text-slate-500 transition-all hover:bg-blue-900/20 hover:text-blue-400 sm:p-2">
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handlePrint(a)} title={t('downloadPrint')} className="p-2 text-slate-500 hover:text-amber-400 hover:bg-amber-900/20 rounded-lg transition-all">
+                      <button onClick={() => handlePrint(a)} title={t('downloadPrint')} aria-label={`${t('downloadPrint')} ${a.agreement_number}`} className="rounded-lg p-1 text-slate-500 transition-all hover:bg-amber-900/20 hover:text-amber-400 sm:p-2">
                         <Download className="w-4 h-4" />
                       </button>
-                      <button onClick={() => openEdit(a)} title={t('edit')} className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-all">
+                      <button onClick={() => openEdit(a)} title={t('edit')} aria-label={`${t('edit')} ${a.agreement_number}`} className="rounded-lg p-1 text-slate-500 transition-all hover:bg-blue-900/20 hover:text-blue-400 sm:p-2">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button onClick={() => setDeleteId(a.id)} title={t('delete')} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-all">
+                      <button onClick={() => setDeleteId(a.id)} title={t('delete')} aria-label={`${t('delete')} ${a.agreement_number}`} className="rounded-lg p-1 text-slate-500 transition-all hover:bg-red-900/20 hover:text-red-400 sm:p-2">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>

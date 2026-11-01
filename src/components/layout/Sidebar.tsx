@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase';
 interface SidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  onPrefetch?: (page: string) => void;
   collapsed: boolean;
   onToggle: () => void;
 }
@@ -72,10 +73,11 @@ const propertyManagerNavItems = [
   { id: 'notifications', labelKey: 'notifications', icon: Bell },
 ];
 
-export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, onPrefetch, collapsed, onToggle }: SidebarProps) {
   const { profile, tenantRecord, signOut } = useAuth();
   const { t, appName, appLogoUrl } = useTheme();
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [unreadInvoiceCount, setUnreadInvoiceCount] = useState(0);
 
   const navItems = profile?.role === 'admin'
     ? adminNavItems
@@ -125,6 +127,35 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
     return () => { supabase.removeChannel(channel); };
   }, [profile?.id, profile?.role]);
 
+  useEffect(() => {
+    if (!profile?.id || profile.role !== 'tenant') {
+      setUnreadInvoiceCount(0);
+      return;
+    }
+
+    const loadUnreadInvoiceCount = async () => {
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', profile.id)
+        .eq('link', 'tenant-invoices')
+        .eq('is_read', false)
+        .not('invoice_id', 'is', null);
+      if (error) {
+        console.error('Unable to load unread invoice notification count:', error.message);
+        return;
+      }
+      setUnreadInvoiceCount(count ?? 0);
+    };
+
+    void loadUnreadInvoiceCount();
+    const channel = supabase
+      .channel(`sidebar-invoice-unread-${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, loadUnreadInvoiceCount)
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [profile?.id, profile?.role]);
+
   return (
     <>
       {!collapsed && (
@@ -163,6 +194,9 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
             return (
               <button
                 key={item.id}
+                onPointerEnter={() => onPrefetch?.(item.id)}
+                onPointerDown={() => onPrefetch?.(item.id)}
+                onFocus={() => onPrefetch?.(item.id)}
                 onClick={() => onNavigate(item.id)}
                 className={`app-sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98] ${
                   isActive
@@ -185,6 +219,15 @@ export default function Sidebar({ currentPage, onNavigate, collapsed, onToggle }
                     className="ml-auto inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white"
                   >
                     {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                  </span>
+                )}
+                {item.id === 'tenant-invoices' && unreadInvoiceCount > 0 && (
+                  <span
+                    aria-label={`${unreadInvoiceCount} unread invoice notifications`}
+                    title={`${unreadInvoiceCount} unread invoice notifications`}
+                    className="ml-auto inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full border border-emerald-500 px-1 text-[10px] font-bold leading-none text-emerald-500"
+                  >
+                    {unreadInvoiceCount > 9 ? '9+' : unreadInvoiceCount}
                   </span>
                 )}
               </button>

@@ -66,10 +66,11 @@ export default function Pagination({ page, total, perPage, onChange, onPerPageCh
             key={p}
             onClick={() => onChange(p)}
             aria-current={p === page ? 'page' : undefined}
-            className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-all ${
-              p === page ? 'text-[#0d1422] font-semibold' : 'text-slate-400 hover:text-white hover:bg-white/5'
+            className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-medium transition-colors ${
+              p === page
+                ? 'border border-emerald-600 bg-transparent text-emerald-600 font-semibold'
+                : 'border border-transparent text-slate-400 hover:text-emerald-600'
             }`}
-            style={p === page ? { background: 'linear-gradient(135deg,#fdb022,#f59e0b)', boxShadow: '0 2px 8px rgba(245,158,11,0.3)' } : {}}
           >
             {p}
           </button>

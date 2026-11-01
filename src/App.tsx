@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import AppLayout from '@/components/layout/AppLayout';
@@ -35,6 +35,45 @@ const VisitorsPage = lazy(() => import('@/pages/VisitorsPage'));
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
 const UserActivityPage = lazy(() => import('@/pages/admin/UserActivityPage'));
 
+const pagePreloaders: Record<string, () => Promise<unknown>> = {
+  dashboard: () => import('@/pages/admin/AdminDashboard'),
+  houses: () => import('@/pages/admin/HousesPage'),
+  tenants: () => import('@/pages/admin/TenantsPage'),
+  caretakers: () => import('@/pages/admin/CaretakersPage'),
+  'property-managers': () => import('@/pages/admin/PropertyManagersPage'),
+  invoices: () => import('@/pages/admin/InvoicesPage'),
+  payments: () => import('@/pages/admin/PaymentsPage'),
+  agreements: () => import('@/pages/admin/AgreementsPage'),
+  maintenance: () => import('@/pages/admin/MaintenancePage'),
+  reports: () => import('@/pages/admin/ReportsPage'),
+  settings: () => import('@/pages/admin/SettingsPage'),
+  'gk-dashboard': () => import('@/pages/gatekeeper/GatekeeperDashboard'),
+  'admin-chat': () => import('@/pages/admin/AdminChatPage'),
+  'manager-chat': () => import('@/pages/admin/AdminChatPage'),
+  'caretaker-chat': () => import('@/pages/admin/AdminChatPage'),
+  'tenant-dashboard': () => import('@/pages/tenant/TenantDashboard'),
+  'tenant-payments': () => import('@/pages/tenant/TenantPaymentsPage'),
+  'tenant-invoices': () => import('@/pages/tenant/TenantInvoicesPage'),
+  'tenant-maintenance': () => import('@/pages/tenant/TenantMaintenancePage'),
+  'tenant-agreement': () => import('@/pages/tenant/TenantAgreementPage'),
+  'tenant-chat': () => import('@/pages/tenant/TenantChatPage'),
+  'manager-dashboard': () => import('@/pages/property-manager/PropertyManagerDashboard'),
+  'caretaker-dashboard': () => import('@/pages/caretaker/CaretakerDashboard'),
+  'caretaker-visitors': () => import('@/pages/caretaker/CaretakerVisitorsPage'),
+  'caretaker-register-visitor': () => import('@/pages/caretaker/CaretakerRegisterVisitorPage'),
+  'caretaker-profile': () => import('@/pages/caretaker/CaretakerProfilePage'),
+  visitors: () => import('@/pages/VisitorsPage'),
+  notifications: () => import('@/pages/NotificationsPage'),
+  'user-activity': () => import('@/pages/admin/UserActivityPage'),
+};
+
+function preloadPage(page: string) {
+  const preload = pagePreloaders[page];
+  if (preload) {
+    void preload().catch(error => console.error(`Unable to preload page "${page}":`, error));
+  }
+}
+
 const propertyManagerPages = new Set([
   'manager-dashboard', 'houses', 'tenants', 'invoices', 'payments', 'maintenance', 'visitors', 'reports', 'notifications', 'manager-chat',
 ]);
@@ -69,6 +108,7 @@ function AppContent() {
   const { session, profile, tenantRecord, tenantChecked, loading } = useAuth();
   const { appLogoUrl, appName, language } = useTheme();
   const [currentPage, setCurrentPage] = useState('');
+  const warmedRoles = useRef(new Set<string>());
   const profileId = profile?.id;
   const profileRole = profile?.role;
 
@@ -106,6 +146,55 @@ function AppContent() {
 
     setCurrentPage(page);
     window.history.replaceState({ appPage: page, userId: profileId, role: profileRole }, '');
+  }, [profileId, profileRole]);
+
+  useEffect(() => {
+    if (!profileId || !profileRole || warmedRoles.current.has(profileRole)) return;
+    const connection = (navigator as Navigator & {
+      connection?: { effectiveType?: string; saveData?: boolean };
+    }).connection;
+    if (!navigator.onLine || connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? '')) return;
+
+    let cancelled = false;
+    let idleHandle = 0;
+    let timeoutHandle = 0;
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const maxBackgroundPreloads = window.matchMedia('(max-width: 767px)').matches ? 2 : 4;
+    const pages = [...(pagesByRole[profileRole] ?? [])]
+      .filter(page => pagePreloaders[page] && page !== defaultPageByRole[profileRole])
+      .slice(0, maxBackgroundPreloads);
+    let index = 0;
+
+    const scheduleNext = () => {
+      if (cancelled || index >= pages.length) {
+        if (!cancelled) warmedRoles.current.add(profileRole);
+        return;
+      }
+
+      const preloadNext = () => {
+        if (cancelled) return;
+        const page = pages[index++];
+        void pagePreloaders[page]()
+          .catch(error => console.error(`Unable to preload page "${page}":`, error))
+          .finally(scheduleNext);
+      };
+
+      if (typeof idleWindow.requestIdleCallback === 'function') {
+        idleHandle = idleWindow.requestIdleCallback(preloadNext, { timeout: 1500 });
+      } else {
+        timeoutHandle = window.setTimeout(preloadNext, 250);
+      }
+    };
+    const startupDelay = window.setTimeout(scheduleNext, 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(startupDelay);
+      window.clearTimeout(timeoutHandle);
+      if (idleHandle) idleWindow.cancelIdleCallback?.(idleHandle);
+    };
   }, [profileId, profileRole]);
 
   useEffect(() => {
@@ -222,7 +311,7 @@ function AppContent() {
   };
 
   return (
-    <AppLayout currentPage={currentPage} onNavigate={navigate}>
+    <AppLayout currentPage={currentPage} onNavigate={navigate} onPrefetch={preloadPage}>
       <Suspense fallback={<PageLoadingFallback />}>
         {renderPage()}
       </Suspense>

@@ -7,7 +7,8 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/contexts/ThemeContext';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
-import { calculateOutstandingInvoiceBalance } from '@/lib/invoiceBalances';
+import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
+import { getTenantsDueForInvoice } from '@/lib/invoiceDue';
 
 interface Stats {
   totalHouses: number;
@@ -19,7 +20,7 @@ interface Stats {
   monthlyExpectedRent: number;
   monthlyCollected: number;
   outstandingRent: number;
-  totalInvoices: number | null;
+  invoicesToCreate: number;
   unpaidInvoices: number;
   visitorsToday: number;
   recentPayments: any[];
@@ -308,7 +309,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
   const [stats, setStats] = useState<Stats>({
     totalHouses: 0, occupiedHouses: 0, vacantHouses: 0, maintenanceHouses: 0,
     totalTenants: 0, totalFamilyMembers: 0, monthlyExpectedRent: 0,
-    monthlyCollected: 0, outstandingRent: 0, totalInvoices: null, unpaidInvoices: 0, visitorsToday: 0,
+    monthlyCollected: 0, outstandingRent: 0, invoicesToCreate: 0, unpaidInvoices: 0, visitorsToday: 0,
     recentPayments: [], recentVisitors: [], recentMaintenance: [],
     monthlyIncome: [], paymentStatusCounts: [],
   });
@@ -318,24 +319,23 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
     async function load() {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
 
-      const [houses, tenants, family, payments, visitors, maintenance, invoices, unpaidInvoices, invoiceBalances, utilityPayments] = await Promise.all([
+      const [houses, tenants, family, payments, visitors, maintenance, invoiceBalances, utilityPayments, activeLeases] = await Promise.all([
         supabase.from('houses').select('id, status, monthly_rent'),
-        supabase.from('tenants').select('id, status'),
+        supabase.from('tenants').select('id, status, house_id, move_in_date, move_out_date'),
         supabase.from('tenant_family').select('id'),
         supabase.from('payments').select('id, amount_paid, rent_paid_amount, amount_due, status, rent_month, tenants(full_name), houses(house_number), payment_date, receipt_number').order('created_at', { ascending: false }).limit(50),
         supabase.from('visitors').select('id, visitor_name, purpose, time_in, status, houses(house_number)').order('time_in', { ascending: false }).limit(5),
         supabase.from('maintenance_requests').select('id, title, priority, status, tenants(full_name), houses(house_number), created_at').order('created_at', { ascending: false }),
-        supabase.from('utility_invoices').select('id', { count: 'exact', head: true }),
-        supabase.from('utility_invoices').select('id', { count: 'exact', head: true }).in('status', ['unpaid', 'partial']),
         supabase.from('utility_invoices').select('id, tenant_id, rent_month, rent_balance, water_amount, electricity_amount'),
         supabase.from('payments').select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount'),
+        supabase.from('rental_agreements').select('tenant_id, lease_start_date, lease_end_date').eq('status', 'active'),
       ]);
 
-      if (invoices.error || unpaidInvoices.error) {
-        console.error('Unable to load invoice summary:', invoices.error?.message ?? unpaidInvoices.error?.message);
-      }
       if (invoiceBalances.error || utilityPayments.error) {
         console.error('Unable to load outstanding invoice balance:', invoiceBalances.error?.message ?? utilityPayments.error?.message);
+      }
+      if (activeLeases.error) {
+        console.error('Unable to load active leases for invoice reminders:', activeLeases.error.message);
       }
       const houseData = houses.data ?? [];
       const tenantData = tenants.data ?? [];
@@ -355,9 +355,22 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       );
 
       const collected = thisMonthPayments.reduce((s, p) => s + Number(p.amount_paid), 0);
-      const outstanding = invoiceBalances.error || utilityPayments.error
+      const invoiceChargeBalances = invoiceBalances.error || utilityPayments.error
+        ? new Map()
+        : calculateInvoiceChargeBalances(invoiceBalances.data ?? [], utilityPayments.data ?? []);
+      const outstanding = [...invoiceChargeBalances.values()]
+        .reduce((total, balance) => total + balance.total_balance_due, 0);
+      const unpaidInvoiceCount = [...invoiceChargeBalances.values()]
+        .filter(balance => balance.total_balance_due > 0)
+        .length;
+      const invoicesToCreate = activeLeases.error
         ? 0
-        : calculateOutstandingInvoiceBalance(invoiceBalances.data ?? [], utilityPayments.data ?? []);
+        : getTenantsDueForInvoice(
+            tenantData.filter(tenant => tenant.status === 'active'),
+            invoiceBalances.data ?? [],
+            activeLeases.data ?? [],
+            new Date(),
+          ).length;
 
       const visitorsToday = (visitors.data ?? []).filter(v =>
         new Date(v.time_in) >= todayStart
@@ -391,8 +404,8 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         monthlyExpectedRent: houseData.filter(h => h.status === 'occupied').reduce((s, h) => s + Number(h.monthly_rent), 0),
         monthlyCollected: collected,
         outstandingRent: outstanding,
-        totalInvoices: invoices.error ? null : invoices.count ?? 0,
-        unpaidInvoices: unpaidInvoices.error ? 0 : unpaidInvoices.count ?? 0,
+        invoicesToCreate,
+        unpaidInvoices: unpaidInvoiceCount,
         visitorsToday,
         recentPayments: paymentData.slice(0, 5),
         recentVisitors: visitors.data ?? [],
@@ -406,6 +419,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
     const channel = supabase
       .channel('admin-dashboard-invoice-status')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'utility_invoices' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => { void load(); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [language]);
@@ -445,7 +459,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
     { label: language === 'fr' ? 'Locataires' : 'Tenants', value: String(stats.totalTenants), page: 'tenants', color: '#7c3aed' },
     { label: language === 'fr' ? 'Paiements' : 'Payments', value: String(stats.paymentStatusCounts.reduce((sum, item) => sum + item.count, 0)), page: 'payments', color: '#059669' },
     { label: language === 'fr' ? 'Entretien' : 'Maint.', value: String(stats.maintenanceHouses), page: 'maintenance', color: '#dc2626' },
-    { label: language === 'fr' ? 'Factures' : 'Invoices', value: String(stats.unpaidInvoices), page: 'invoices', color: '#4f46e5' },
+    { label: language === 'fr' ? 'Factures' : 'Invoices', value: String(stats.invoicesToCreate), page: 'invoices', color: '#4f46e5' },
     { label: language === 'fr' ? 'Visiteurs' : 'Visitors', value: String(stats.visitorsToday), page: 'visitors', color: '#0891b2' },
     { label: language === 'fr' ? 'Baux' : 'Leases', value: language === 'fr' ? 'Ouvrir' : 'Open', page: 'agreements', color: '#d97706' },
     { label: language === 'fr' ? 'Rapports' : 'Reports', value: language === 'fr' ? 'Ouvrir' : 'Open', page: 'reports', color: '#475569' },
@@ -527,8 +541,8 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           icon={StickyNote}
           title={t('invoices')}
           label={t('invoices')}
-          value={stats.totalInvoices ?? '—'}
-          sub={stats.totalInvoices === null ? undefined : `${stats.unpaidInvoices} ${t('unpaid')}`}
+          value={stats.invoicesToCreate}
+          sub={`${stats.unpaidInvoices} ${t('unpaid')}`}
           iconStyle="bg-indigo-50 text-indigo-700"
           onClick={() => onNavigate('invoices')}
         />

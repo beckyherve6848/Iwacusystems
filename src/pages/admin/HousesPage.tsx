@@ -208,16 +208,16 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
       {/* Table */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
         <div className="overflow-hidden">
-          <table className="w-full table-fixed">
+          <table className="house-table w-full table-fixed">
             <thead>
               <tr className="border-b border-slate-200">
-                <th className="w-[25%] px-1.5 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('House', 'Maison')}</th>
-                <th className="w-[16%] px-1 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('Property', 'Bien immobilier')}</th>
+                <th className="house-number-column w-[25%] px-1.5 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('House', 'Maison')}</th>
+                <th className="house-property-column w-[16%] px-1 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('Property', 'Bien immobilier')}</th>
                 <th className="hidden px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 xl:table-cell">{text('Category', 'Catégorie')}</th>
                 <th className="hidden px-3 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 lg:table-cell">{text('Floor', 'Étage')}</th>
-                <th className="w-[29%] px-1 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('Rent', 'Loyer')}</th>
-                <th className="w-[20%] px-1 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto">{text('Status', 'Statut')}</th>
-                <th className="w-[10%] px-1 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-4">{text('Actions', 'Actions')}</th>
+                <th className="house-rent-column w-[29%] px-1 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-5">{text('Rent', 'Loyer')}</th>
+                <th className="house-status-column w-[20%] px-1 py-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto">{text('Status', 'Statut')}</th>
+                <th className="house-actions-column w-[10%] px-1 py-3 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:px-2 sm:text-xs lg:w-auto lg:px-4">{text('Actions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -231,7 +231,7 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
               )}
               {houses.map(h => (
                 <tr key={h.id} className="house-list-row hover:bg-slate-50 transition-colors">
-                  <td className="overflow-hidden px-1.5 py-2 sm:px-2 sm:py-3 lg:px-5 lg:py-3.5">
+                  <td className="house-number-column overflow-hidden px-1.5 py-2 sm:px-2 sm:py-3 lg:px-5 lg:py-3.5">
                     <div className="flex min-w-0 items-center gap-1.5 lg:gap-3">
                       <div className="hidden h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 lg:flex">
                         {h.image_url
@@ -240,12 +240,13 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
                         }
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-[11px] font-semibold text-slate-900 sm:text-sm">{h.house_number}</p>
+                        <p className="truncate text-[10px] font-semibold text-slate-900 sm:text-sm">{h.house_number}</p>
+                        <p className="truncate text-[9px] text-slate-500 sm:hidden">{h.properties?.name ?? text('Unassigned', 'Non attribué')}</p>
                         <p className="hidden truncate text-xs text-slate-500 sm:block">{categoryName((h.house_categories as any)?.name ?? '—')}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="overflow-hidden px-1 py-2 text-[11px] font-medium text-slate-700 sm:px-2 sm:py-3 sm:text-sm lg:px-5 lg:py-3.5">
+                  <td className="house-property-column overflow-hidden px-1 py-2 text-[11px] font-medium text-slate-700 sm:px-2 sm:py-3 sm:text-sm lg:px-5 lg:py-3.5">
                     <span className="block truncate">
                     {h.properties?.name ?? text('Unassigned', 'Non attribué')}
                     </span>
@@ -256,23 +257,23 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
                   <td className="hidden break-words px-3 py-3.5 text-sm text-slate-500 lg:table-cell">
                     {h.floor ? `${text('Floor', 'Étage')} ${h.floor}` : '—'}
                   </td>
-                  <td className="overflow-hidden px-1 py-2 text-right sm:px-2 sm:py-3 lg:px-5 lg:py-3.5">
+                  <td className="house-rent-column overflow-hidden px-1 py-2 text-right sm:px-2 sm:py-3 lg:px-5 lg:py-3.5">
                     <p className="truncate text-[10px] font-semibold text-slate-900 sm:text-sm"><span className="money-value">{fmt(Number(h.monthly_rent))}</span></p>
                     <p className="hidden truncate text-xs text-slate-500 sm:block">{text('Deposit:', 'Dépôt :')} <span className="money-value">{fmt(Number(h.security_deposit))}</span></p>
                   </td>
-                  <td className="overflow-hidden px-1 py-2 text-center sm:px-2 sm:py-3 lg:py-3.5">
+                  <td className="house-status-column overflow-hidden px-1 py-2 text-center sm:px-2 sm:py-3 lg:py-3.5">
                     <span className={`house-list-status inline-flex max-w-full items-center justify-center truncate rounded-full border px-1.5 py-1 text-[9px] font-medium capitalize sm:px-2.5 sm:text-xs ${statusColors[h.status]}`}>
                       {houseStatus(h.status)}
                     </span>
                   </td>
-                  <td className="overflow-hidden px-0.5 py-2 text-right sm:px-1 lg:px-4 lg:py-3.5">
+                  <td className="house-actions-column overflow-hidden px-0 py-2 text-right sm:px-1 lg:px-4 lg:py-3.5">
                     <div className="flex items-center justify-end gap-0">
-                      <button onClick={() => openEdit(h)} aria-label={text(`Edit ${h.house_number}`, `Modifier ${h.house_number}`)} className="rounded-lg p-1 text-slate-500 transition-all hover:bg-blue-50 hover:text-blue-600 sm:p-1.5 lg:p-2">
-                        <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <button onClick={() => openEdit(h)} aria-label={text(`Edit ${h.house_number}`, `Modifier ${h.house_number}`)} className="rounded-lg p-0.5 text-slate-500 transition-all hover:bg-blue-50 hover:text-blue-600 sm:p-1.5 lg:p-2">
+                        <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
                       </button>
                       {!managerMode && (
-                        <button onClick={() => setDeleteId(h.id)} aria-label={text(`Delete ${h.house_number}`, `Supprimer ${h.house_number}`)} className="rounded-lg p-1 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 sm:p-1.5 lg:p-2">
-                          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <button onClick={() => setDeleteId(h.id)} aria-label={text(`Delete ${h.house_number}`, `Supprimer ${h.house_number}`)} className="rounded-lg p-0.5 text-slate-500 transition-all hover:bg-red-50 hover:text-red-600 sm:p-1.5 lg:p-2">
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                         </button>
                       )}
                     </div>

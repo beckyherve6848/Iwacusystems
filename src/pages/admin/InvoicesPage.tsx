@@ -11,6 +11,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { printDocument } from '@/lib/print';
 import InvoiceDocument from '@/components/InvoiceDocument';
 import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
+import { getTenantsDueForInvoice, localDateString } from '@/lib/invoiceDue';
 
 type InvoiceForm = {
   tenant_id: string;
@@ -40,19 +41,6 @@ type ActiveLease = {
   lease_end_date: string | null;
   monthly_rent: number;
 };
-
-function localDateString(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function monthlyAnniversary(startDate: string, year: number, monthIndex: number) {
-  const startDay = Number(startDate.slice(8, 10));
-  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
-  return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(Math.min(startDay, lastDay)).padStart(2, '0')}`;
-}
 
 export default function InvoicesPage() {
   const { profile } = useAuth();
@@ -299,24 +287,8 @@ export default function InvoicesPage() {
   const today = new Date();
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   const todayString = localDateString(today);
-  const invoicedTenantIds = new Set(
-    invoices
-      .filter(invoice => invoice.rent_month.slice(0, 7) === currentMonth)
-      .map(invoice => invoice.tenant_id),
-  );
   const pendingInvoices = invoices.filter(invoice => invoice.status === 'unpaid' || invoice.status === 'partial');
-  const rentDueTenants = tenants.flatMap(tenant => {
-    if (!tenant.house_id || invoicedTenantIds.has(tenant.id)) return [];
-    const lease = activeLeases
-      .filter(item => item.tenant_id === tenant.id)
-      .sort((a, b) => b.lease_start_date.localeCompare(a.lease_start_date))[0];
-    const startDate = tenant.move_in_date ?? lease?.lease_start_date;
-    if (!startDate || startDate.slice(0, 7) > currentMonth) return [];
-    const dueDate = monthlyAnniversary(startDate, today.getFullYear(), today.getMonth());
-    const endDate = lease?.lease_end_date ?? tenant.move_out_date;
-    if (dueDate > todayString || (endDate && endDate < dueDate)) return [];
-    return [{ tenant, dueDate }];
-  });
+  const rentDueTenants = getTenantsDueForInvoice(tenants, invoices, activeLeases, today);
 
   return (
     <div className="space-y-6">

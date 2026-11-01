@@ -14,6 +14,7 @@ import {
 interface TopNavProps {
   onMenuToggle: () => void;
   onNavigate: (page: string) => void;
+  onPrefetch?: (page: string) => void;
 }
 
 const CURRENCIES: Currency[] = ['BIF', 'KSh', 'Frw', 'Ugx', 'Tsh', 'Cdf', 'USD', 'EUR'];
@@ -105,7 +106,7 @@ const SEARCH_PAGES: Record<string, Array<{ page: string; labelKey: string }>> = 
   ],
 };
 
-export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
+export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavProps) {
   const { profile, tenantRecord } = useAuth();
   const {
     language, setLanguage, t, currency, setCurrency, appLogoUrl,
@@ -125,12 +126,14 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
   const [langOpen, setLangOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeResult, setActiveResult] = useState(0);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const showThemeToggle = ['admin', 'tenant', 'caretaker', 'property_manager'].includes(profile?.role ?? '');
 
   useEffect(() => {
@@ -378,12 +381,17 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
   const selectSearchResult = (result: SearchResult) => {
     onNavigate(result.page);
     setSearchOpen(false);
+    setMobileSearchOpen(false);
     setSearchTerm('');
   };
 
+  useEffect(() => {
+    if (mobileSearchOpen) searchInputRef.current?.focus();
+  }, [mobileSearchOpen]);
+
   return (
     <header
-      className="phone-app-navbar fixed left-0 right-0 top-[env(safe-area-inset-top)] z-10 flex h-[72px] items-center gap-2 px-3 transition-all duration-300 ease-in-out sm:gap-3 sm:px-4 md:top-0 md:px-6 lg:left-[260px]"
+      className={`phone-app-navbar fixed left-0 right-0 top-[env(safe-area-inset-top)] z-10 flex h-[72px] items-center gap-1 px-2 sm:gap-3 sm:px-4 md:top-0 md:px-6 lg:left-[260px] ${mobileSearchOpen ? 'phone-search-active' : ''}`}
       style={{
         background: 'rgba(226,232,240,0.78)',
         backdropFilter: 'blur(22px) saturate(160%)',
@@ -402,12 +410,26 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
       </button>
 
       {/* Search */}
-      <div className="flex-1 min-w-0 max-w-sm" ref={searchRef}>
+      <div
+        className={`phone-search-box relative w-10 flex-none sm:w-auto sm:flex-1 sm:max-w-sm ${mobileSearchOpen ? 'phone-search-expanded' : 'phone-search-collapsed'}`}
+        ref={searchRef}
+      >
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 ${mobileSearchOpen ? 'block' : 'hidden sm:block'}`} />
+          {!mobileSearchOpen && (
+            <button
+              type="button"
+              onClick={() => { setMobileSearchOpen(true); setSearchOpen(Boolean(searchTerm.trim())); }}
+              aria-label={t('searchPlaceholder')}
+              className="phone-navbar-control flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:hidden"
+            >
+              <Search className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
           <input
+            ref={searchInputRef}
             type="text"
-            className="phone-navbar-search w-full rounded-xl py-2.5 pl-10 pr-9 text-xs text-slate-900 placeholder-slate-400 transition-all focus:outline-none sm:text-sm"
+            className={`phone-navbar-search w-full rounded-xl py-2.5 pl-10 pr-16 text-xs text-slate-900 placeholder-slate-400 transition-all focus:outline-none sm:pr-9 sm:text-sm ${mobileSearchOpen ? 'block' : 'hidden sm:block'}`}
             value={searchTerm}
             placeholder={t('searchPlaceholder')}
             role="combobox"
@@ -423,7 +445,10 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
               setSearchOpen(true);
             }}
             onKeyDown={event => {
-              if (event.key === 'Escape') setSearchOpen(false);
+              if (event.key === 'Escape') {
+                setSearchOpen(false);
+                setMobileSearchOpen(false);
+              }
               if (event.key === 'ArrowDown' && searchResults.length) {
                 event.preventDefault();
                 setActiveResult(index => (index + 1) % searchResults.length);
@@ -445,9 +470,19 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
               type="button"
               onClick={() => { setSearchTerm(''); setSearchResults([]); setSearchOpen(false); }}
               aria-label={t('searchClear')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
+              className={`absolute top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 ${mobileSearchOpen ? 'right-9' : 'right-2'}`}
             >
               <X className="w-4 h-4" />
+            </button>
+          )}
+          {mobileSearchOpen && (
+            <button
+              type="button"
+              onClick={() => { setMobileSearchOpen(false); setSearchOpen(false); }}
+              aria-label={language === 'fr' ? 'Fermer la recherche' : 'Close search'}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 sm:hidden"
+            >
+              <X className="h-4 w-4" />
             </button>
           )}
           {searchOpen && searchTerm.trim() && (
@@ -472,6 +507,9 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
                       role="option"
                       aria-selected={index === activeResult}
                       onMouseEnter={() => setActiveResult(index)}
+                      onPointerEnter={() => onPrefetch?.(result.page)}
+                      onPointerDown={() => onPrefetch?.(result.page)}
+                      onFocus={() => onPrefetch?.(result.page)}
                       onMouseDown={event => event.preventDefault()}
                       onClick={() => selectSearchResult(result)}
                       className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
@@ -498,17 +536,17 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
         </div>
       </div>
 
-      <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+      <div className={`ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5 ${mobileSearchOpen ? 'hidden sm:flex' : ''}`}>
         {/* Currency picker */}
         {profile?.role !== 'caretaker' && (
           <div className="relative">
             <button
               onClick={() => { setCurrencyOpen(o => !o); setLangOpen(false); }}
-              className="phone-navbar-control flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all text-xs font-bold tracking-widest"
+              className="phone-navbar-control flex shrink-0 items-center gap-0 px-1.5 py-2 text-[10px] font-bold tracking-wide text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 sm:gap-1.5 sm:rounded-xl sm:px-3 sm:text-xs sm:tracking-widest"
               style={{ border: '1px solid #e5e7eb' }}
               title={t('currency')}
             >
-              <DollarSign className="w-3.5 h-3.5 shrink-0" />
+              <DollarSign className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
               <span>{CURRENCY_SYMBOLS[currency]}</span>
             </button>
             {currencyOpen && (
@@ -557,7 +595,7 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
             }}
             aria-label={t(themeMode === 'dark' ? 'switchToLightMode' : 'switchToDarkMode')}
             title={t(themeMode === 'dark' ? 'switchToLightMode' : 'switchToDarkMode')}
-            className="phone-navbar-control flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900"
+            className="phone-navbar-control flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900"
           >
             {themeMode === 'dark'
               ? <Sun className="h-4 w-4" aria-hidden="true" />
@@ -570,10 +608,10 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
           <button
             onClick={() => { setLangOpen(o => !o); setCurrencyOpen(false); }}
             aria-label={language === 'en' ? 'Language: English' : 'Langue : Français'}
-            className="phone-navbar-control flex items-center gap-1.5 px-1.5 py-2 text-slate-500 hover:text-slate-900 transition-all text-xs font-bold"
+            className="phone-navbar-control flex shrink-0 items-center gap-1 px-1 py-2 text-[10px] font-bold text-slate-500 transition-all hover:text-slate-900 sm:gap-1.5 sm:px-1.5 sm:text-xs"
           >
             <span aria-hidden="true" className="text-base leading-none">{language === 'en' ? '🇬🇧' : '🇫🇷'}</span>
-            <span>{language === 'en' ? 'UK' : 'FR'}</span>
+            <span className="hidden sm:inline">{language === 'en' ? 'UK' : 'FR'}</span>
           </button>
           {langOpen && (
             <div
@@ -600,7 +638,7 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
         {/* Notifications bell */}
         <button
           onClick={() => { onNavigate('notifications'); closePanels(); }}
-          className="phone-notification-toggle relative p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
+          className="phone-notification-toggle relative shrink-0 rounded-xl p-2 text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 sm:p-2.5"
         >
           <Bell className="w-5 h-5" />
           {unreadCount > 0 && (
@@ -617,7 +655,7 @@ export default function TopNav({ onMenuToggle, onNavigate }: TopNavProps) {
         <div className="w-px h-6 mx-1 hidden sm:block" style={{ background: '#e5e7eb' }} />
 
         {/* App logo */}
-        <div className="flex items-center gap-2 sm:gap-2.5 pl-1 sm:pl-2">
+        <div className="flex shrink-0 items-center gap-2 pl-0.5 sm:gap-2.5 sm:pl-2">
           <div
             className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full"
             style={{ background: '#000000', border: '1.5px solid rgba(255,255,255,0.15)' }}

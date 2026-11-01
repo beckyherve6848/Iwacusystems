@@ -26,13 +26,13 @@ def twaManifest = [
     launchUrl: '/', // The start path for the TWA. Must be relative to the domain.
     name: 'Iwacusystem', // The application name.
     launcherName: 'Iwacusystem', // The name shown on the Android Launcher.
-    themeColor: '#000000', // The color used for the status bar.
-    themeColorDark: '#000000', // The color used for the dark status bar.
-    navigationColor: '#000000', // The color used for the navigation bar.
-    navigationColorDark: '#000000', // The color used for the dark navbar.
-    navigationDividerColor: '#000000', // The navbar divider color.
-    navigationDividerColorDark: '#000000', // The dark navbar divider color.
-    backgroundColor: '#000000', // The color used for the splash screen background.
+    themeColor: '#18191a', // The color used for the status bar.
+    themeColorDark: '#18191a', // The color used for the dark status bar.
+    navigationColor: '#18191a', // The color used for the navigation bar.
+    navigationColorDark: '#18191a', // The color used for the dark navbar.
+    navigationDividerColor: '#18191a', // The navbar divider color.
+    navigationDividerColorDark: '#18191a', // The dark navbar divider color.
+    backgroundColor: '#18191a', // The color used for the splash screen background.
     enableNotifications: true, // Set to true to enable notification delegation.
     // Every shortcut must include the following fields:
     // - name: String that will show up in the shortcut.

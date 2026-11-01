@@ -58,6 +58,20 @@ export default function TenantInvoicesPage() {
 
   useEffect(() => {
     if (!user) return;
+    void supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', user.id)
+      .eq('link', 'tenant-invoices')
+      .eq('is_read', false)
+      .not('invoice_id', 'is', null)
+      .then(({ error }) => {
+        if (error) addToast(`Unable to mark invoice notifications as read: ${error.message}`, 'error');
+      });
+  }, [user, addToast]);
+
+  useEffect(() => {
+    if (!user) return;
     const channel = supabase
       .channel(`tenant-invoice-notifications-${user.id}`)
       .on(

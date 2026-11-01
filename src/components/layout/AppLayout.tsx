@@ -15,10 +15,11 @@ import { setApiNetworkAvailable } from '@/lib/offlineNetwork';
 interface AppLayoutProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  onPrefetch?: (page: string) => void;
   children: React.ReactNode;
 }
 
-export default function AppLayout({ currentPage, onNavigate, children }: AppLayoutProps) {
+export default function AppLayout({ currentPage, onNavigate, onPrefetch, children }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [phoneThemeMode, setPhoneThemeMode] = useState<PhoneThemeMode>(() => getPhoneThemeMode());
   const [desktopThemeMode, setDesktopThemeMode] = useState<PhoneThemeMode>(() => getDesktopThemeMode());
@@ -79,6 +80,8 @@ export default function AppLayout({ currentPage, onNavigate, children }: AppLayo
   useEffect(() => {
     const activeMode = isPhoneViewport ? phoneThemeMode : desktopThemeMode;
     document.documentElement.classList.toggle('phone-dark', activeMode === 'dark');
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+      ?.setAttribute('content', activeMode === 'dark' ? '#18191a' : '#f7f8fa');
     return () => document.documentElement.classList.remove('phone-dark');
   }, [isPhoneViewport, phoneThemeMode, desktopThemeMode]);
 
@@ -97,15 +100,17 @@ export default function AppLayout({ currentPage, onNavigate, children }: AppLayo
       <Sidebar
         currentPage={currentPage}
         onNavigate={onNavigate}
+        onPrefetch={onPrefetch}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(c => !c)}
       />
       <TopNav
         onMenuToggle={() => setSidebarCollapsed(c => !c)}
         onNavigate={onNavigate}
+        onPrefetch={onPrefetch}
       />
       <main
-        className="min-h-screen pt-[calc(72px+env(safe-area-inset-top))] transition-all duration-300 md:pt-[72px] lg:pl-[260px]"
+        className="min-h-screen pt-[calc(72px+env(safe-area-inset-top))] md:pt-[72px] lg:pl-[260px]"
       >
         <div className={`mx-auto max-w-[1600px] ${isChatPage ? 'p-3 sm:p-4 lg:p-5' : 'p-4 sm:p-6 lg:p-8'}`}>
           {!isOnline && (
