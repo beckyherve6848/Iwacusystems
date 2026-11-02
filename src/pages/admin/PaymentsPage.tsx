@@ -17,7 +17,7 @@ import { calculateMonthlyInvoiceBalances } from '@/lib/invoiceBalances';
 const PER_PAGE = 10;
 
 const statusColors: Record<string, string> = {
-  paid: 'bg-emerald-50 text-emerald-700 border-emerald-700/50',
+  paid: 'payment-status-paid bg-emerald-100 text-emerald-800 border-emerald-500',
   pending: 'bg-amber-50 text-amber-700 border-amber-700/50',
   partial: 'bg-blue-50 text-blue-700 border-blue-700/50',
   overdue: 'bg-red-50 text-red-700 border-red-700/50',
@@ -331,7 +331,7 @@ export default function PaymentsPage() {
 
       {/* Receipt print modal */}
       {receiptPayment && (
-        <Modal open={!!receiptPayment} onClose={() => { setReceiptPayment(null); setReceiptInvoiceSummary(null); }} title={t('paymentReceipt')} size="lg">
+        <Modal open={!!receiptPayment} onClose={() => { setReceiptPayment(null); setReceiptInvoiceSummary(null); }} title={t('paymentReceipt')} size="lg" className="document-modal">
           <Receipt
             payment={receiptPayment}
             invoiceRentDue={receiptInvoiceSummary?.rentDue}
@@ -384,7 +384,7 @@ export default function PaymentsPage() {
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden no-print">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="payments-table w-full">
             <thead>
               <tr className="border-b border-slate-200">
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('paymentReceiptHeader')}</th>
@@ -405,7 +405,7 @@ export default function PaymentsPage() {
                 <tr><td colSpan={6} className="text-center py-12 text-slate-500">{t('noPaymentsFound')}</td></tr>
               )}
               {payments.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={p.id} className="payment-table-row hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3.5">
                     <p className="font-semibold text-slate-900 text-sm">{p.receipt_number}</p>
                     <p className="text-xs text-slate-500">{new Date(p.payment_date).toLocaleDateString('en-GB')}</p>

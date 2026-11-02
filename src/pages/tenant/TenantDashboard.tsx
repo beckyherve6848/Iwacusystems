@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Home, CreditCard, FileText, Wrench, User, MessageCircle, Bell, AlertCircle } from 'lucide-react';
+import { Home, CreditCard, FileText, Wrench, User, Bell, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
+import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 
 type InvoiceNotification = {
   id: string;
@@ -45,7 +46,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
         .limit(50),
     ]);
     if (invoiceResult.error) {
-      addToast(`Unable to load unpaid invoices: ${invoiceResult.error.message}`, 'error');
+      addToast(`${t('tenantUnpaidInvoicesLoadError')}: ${invoiceResult.error.message}`, 'error');
       setUnpaidInvoiceCount(0);
       setInvoiceNotifications([]);
     } else {
@@ -58,9 +59,9 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
       }
     }
     if (notificationResult.error) {
-      addToast(`Unable to load invoice notifications: ${notificationResult.error.message}`, 'error');
+      addToast(`${t('tenantInvoiceNotificationsLoadError')}: ${notificationResult.error.message}`, 'error');
     }
-  }, [addToast]);
+  }, [addToast, t]);
 
   useEffect(() => {
     if (!user) return;
@@ -70,10 +71,10 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
         'property_name', 'bank_name', 'account_name', 'account_number',
         'mobile_money_number', 'payment_reference', 'custom_payment_methods',
       ]),
-    ]).then(([t, s]) => {
-      setTenant(t.data);
+    ]).then(([tenantResult, s]) => {
+      setTenant(tenantResult.data);
       if (s.error) {
-        addToast(`Unable to load payment instructions: ${s.error.message}`, 'error');
+        addToast(`${t('tenantPaymentInstructionsLoadError')}: ${s.error.message}`, 'error');
       }
       const map: Record<string, string> = {};
       (s.data ?? []).forEach(x => { map[x.key] = x.value ?? ''; });
@@ -81,20 +82,20 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
       try {
         setCustomPaymentMethods(parseCustomPaymentMethods(map.custom_payment_methods));
       } catch (error) {
-        addToast(`Unable to load payment methods: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        addToast(`${t('tenantPaymentMethodsLoadError')}: ${error instanceof Error ? error.message : String(error)}`, 'error');
       }
-      if (t.data?.id) {
-        supabase.from('payments').select('*').eq('tenant_id', t.data.id).order('created_at', { ascending: false }).limit(5)
+      if (tenantResult.data?.id) {
+        supabase.from('payments').select('*').eq('tenant_id', tenantResult.data.id).order('created_at', { ascending: false }).limit(5)
           .then(({ data }) => setPayments(data ?? []));
         supabase.from('maintenance_requests').select('id, status')
-          .eq('tenant_id', t.data.id)
+          .eq('tenant_id', tenantResult.data.id)
           .then(({ data: reqs }) => {
             const active = (reqs ?? []).filter(r => r.status !== 'completed' && r.status !== 'rejected').length;
             setMaintenanceCount(active);
           });
       }
     });
-  }, [user, addToast]);
+  }, [user, addToast, t]);
 
   useEffect(() => {
     if (!tenant?.id || !user) return;
@@ -122,7 +123,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
         .update({ is_read: true })
         .eq('id', notification.id);
       if (error) {
-        addToast(`Unable to mark invoice notification as read: ${error.message}`, 'error');
+        addToast(`${t('tenantMarkInvoiceNotificationReadError')}: ${error.message}`, 'error');
       } else {
         setInvoiceNotifications(current => current.map(item =>
           item.id === notification.id ? { ...item, is_read: true } : item,
@@ -198,7 +199,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
           { icon: CreditCard, label: t('tenant-payments'), page: 'tenant-payments', color: '#0ea5e9' },
           { icon: Wrench,     label: t('tenant-maintenance'), page: 'tenant-maintenance', color: '#f59e0b', badge: maintenanceCount },
           { icon: FileText,   label: t('tenant-agreement'), page: 'tenant-agreement', color: '#8b5cf6' },
-          { icon: MessageCircle, label: t('tenant-chat'), page: 'tenant-chat', color: '#10b981' },
+          { icon: null, label: t('tenant-chat'), page: 'tenant-chat', color: '#10b981' },
           { icon: Bell,        label: t('notifications'), page: 'notifications', color: '#6366f1' },
         ].map(item => (
           <button
@@ -206,7 +207,9 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
             onClick={() => onNavigate(item.page)}
             className="relative flex flex-col items-center justify-center gap-2 py-4 bg-white border border-slate-200 rounded-2xl transition-all hover:shadow-md hover:border-slate-300"
           >
-            <item.icon className="w-5 h-5" style={{ color: item.color }} />
+            {item.page === 'tenant-chat'
+              ? <WhatsAppIcon className="w-5 h-5 text-[#25D366]" />
+              : item.icon && <item.icon className="w-5 h-5" style={{ color: item.color }} />}
             <span className="text-xs font-medium text-slate-600">{item.label}</span>
             {item.badge !== undefined && item.badge > 0 && (
               <span className="absolute top-2 right-2 min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white bg-red-500">
@@ -233,7 +236,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
               <div className="flex justify-between"><span className="text-slate-400">{t('phone')}</span><span className="text-slate-900">{tenant.phone}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">{t('email')}</span><span className="text-slate-900 truncate max-w-[180px]">{tenant.email}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">{t('status')}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${tenant.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{tenant.status}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${tenant.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{t(tenant.status)}</span>
               </div>
             </div>
           ) : <p className="text-slate-400 text-sm">{t('profileNotSetup')}</p>}
@@ -251,7 +254,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
               <div className="flex justify-between"><span className="text-slate-400">{t('houseNumber')}</span><span className="text-slate-900 font-semibold">{tenant.houses.house_number}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">{t('category')}</span><span className="text-slate-900">{tenant.houses.house_categories?.name ?? '—'}</span></div>
               <div className="flex justify-between gap-2"><span className="text-slate-400">{t('monthlyRent')}</span><span className="text-slate-900 font-semibold money-value">{fmt(Number(tenant.monthly_rent ?? tenant.houses.monthly_rent))}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">{t('moveIn')}</span><span className="text-slate-900">{tenant.move_in_date ? new Date(tenant.move_in_date).toLocaleDateString('en-GB') : '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">{t('moveIn')}</span><span className="text-slate-900">{tenant.move_in_date ? new Date(tenant.move_in_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB') : '—'}</span></div>
             </div>
           ) : <p className="text-slate-400 text-sm">{t('noHouseAssigned')}</p>}
         </div>
@@ -265,12 +268,12 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
             <CreditCard className="w-4 h-4 text-slate-400" /> {t('paymentInstructions')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            {settings.property_name && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">Property</p><p className="text-slate-900 font-medium">{settings.property_name}</p></div>}
-            {settings.bank_name && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">Bank Name</p><p className="text-slate-900 font-medium">{settings.bank_name}</p></div>}
-            {settings.account_name && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">Account Name</p><p className="text-slate-900 font-medium">{settings.account_name}</p></div>}
-            {settings.account_number && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">Account Number</p><p className="text-slate-900 font-medium">{settings.account_number}</p></div>}
-            {settings.mobile_money_number && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">Mobile Money</p><p className="text-slate-900 font-medium">{settings.mobile_money_number}</p></div>}
-            {settings.payment_reference && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">Reference</p><p className="text-slate-900 font-medium">{settings.payment_reference}</p></div>}
+            {settings.property_name && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">{t('propertyName')}</p><p className="text-slate-900 font-medium">{settings.property_name}</p></div>}
+            {settings.bank_name && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">{t('bankName')}</p><p className="text-slate-900 font-medium">{settings.bank_name}</p></div>}
+            {settings.account_name && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">{t('accountName')}</p><p className="text-slate-900 font-medium">{settings.account_name}</p></div>}
+            {settings.account_number && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">{t('accountNumber')}</p><p className="text-slate-900 font-medium">{settings.account_number}</p></div>}
+            {settings.mobile_money_number && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">{t('mobileMoneyNumber')}</p><p className="text-slate-900 font-medium">{settings.mobile_money_number}</p></div>}
+            {settings.payment_reference && <div className="rounded-xl p-3 bg-slate-50"><p className="text-slate-400 text-xs mb-0.5">{t('paymentReference')}</p><p className="text-slate-900 font-medium">{settings.payment_reference}</p></div>}
             {customPaymentMethods.map(method => (
               <div key={method.id} className="rounded-xl bg-slate-50 p-3">
                 <p className="mb-0.5 text-xs text-slate-400">{method.name}</p>
@@ -293,11 +296,11 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
             <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
               <div>
                 <p className="text-sm text-slate-900 font-medium">{p.receipt_number}</p>
-                <p className="text-xs text-slate-400">{new Date(p.rent_month).toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+                <p className="text-xs text-slate-400">{new Date(p.rent_month).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB', { month: 'long', year: 'numeric' })}</p>
               </div>
               <div className="text-right">
                 <p className="text-sm font-semibold text-slate-900"><span className="money-value">{fmt(Number(p.amount_paid))}</span></p>
-                <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${statusColors[p.status] ?? 'bg-slate-100 text-slate-500'}`}>{p.status}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${statusColors[p.status] ?? 'bg-slate-100 text-slate-500'}`}>{t(p.status)}</span>
               </div>
             </div>
           ))}

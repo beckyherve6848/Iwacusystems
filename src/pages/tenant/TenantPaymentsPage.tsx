@@ -23,7 +23,7 @@ const statusColors: Record<string, string> = {
 
 export default function TenantPaymentsPage() {
   const { user } = useAuth();
-  const { fmt, t } = useTheme();
+  const { fmt, t, language } = useTheme();
   const { toasts, addToast, removeToast } = useToast();
   const [tenant, setTenant] = useState<{ id: string } | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -50,7 +50,7 @@ export default function TenantPaymentsPage() {
       .order('created_at', { ascending: false })
       .range(from, from + PER_PAGE - 1);
     if (error) {
-      addToast(`Unable to load payment history: ${error.message}`, 'error');
+      addToast(`${t('tenantPaymentHistoryLoadError')}: ${error.message}`, 'error');
       setPayments([]);
       setTotal(0);
       return;
@@ -74,7 +74,7 @@ export default function TenantPaymentsPage() {
         .in('rent_month', rentMonths),
     ]);
     if (invoiceResult.error || utilityPaymentResult.error) {
-      addToast(`Unable to load outstanding payment balances: ${invoiceResult.error?.message ?? utilityPaymentResult.error?.message}`, 'error');
+      addToast(`${t('tenantOutstandingBalanceLoadError')}: ${invoiceResult.error?.message ?? utilityPaymentResult.error?.message}`, 'error');
       setPayments(rows);
     } else {
       const monthlyBalances = calculateMonthlyInvoiceBalances(invoiceResult.data ?? [], utilityPaymentResult.data ?? []);
@@ -84,13 +84,13 @@ export default function TenantPaymentsPage() {
       })));
     }
     setTotal(count ?? 0);
-  }, [addToast]);
+  }, [addToast, t]);
 
   useEffect(() => {
     if (!user) return;
     supabase.from('tenants').select('id').eq('user_id', user.id).maybeSingle().then(({ data, error }) => {
       if (error) {
-        addToast(`Unable to load tenant account: ${error.message}`, 'error');
+        addToast(`${t('tenantAccountLoadError')}: ${error.message}`, 'error');
         return;
       }
       if (data) {
@@ -98,7 +98,7 @@ export default function TenantPaymentsPage() {
         loadPayments(data.id, 1);
       }
     });
-  }, [user, loadPayments, addToast]);
+  }, [user, loadPayments, addToast, t]);
 
   const handlePageChange = (p: number) => {
     setPage(p);
@@ -119,7 +119,7 @@ export default function TenantPaymentsPage() {
         .eq('rent_month', payment.rent_month.slice(0, 10)),
     ]);
     if (invoiceResult.error || utilityPaymentResult.error) {
-      addToast(`Unable to load outstanding payment balance: ${invoiceResult.error?.message ?? utilityPaymentResult.error?.message}`, 'warning');
+      addToast(`${t('tenantOutstandingBalanceLoadError')}: ${invoiceResult.error?.message ?? utilityPaymentResult.error?.message}`, 'warning');
     } else if (invoiceResult.data) {
       const balance = calculateMonthlyInvoiceBalances([invoiceResult.data], utilityPaymentResult.data ?? [])
         .get(`${payment.tenant_id}:${payment.rent_month.slice(0, 7)}`);
@@ -143,8 +143,8 @@ export default function TenantPaymentsPage() {
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Payment History</h1>
-        <p className="text-slate-500 text-sm mt-0.5">All your rent payment records</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t('tenantPaymentHistoryTitle')}</h1>
+        <p className="text-slate-500 text-sm mt-0.5">{t('tenantPaymentHistoryDescription')}</p>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden no-print">
@@ -152,33 +152,33 @@ export default function TenantPaymentsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-200">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Receipt</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Month</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
-                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('paymentReceiptHeader')}</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">{t('invoiceMonth')}</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('paymentAmount')}</th>
+                <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('status')}</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {payments.length === 0 && <tr><td colSpan={5} className="text-center py-12 text-slate-500">No payment records</td></tr>}
+              {payments.length === 0 && <tr><td colSpan={5} className="text-center py-12 text-slate-500">{t('noPaymentRecords')}</td></tr>}
               {payments.map(p => (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3.5">
                     <p className="font-semibold text-slate-900 text-sm">{p.receipt_number}</p>
-                    <p className="text-xs text-slate-500">{new Date(p.payment_date).toLocaleDateString('en-GB')}</p>
+                    <p className="text-xs text-slate-500">{new Date(p.payment_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB')}</p>
                   </td>
                   <td className="px-5 py-3.5 hidden md:table-cell text-sm text-slate-700">
-                    {new Date(p.rent_month).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                    {new Date(p.rent_month).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-GB', { month: 'long', year: 'numeric' })}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <p className="text-sm font-semibold text-slate-900"><span className="money-value">{fmt(Number(p.amount_paid))}</span></p>
                     <p className="text-xs text-slate-500">{t('totalBalanceDue')}: <span className={`money-value font-semibold ${p.total_balance_due === undefined ? 'text-slate-400' : p.total_balance_due > 0 ? 'text-red-700' : 'text-slate-900'}`}>{p.total_balance_due === undefined ? '—' : fmt(p.total_balance_due)}</span></p>
                   </td>
                   <td className="px-5 py-3.5 text-center">
-                    <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
+                    <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[p.status]}`}>{t(p.status)}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <button onClick={() => openReceipt(p)} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                    <button onClick={() => openReceipt(p)} aria-label={t('viewReceipt')} title={t('viewReceipt')} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
                       <Eye className="w-4 h-4" />
                     </button>
                   </td>
@@ -194,7 +194,7 @@ export default function TenantPaymentsPage() {
 
       {/* Receipt Modal */}
       {receipt && (
-        <Modal open={!!receipt} onClose={() => { setReceipt(null); setReceiptInvoiceSummary(null); }} title={t('paymentReceipt')} size="lg">
+        <Modal open={!!receipt} onClose={() => { setReceipt(null); setReceiptInvoiceSummary(null); }} title={t('paymentReceipt')} size="lg" className="document-modal">
           <Receipt
             payment={receipt}
             invoiceRentDue={receiptInvoiceSummary?.rentDue}
@@ -207,8 +207,8 @@ export default function TenantPaymentsPage() {
             invoiceTotalBalance={receiptInvoiceSummary?.totalBalance}
           />
           <div className="flex justify-end gap-3 mt-4 no-print">
-            <Button variant="ghost" onClick={() => { setReceipt(null); setReceiptInvoiceSummary(null); }}>Close</Button>
-            <Button icon={<Printer className="w-4 h-4" />} onClick={() => printDocument('receipt', 'receipt-content')}>Print / Save PDF</Button>
+            <Button variant="ghost" onClick={() => { setReceipt(null); setReceiptInvoiceSummary(null); }}>{t('closeButton')}</Button>
+            <Button icon={<Printer className="w-4 h-4" />} onClick={() => printDocument('receipt', 'receipt-content')}>{t('printSavePdf')}</Button>
           </div>
         </Modal>
       )}

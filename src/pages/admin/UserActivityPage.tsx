@@ -415,8 +415,8 @@ export default function UserActivityPage() {
                     }`}>{detail}</p>
                     {actor?.email && <p className="mt-1 truncate text-xs text-slate-400">{actor.email}</p>}
                   </div>
-                  <time className="flex shrink-0 items-center gap-1 text-right text-[11px] text-slate-400">
-                    <CalendarClock className="hidden h-3.5 w-3.5 sm:block" />
+                  <time className="flex shrink-0 items-center gap-1 text-right text-[11px] font-semibold text-emerald-500">
+                    <CalendarClock className="hidden h-3.5 w-3.5 text-emerald-500 sm:block" />
                     {timestamp(event.created_at)}
                   </time>
                 </li>

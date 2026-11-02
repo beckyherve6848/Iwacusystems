@@ -23,6 +23,14 @@ const priorityColors: Record<string, string> = {
   high:   'bg-red-50 text-red-700',
 };
 
+const maintenanceStatusTranslationKeys: Record<string, string> = {
+  pending: 'pending',
+  approved: 'approvedStatus',
+  in_progress: 'inProgressStatus',
+  completed: 'completedStatus',
+  rejected: 'rejectedStatus',
+};
+
 const panelStyle: React.CSSProperties = {
   background: '#ffffff',
   border: '1px solid #e9ecef',
@@ -125,10 +133,10 @@ export default function TenantMaintenancePage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            {language === 'fr' ? 'Mes Demandes de Maintenance' : 'My Maintenance Requests'}
+            {t('tenantMaintenanceTitle')}
           </h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            {language === 'fr' ? 'Suivez le statut de vos demandes' : 'Track the status of your submitted requests'}
+            {t('tenantMaintenanceDescription')}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
@@ -138,7 +146,7 @@ export default function TenantMaintenancePage() {
               <Wrench className="h-4 w-4" style={{ color: '#111827' }} />
               <span className="text-sm font-bold" style={{ color: '#111827' }}>{activeRequests.length}</span>
               <span className="text-xs text-slate-500">
-                {language === 'fr' ? 'en cours' : 'ongoing'}
+                {t('ongoingRequests')}
               </span>
             </div>
           )}
@@ -163,8 +171,8 @@ export default function TenantMaintenancePage() {
             } : { background: '#ffffff', border: '1px solid #e9ecef' }}
           >
             {f === 'active'
-              ? (language === 'fr' ? `En cours (${activeRequests.length})` : `Active (${activeRequests.length})`)
-              : (language === 'fr' ? `Toutes (${requests.length})` : `All (${requests.length})`)}
+              ? `${t('activeRequestsLabel')} (${activeRequests.length})`
+              : `${t('allRequestsLabel')} (${requests.length})`}
           </button>
         ))}
       </div>
@@ -182,18 +190,16 @@ export default function TenantMaintenancePage() {
         <div className="dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
           <Wrench className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-500">
-            {filter === 'active'
-              ? (language === 'fr' ? 'Aucune demande en cours' : 'No active requests')
-              : (language === 'fr' ? 'Aucune demande encore' : 'No maintenance requests yet')}
+            {filter === 'active' ? t('noActiveMaintenanceRequests') : t('tenantNoMaintenanceRequests')}
           </p>
           {filter === 'active' && requests.length > 0 && (
             <button onClick={() => setFilter('all')} className="text-sm mt-2 transition-colors" style={{ color: '#111827' }}>
-              {language === 'fr' ? 'Voir toutes les demandes' : 'View all requests'}
+              {t('viewAllRequests')}
             </button>
           )}
           {requests.length === 0 && (
             <p className="text-slate-500 text-sm mt-1">
-              {language === 'fr' ? 'Utilisez le bouton « Demande de Maintenance » pour soumettre une demande.' : 'Use the Maintenance Request button to submit a request.'}
+              {t('maintenanceRequestHint')}
             </p>
           )}
         </div>
@@ -213,28 +219,28 @@ export default function TenantMaintenancePage() {
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <span className={`text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[r.status] ?? 'bg-slate-100 text-slate-500 border-slate-600'}`}>
-                  {r.status.replace('_', ' ')}
+                  {t(maintenanceStatusTranslationKeys[r.status] ?? r.status)}
                 </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityColors[r.priority] ?? 'bg-slate-100 text-slate-500'}`}>
-                  {r.priority} priority
+                  {t(r.priority)} {t('prioritySuffix')}
                 </span>
               </div>
             </div>
             <div className="flex items-center justify-between text-xs text-slate-500">
               <span>{r.houses?.house_number}</span>
-              <span>{new Date(r.created_at).toLocaleDateString('en-GB')}</span>
+              <span>{new Date(r.created_at).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB')}</span>
             </div>
             {r.admin_notes && (
               <div className="dark-theme-subtle-surface mt-3 p-3 rounded-xl" style={{ background: '#f9fafb', border: '1px solid #e9ecef' }}>
                 <p className="text-xs text-slate-500 mb-1">
-                  {language === 'fr' ? 'Notes de l\'administrateur' : 'Admin Notes'}:
+                  {t('adminNotes')}:
                 </p>
                 <p className="text-sm text-slate-700">{r.admin_notes}</p>
               </div>
             )}
             {r.assigned_to && (
               <p className="text-xs text-slate-500 mt-2">
-                {language === 'fr' ? 'Assigné à' : 'Assigned to'}: <span className="text-slate-700">{r.assigned_to}</span>
+                {t('assignedToLabel')}: <span className="text-slate-700">{r.assigned_to}</span>
               </p>
             )}
           </div>

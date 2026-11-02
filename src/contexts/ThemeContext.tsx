@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { supabase } from '@/lib/supabase';
 
 type Language = 'en' | 'fr';
-export type Currency = 'KSh' | 'BIF' | 'USD' | 'EUR' | 'Frw' | 'Ugx' | 'Tsh' | 'Cdf';
+export type Currency = 'KSh' | 'BIF' | 'USD' | 'EUR' | 'Frw' | 'Ugx' | 'Tsh' | 'Cdf' | 'Dhs' | 'R' | 'ZK' | 'SR';
 
 export const CURRENCY_SYMBOLS: Record<Currency, string> = {
   KSh: 'KSh',
@@ -12,7 +12,11 @@ export const CURRENCY_SYMBOLS: Record<Currency, string> = {
   Frw: 'Frw',
   Ugx: 'Ugx',
   Tsh: 'Tsh',
-  Cdf: 'Cdf',
+  Cdf: 'FC',
+  Dhs: 'Dhs',
+  R: 'R',
+  ZK: 'ZK',
+  SR: 'SR',
 };
 
 interface ThemeContextValue {
@@ -47,7 +51,7 @@ const translations: Record<Language, Record<string, string>> = {
     payments: 'Payments', agreements: 'Agreements', maintenance: 'Maintenance',
     visitors: 'Visitors', reports: 'Reports', notifications: 'Notifications',
     settings: 'Settings', signOut: 'Sign Out', search: 'Search...', userActivity: 'User Activity',
-    searchPlaceholder: 'Search pages, names, IDs, invoices, receipts, codes...',
+    searchPlaceholder: 'Search anything you can access...',
     searchLoading: 'Searching...',
     searchNoResults: 'No matching pages or records.',
     searchPartialError: 'Some results could not be loaded. Showing available results.',
@@ -112,6 +116,41 @@ const translations: Record<Language, Record<string, string>> = {
     myDashboard: 'My Dashboard', myProfile: 'My Profile', myHouse: 'My House',
     paymentInstructions: 'Payment Instructions', profileNotSetup: 'Profile not set up yet. Contact your landlord.',
     noHouseAssigned: 'No house assigned yet.', noPaymentRecords: 'No payment records yet',
+    tenantPaymentHistoryTitle: 'Payment History',
+    tenantPaymentHistoryDescription: 'All your rent payment records',
+    tenantReturnToDashboard: 'Return to dashboard',
+    tenantPaymentHistoryLoadError: 'Unable to load payment history',
+    tenantAccountLoadError: 'Unable to load tenant account',
+    tenantOutstandingBalanceLoadError: 'Unable to load outstanding payment balances',
+    tenantUnpaidInvoicesLoadError: 'Unable to load unpaid invoices',
+    tenantInvoiceNotificationsLoadError: 'Unable to load invoice notifications',
+    tenantPaymentInstructionsLoadError: 'Unable to load payment instructions',
+    tenantPaymentMethodsLoadError: 'Unable to load payment methods',
+    tenantMarkInvoiceNotificationReadError: 'Unable to mark invoice notification as read',
+    tenantUtilityPaymentBalancesLoadError: 'Unable to load utility payment balances',
+    tenantInvoiceNotificationsReadError: 'Unable to mark invoice notifications as read',
+    chatMessageReadError: 'Unable to mark messages as read.',
+    tenantAgreementDescription: 'View and download your lease agreement',
+    noActiveRentalAgreement: 'No active rental agreement found',
+    contactLandlordForAgreement: 'Contact your landlord to get your agreement set up',
+    startDateLabel: 'Start Date',
+    endDateLabel: 'End Date',
+    landlordLabel: 'Landlord',
+    propertyManagement: 'Property Management',
+    viewFullAgreement: 'View Full Agreement',
+    termsConditionsPreview: 'Terms & Conditions Preview',
+    readFullAgreement: 'Read full agreement',
+    yourRentalAgreement: 'Your Rental Agreement',
+    tenantMaintenanceTitle: 'My Maintenance Requests',
+    tenantMaintenanceDescription: 'Track the status of your submitted requests',
+    ongoingRequests: 'ongoing',
+    activeRequestsLabel: 'Active',
+    allRequestsLabel: 'All',
+    noActiveMaintenanceRequests: 'No active requests',
+    tenantNoMaintenanceRequests: 'No maintenance requests yet',
+    viewAllRequests: 'View all requests',
+    maintenanceRequestHint: 'Use the Maintenance Request button to submit a request.',
+    prioritySuffix: 'priority',
     maintenanceRequest: 'Maintenance Request', submitMaintenance: 'Submit Maintenance Request',
     titleRequired: 'Title *', descRequired: 'Description *',
     priority: 'Priority', low: 'Low', medium: 'Medium', high: 'High',
@@ -579,7 +618,7 @@ const translations: Record<Language, Record<string, string>> = {
     payments: 'Paiements', agreements: 'Contrats', maintenance: 'Maintenance',
     visitors: 'Visiteurs', reports: 'Rapports', notifications: 'Notifications',
     settings: 'Paramètres', signOut: 'Déconnexion', search: 'Rechercher...', userActivity: 'Activité des utilisateurs',
-    searchPlaceholder: 'Rechercher des pages, noms, identifiants, factures, reçus, codes...',
+    searchPlaceholder: 'Rechercher dans les éléments accessibles...',
     searchLoading: 'Recherche en cours...',
     searchNoResults: 'Aucune page ou donnée correspondante.',
     searchPartialError: 'Certains résultats sont indisponibles. Voici les résultats accessibles.',
@@ -645,6 +684,41 @@ const translations: Record<Language, Record<string, string>> = {
     myDashboard: 'Mon Tableau de Bord', myProfile: 'Mon Profil', myHouse: 'Ma Maison',
     paymentInstructions: 'Instructions de Paiement', profileNotSetup: 'Profil non configuré. Contactez votre propriétaire.',
     noHouseAssigned: 'Aucune maison assignée.', noPaymentRecords: 'Aucun enregistrement de paiement',
+    tenantPaymentHistoryTitle: 'Historique des paiements',
+    tenantPaymentHistoryDescription: 'Tous vos paiements de loyer',
+    tenantReturnToDashboard: 'Retour au tableau de bord',
+    tenantPaymentHistoryLoadError: 'Impossible de charger l’historique des paiements',
+    tenantAccountLoadError: 'Impossible de charger le compte locataire',
+    tenantOutstandingBalanceLoadError: 'Impossible de charger les soldes de paiement en attente',
+    tenantUnpaidInvoicesLoadError: 'Impossible de charger les factures impayées',
+    tenantInvoiceNotificationsLoadError: 'Impossible de charger les notifications de facture',
+    tenantPaymentInstructionsLoadError: 'Impossible de charger les instructions de paiement',
+    tenantPaymentMethodsLoadError: 'Impossible de charger les modes de paiement',
+    tenantMarkInvoiceNotificationReadError: 'Impossible de marquer la notification de facture comme lue',
+    tenantUtilityPaymentBalancesLoadError: 'Impossible de charger les soldes des paiements de services',
+    tenantInvoiceNotificationsReadError: 'Impossible de marquer les notifications de facture comme lues',
+    chatMessageReadError: 'Impossible de marquer les messages comme lus.',
+    tenantAgreementDescription: 'Consultez et téléchargez votre contrat de location',
+    noActiveRentalAgreement: 'Aucun contrat de location actif trouvé',
+    contactLandlordForAgreement: 'Contactez votre propriétaire pour configurer votre contrat',
+    startDateLabel: 'Date de début',
+    endDateLabel: 'Date de fin',
+    landlordLabel: 'Propriétaire',
+    propertyManagement: 'Gestion immobilière',
+    viewFullAgreement: 'Voir le contrat complet',
+    termsConditionsPreview: 'Aperçu des conditions générales',
+    readFullAgreement: 'Lire le contrat complet',
+    yourRentalAgreement: 'Votre contrat de location',
+    tenantMaintenanceTitle: 'Mes demandes de maintenance',
+    tenantMaintenanceDescription: 'Suivez le statut de vos demandes',
+    ongoingRequests: 'en cours',
+    activeRequestsLabel: 'En cours',
+    allRequestsLabel: 'Toutes',
+    noActiveMaintenanceRequests: 'Aucune demande en cours',
+    tenantNoMaintenanceRequests: 'Aucune demande de maintenance pour le moment',
+    viewAllRequests: 'Voir toutes les demandes',
+    maintenanceRequestHint: 'Utilisez le bouton « Demande de maintenance » pour soumettre une demande.',
+    prioritySuffix: 'priorité',
     maintenanceRequest: 'Demande de Maintenance', submitMaintenance: 'Soumettre une Demande',
     titleRequired: 'Titre *', descRequired: 'Description *',
     priority: 'Priorité', low: 'Faible', medium: 'Moyen', high: 'Élevé',
@@ -1188,12 +1262,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (!response.ok) throw new Error(`Exchange rate request failed: ${response.status}`);
         const data = await response.json() as ExchangeRateResponse;
         const rates = data.rates ?? {};
-        const { KES, USD, EUR, RWF, UGX, TZS, CDF } = rates;
+        const { KES, USD, EUR, RWF, UGX, TZS, CDF, AED, ZAR, ZMW, SAR } = rates;
         const isValidRate = (rate: number | undefined): rate is number =>
           typeof rate === 'number' && Number.isFinite(rate) && rate > 0;
         if (data.result !== 'success' || data.base_code !== 'BIF' ||
           !isValidRate(KES) || !isValidRate(USD) || !isValidRate(EUR) ||
-          !isValidRate(RWF) || !isValidRate(UGX) || !isValidRate(TZS) || !isValidRate(CDF)) {
+          !isValidRate(RWF) || !isValidRate(UGX) || !isValidRate(TZS) || !isValidRate(CDF) ||
+          !isValidRate(AED) || !isValidRate(ZAR) || !isValidRate(ZMW) || !isValidRate(SAR)) {
           throw new Error('Exchange rate response was invalid');
         }
         const currencyRates: LiveCurrencyRates = {
@@ -1204,6 +1279,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           Ugx: UGX,
           Tsh: TZS,
           Cdf: CDF,
+          Dhs: AED,
+          R: ZAR,
+          ZK: ZMW,
+          SR: SAR,
         };
         if (!cancelled) setCurrencyRates(currencyRates);
       } catch (error) {

@@ -296,7 +296,7 @@ function AppContent() {
       case 'tenant-invoices': return <TenantInvoicesPage />;
       case 'tenant-maintenance': return <TenantMaintenancePage />;
       case 'tenant-agreement': return <TenantAgreementPage />;
-      case 'tenant-chat': return <TenantChatPage />;
+      case 'tenant-chat': return <TenantChatPage onNavigate={navigate} />;
       case 'admin-chat': return <AdminChatPage />;
       case 'manager-chat': return profile.role === 'property_manager' ? <AdminChatPage /> : null;
       case 'visitors': return <VisitorsPage />;

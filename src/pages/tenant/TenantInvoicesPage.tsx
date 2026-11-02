@@ -45,14 +45,14 @@ export default function TenantInvoicesPage() {
     }
     else {
       if (paymentsError) {
-        addToast(`Unable to load utility payment balances: ${paymentsError.message}`, 'error');
+        addToast(`${t('tenantUtilityPaymentBalancesLoadError')}: ${paymentsError.message}`, 'error');
       }
       const invoiceRows = (data ?? []) as UtilityInvoice[];
       const balances = calculateInvoiceChargeBalances(invoiceRows, payments ?? []);
       setInvoices(invoiceRows.map(invoice => ({ ...invoice, ...balances.get(invoice.id) })));
     }
     setLoading(false);
-  }, [user, addToast, language]);
+  }, [user, addToast, language, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -66,9 +66,9 @@ export default function TenantInvoicesPage() {
       .eq('is_read', false)
       .not('invoice_id', 'is', null)
       .then(({ error }) => {
-        if (error) addToast(`Unable to mark invoice notifications as read: ${error.message}`, 'error');
+        if (error) addToast(`${t('tenantInvoiceNotificationsReadError')}: ${error.message}`, 'error');
       });
-  }, [user, addToast]);
+  }, [user, addToast, t]);
 
   useEffect(() => {
     if (!user) return;

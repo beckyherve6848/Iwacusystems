@@ -97,16 +97,16 @@ export default function Receipt({
           </span>
         </div>
       )}
-      <header className="relative z-10 flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-7">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3 py-4 sm:flex-nowrap sm:gap-4 sm:px-7 sm:py-5">
+        <div className="flex min-w-0 flex-[1_1_160px] items-center gap-2 sm:gap-3">
           <img src={appLogoUrl} alt={`${appName} logo`} className="h-16 w-16 shrink-0 object-contain sm:h-[4.5rem] sm:w-[4.5rem]" />
           <div className="min-w-0">
             <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{appName}</p>
-            <h2 className="mt-1 text-xl font-extrabold tracking-tight text-slate-900">{t('paymentReceipt')}</h2>
-            <p className="text-xs text-slate-500">{t('paymentReceiptSubtitle')}</p>
+            <h2 className="mt-1 text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">{t('paymentReceipt')}</h2>
+            <p className="text-xs leading-snug text-slate-500">{t('paymentReceiptSubtitle')}</p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto sm:justify-end">
           {qr && <img src={qr} alt={t('receiptVerificationCode')} className="receipt-qr hidden h-14 w-14 sm:block" />}
           <div className="text-right">
             <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">{t('receiptNumber')}</p>
@@ -118,7 +118,7 @@ export default function Receipt({
         </div>
       </header>
 
-      <section className="relative z-10 grid grid-cols-2 gap-x-6 gap-y-3 border-b border-slate-100 px-5 py-4 text-sm sm:grid-cols-3 sm:px-7">
+      <section className="relative z-10 grid grid-cols-2 gap-x-3 gap-y-3 border-b border-slate-100 px-3 py-4 text-sm sm:grid-cols-3 sm:gap-x-6 sm:px-7">
         {details.slice(1).map(item => (
           <div key={item.label} className="min-w-0">
             <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
@@ -127,14 +127,14 @@ export default function Receipt({
         ))}
       </section>
 
-      <section className="relative z-10 px-5 py-4 sm:px-7">
+      <section className="relative z-10 px-3 py-4 sm:px-7">
         <div className="overflow-hidden rounded-xl border border-slate-200">
           <div className="flex items-center justify-between gap-3 bg-slate-50 px-3 py-2.5">
             <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">{t('paymentBreakdown')}</h3>
             <span className="text-xs font-medium capitalize text-slate-500">{rentMonth}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="receipt-breakdown w-full table-fixed border-collapse text-xs">
+            <table className="receipt-breakdown w-full min-w-[500px] table-fixed border-collapse text-xs">
               <colgroup>
                 <col className="w-[22%]" />
                 <col className="w-[26%]" />
@@ -163,7 +163,7 @@ export default function Receipt({
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="receipt-summary mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-xl bg-emerald-50 px-4 py-3">
             <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t('totalPaymentReceived')}</p>
             <p className="mt-1 text-lg font-extrabold tabular-nums text-emerald-800">{fmt(Number(payment.amount_paid))}</p>
@@ -184,7 +184,7 @@ export default function Receipt({
         )}
       </section>
 
-      <footer className="relative z-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-slate-200 bg-slate-50 px-5 py-3 text-[10px] text-slate-500 sm:px-7">
+      <footer className="relative z-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-200 bg-slate-50 px-3 py-3 text-[10px] leading-relaxed text-slate-500 sm:px-7">
         <div className="w-full border-b border-slate-200 pb-2 text-center font-medium text-slate-600">
           {t('receiptAuthenticityDisclaimer')}
         </div>

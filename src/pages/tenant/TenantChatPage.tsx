@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCheck, Reply, Send, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, Reply, Send, UserRound, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -77,7 +77,7 @@ function presenceLabel(iso: string | null | undefined, language: string, t: (key
   return `${t('presenceLastSeenAt')} ${date}, ${time}`;
 }
 
-export default function TenantChatPage() {
+export default function TenantChatPage({ onNavigate }: { onNavigate: (page: string) => void }) {
   const { user, profile, tenantRecord } = useAuth();
   const { t, language, appLogoUrl } = useTheme();
   const { toasts, addToast, removeToast } = useToast();
@@ -110,6 +110,10 @@ export default function TenantChatPage() {
           ? participant
           : latest;
       }, undefined);
+  const peerIsOnline = Boolean(
+    peerPresence?.chat_last_seen_at
+    && Date.now() - new Date(peerPresence.chat_last_seen_at).getTime() < 90_000
+  );
   const activePresenceLabel = presenceLabel(peerPresence?.chat_last_seen_at, language, t);
 
   useEffect(() => {
@@ -325,12 +329,12 @@ export default function TenantChatPage() {
           ? { ...message, read_at: updated.get(message.id) ?? readAt }
           : message));
       } catch (error) {
-        addToast(error instanceof Error ? error.message : 'Unable to mark messages as read.', 'error');
+        addToast(error instanceof Error ? error.message : t('chatMessageReadError'), 'error');
       } finally {
         messageIds.forEach(id => readUpdatesInFlight.current.delete(id));
       }
     })();
-  }, [messages, conversationId, user, addToast]);
+  }, [messages, conversationId, user, addToast, t]);
 
   const lastMessageId = messages[messages.length - 1]?.id;
   useEffect(() => {
@@ -522,14 +526,14 @@ export default function TenantChatPage() {
                             </div>
                           : <div className="w-6 shrink-0" />
                       )}
-                      <div className={`max-w-[78%] rounded-[12px] px-2.5 py-1 shadow-sm sm:max-w-[65%] ${mine ? 'rounded-br-[4px] bg-[#d9fdd3]' : 'rounded-bl-[4px] bg-white'}`}>
+                      <div className={`max-w-[78%] rounded-[12px] px-2.5 py-1 shadow-sm sm:max-w-[65%] ${mine ? 'rounded-br-[4px] bg-[#dcf8c6]' : 'rounded-bl-[4px] bg-white'}`}>
                         {message.reply_to_id && (
-                          <div className={`mb-2 rounded-md border-l-[3px] px-2 py-1 text-[10px] ${mine ? 'border-emerald-800/50 bg-emerald-100/70 text-slate-600' : 'border-emerald-600 bg-slate-50 text-slate-600'}`}>
-                            <p className="font-semibold">{t('replyingTo')}</p>
-                            <p className="truncate">{quotedMessage?.body ?? t('originalMessageUnavailable')}</p>
+                          <div className={`mb-2 rounded-md border-l-[3px] px-2 py-1 text-[10px] ${mine ? 'border-emerald-800/50 bg-emerald-100/70' : 'border-emerald-600 bg-slate-50'}`}>
+                            <p className="font-semibold" style={{ color: '#111827' }}>{t('replyingTo')}</p>
+                            <p className="truncate font-semibold" style={{ color: '#111827' }}>{quotedMessage?.body ?? t('originalMessageUnavailable')}</p>
                           </div>
                         )}
-                        <p className="whitespace-pre-wrap break-words text-[13px] leading-[1.3] text-slate-800">{message.body}</p>
+                        <p className="whitespace-pre-wrap break-words text-[13px] leading-[1.3]" style={mine ? { color: '#111827', fontWeight: 700 } : undefined}>{message.body}</p>
                         <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-slate-500">
                           <button
                             type="button"
@@ -537,13 +541,20 @@ export default function TenantChatPage() {
                             title={t('reply')}
                             aria-label={t('reply')}
                             className="mr-1 rounded p-0.5 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
+                            style={mine ? { color: '#111827' } : undefined}
                           >
-                            <Reply className="h-3.5 w-3.5" />
+                            <Reply className="h-3.5 w-3.5" strokeWidth={2.5} />
                           </button>
-                          <time dateTime={message.created_at}>
+                          <time dateTime={message.created_at} style={mine ? { color: '#111827', fontWeight: 700 } : undefined}>
                             {formatChatTime(message.created_at, language)}
                           </time>
-                          {mine && <CheckCheck className={`h-3.5 w-3.5 ${message.read_at ? 'text-sky-600' : 'text-slate-400'}`} />}
+                          {mine && (
+                            message.read_at
+                              ? <CheckCheck className="h-3.5 w-3.5 text-sky-600" style={{ color: '#0284c7' }} strokeWidth={2.5} />
+                              : peerIsOnline
+                                ? <CheckCheck className="h-3.5 w-3.5" style={{ color: '#111827' }} strokeWidth={2.5} />
+                                : <Check className="h-3.5 w-3.5" style={{ color: '#111827' }} strokeWidth={2.5} />
+                          )}
                         </div>
                       </div>
                       {mine && (
@@ -601,6 +612,15 @@ export default function TenantChatPage() {
           </footer>
         )}
       </section>
+      <button
+        type="button"
+        onClick={() => onNavigate('tenant-dashboard')}
+        aria-label={t('tenantReturnToDashboard')}
+        title={t('tenantReturnToDashboard')}
+        className="mx-auto flex h-8 w-10 items-center justify-center rounded-full border border-white/20 bg-[#202c33] text-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-colors hover:bg-[#34434a] active:bg-[#111b21] md:hidden"
+      >
+        <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />
+      </button>
     </div>
   );
 }

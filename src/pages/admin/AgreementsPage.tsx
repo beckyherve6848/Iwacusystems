@@ -279,7 +279,7 @@ export default function AgreementsPage() {
 
       {/* View/Print Modal */}
       {viewAgreement && (
-        <Modal open={!!viewAgreement} onClose={() => setViewAgreement(null)} title={t('rentalAgreement')} size="xl">
+        <Modal open={!!viewAgreement} onClose={() => setViewAgreement(null)} title={t('rentalAgreement')} size="xl" className="document-modal">
           <AgreementDocument agreement={viewAgreement} />
           <div className="flex justify-end gap-3 mt-4">
             <Button variant="ghost" onClick={() => setViewAgreement(null)}>{t('closeButton')}</Button>

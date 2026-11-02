@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
-  Send, Search, ArrowLeft, UserRound,
+  Check, Send, Search, ArrowLeft, UserRound,
   Smile, CheckCheck, CheckSquare, Copy, Reply, Trash2,
   MessagesSquare, X, UserPlus,
 } from 'lucide-react';
@@ -137,6 +137,11 @@ export default function AdminChatPage() {
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const readUpdatesInFlight = useRef(new Set<string>());
   const chatPresence = useChatPresence(activeId, user?.id, reportPresenceError);
+  const peerIsOnline = chatPresence.some(participant =>
+    participant.user_id !== user?.id
+    && participant.chat_last_seen_at
+    && Date.now() - new Date(participant.chat_last_seen_at).getTime() < 90_000
+  );
   const activePresenceLabel = (() => {
     const peers = chatPresence.filter(participant => participant.user_id !== user?.id);
     const onlinePeer = peers.find(participant =>
@@ -1115,7 +1120,7 @@ export default function AdminChatPage() {
                                 transition={{ duration: 0.2 }}
                                 className={`group relative max-w-[78%] sm:max-w-[65%] px-2.5 py-1 ${
                                   mine
-                                    ? 'bg-[#d9fdd3] text-slate-800 rounded-[12px] rounded-br-[4px]'
+                                    ? 'bg-[#dcf8c6] text-slate-800 rounded-[12px] rounded-br-[4px]'
                                     : 'bg-white text-slate-800 rounded-[12px] rounded-bl-[4px]'
                                 }`}
                                 style={{
@@ -1126,9 +1131,9 @@ export default function AdminChatPage() {
                                 }}
                               >
                                 {m.reply_to_id && (
-                                  <div className={`mb-2 rounded-md border-l-[3px] px-2 py-1 text-[10px] ${mine ? 'border-emerald-800/50 bg-emerald-100/70 text-slate-600' : 'border-emerald-600 bg-slate-50 text-slate-600'}`}>
-                                    <p className="font-semibold">{t('replyingTo')}</p>
-                                    <p className="truncate">{quotedMessage?.body ?? t('originalMessageUnavailable')}</p>
+                                  <div className={`mb-2 rounded-md border-l-[3px] px-2 py-1 text-[10px] ${mine ? 'border-emerald-800/50 bg-emerald-100/70' : 'border-emerald-600 bg-slate-50'}`}>
+                                    <p className="font-semibold" style={{ color: '#111827' }}>{t('replyingTo')}</p>
+                                    <p className="truncate font-semibold" style={{ color: '#111827' }}>{quotedMessage?.body ?? t('originalMessageUnavailable')}</p>
                                   </div>
                                 )}
 
@@ -1136,13 +1141,15 @@ export default function AdminChatPage() {
 
                                 {/* Timestamp + read status */}
                                 <div className={`flex items-center gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
-                                  <span className="text-[10px] text-slate-500">
+                                  <span className="text-[10px] text-slate-500" style={mine ? { color: '#111827', fontWeight: 700 } : undefined}>
                                     {formatTime(m.created_at, language)}
                                   </span>
-                                  {mine && isAdmin && (
-                                    <span className={m.read_at ? 'text-sky-600' : 'text-slate-400'}>
-                                      <CheckCheck className="w-3.5 h-3.5" />
-                                    </span>
+                                  {mine && (
+                                    m.read_at
+                                      ? <CheckCheck className="w-3.5 h-3.5 text-sky-600" style={{ color: '#0284c7' }} strokeWidth={2.5} />
+                                      : peerIsOnline
+                                        ? <CheckCheck className="w-3.5 h-3.5" style={{ color: '#111827' }} strokeWidth={2.5} />
+                                        : <Check className="w-3.5 h-3.5" style={{ color: '#111827' }} strokeWidth={2.5} />
                                   )}
                                   <button
                                     type="button"
@@ -1150,8 +1157,9 @@ export default function AdminChatPage() {
                                     title={t('reply')}
                                     aria-label={t('reply')}
                                     className="ml-1 rounded p-0.5 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
+                                    style={mine ? { color: '#111827' } : undefined}
                                   >
-                                    <Reply className="h-3.5 w-3.5" />
+                                    <Reply className="h-3.5 w-3.5" strokeWidth={2.5} />
                                   </button>
                                 </div>
 

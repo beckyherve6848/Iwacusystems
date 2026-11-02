@@ -17,7 +17,7 @@ interface TopNavProps {
   onPrefetch?: (page: string) => void;
 }
 
-const CURRENCIES: Currency[] = ['BIF', 'KSh', 'Frw', 'Ugx', 'Tsh', 'Cdf', 'USD', 'EUR'];
+const CURRENCIES: Currency[] = ['BIF', 'KSh', 'Frw', 'Ugx', 'Tsh', 'Cdf', 'Dhs', 'R', 'ZK', 'SR', 'USD', 'EUR'];
 
 interface SearchResult {
   id: string;
@@ -38,10 +38,26 @@ interface SearchSpec {
 
 interface SearchRecord {
   id: string;
+  agreement_number?: string | null;
+  assigned_to?: string | null;
+  admin_notes?: string | null;
+  car_registration?: string | null;
+  description?: string | null;
+  due_date?: string | null;
   invoice_number?: string | null;
+  floor?: string | null;
   receipt_number?: string | null;
   status?: string | null;
   title?: string | null;
+  notes?: string | null;
+  payment_date?: string | null;
+  payment_method?: string | null;
+  priority?: string | null;
+  purpose?: string | null;
+  rent_month?: string | null;
+  terms_and_conditions?: string | null;
+  lease_start_date?: string | null;
+  lease_end_date?: string | null;
   full_name?: string | null;
   tenant_code?: string | null;
   email?: string | null;
@@ -178,8 +194,10 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
       setSearching(true);
       setSearchError(false);
       const role = profile.role;
+      const normalizedTerm = term.toLowerCase();
       const pages = (SEARCH_PAGES[role] ?? []).filter(item =>
-        t(item.labelKey).toLowerCase().includes(term.toLowerCase()),
+        t(item.labelKey).toLowerCase().includes(normalizedTerm) ||
+        item.page.toLowerCase().includes(normalizedTerm),
       ).map(item => ({
         id: `page-${item.page}`,
         title: t(item.labelKey),
@@ -193,6 +211,7 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
             { table: 'utility_invoices', titleField: 'invoice_number', detailField: 'status', page: 'tenant-invoices', categoryKey: 'searchInvoiceCategory' },
             { table: 'payments', titleField: 'receipt_number', detailField: 'status', page: 'tenant-payments', categoryKey: 'searchReceiptCategory' },
             { table: 'maintenance_requests', titleField: 'title', detailField: 'status', page: 'tenant-maintenance', categoryKey: 'maintenance' },
+            { table: 'rental_agreements', titleField: 'agreement_number', detailField: 'status', page: 'tenant-agreement', categoryKey: 'agreements' },
           ]
         : role === 'caretaker'
           ? [
@@ -210,6 +229,15 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
                 { table: 'tenants', titleField: 'full_name', detailField: 'tenant_code', page: 'tenants', categoryKey: 'tenants' },
                 { table: 'houses', titleField: 'house_number', detailField: 'status', page: 'houses', categoryKey: 'houses' },
                 { table: 'visitors', titleField: 'visitor_name', detailField: 'status', page: 'visitors', categoryKey: 'visitors' },
+                ...(role === 'admin' ? [
+                  {
+                    table: 'rental_agreements',
+                    titleField: 'agreement_number',
+                    detailField: 'status',
+                    page: 'agreements',
+                    categoryKey: 'agreements',
+                  } satisfies SearchSpec,
+                ] : []),
                 ...(role === 'admin' ? [
                   {
                     table: 'profiles',
@@ -231,6 +259,9 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
               ];
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(term);
+      const isDate = /^\d{4}-\d{2}-\d{2}$/.test(term) &&
+        !Number.isNaN(Date.parse(`${term}T00:00:00Z`)) &&
+        new Date(`${term}T00:00:00Z`).toISOString().slice(0, 10) === term;
       const safeTerm = term.replace(/[\\%_]/g, '\\$&');
       const searched = await Promise.all(specs.map(async spec => {
         let data: SearchRecord[] | null = null;
@@ -238,43 +269,95 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
         const pattern = `%${safeTerm}%`;
 
         if (spec.table === 'utility_invoices') {
-          const query = supabase.from('utility_invoices').select('id, invoice_number, status').limit(5);
-          const response = isUuid
-            ? await query.eq('id', term)
-            : await query.ilike('invoice_number', pattern);
-          data = response.data;
-          failed = Boolean(response.error);
+          const columns = 'id, invoice_number, status, notes, rent_month, due_date';
+          if (isUuid) {
+            const response = await supabase.from('utility_invoices').select(columns).eq('id', term).limit(5);
+            data = response.data;
+            failed = Boolean(response.error);
+          } else {
+            const matches = await Promise.all(['invoice_number', 'status', 'notes'].map(column =>
+              supabase.from('utility_invoices').select(columns).ilike(column, pattern).limit(5),
+            ));
+            const dateMatches = isDate ? await Promise.all(['rent_month', 'due_date'].map(column =>
+              supabase.from('utility_invoices').select(columns).eq(column, term).limit(5),
+            )) : [];
+            data = [...matches, ...dateMatches].flatMap(result => result.data ?? []).filter(
+              (record, index, all) => all.findIndex(item => item.id === record.id) === index,
+            );
+            failed = [...matches, ...dateMatches].some(result => Boolean(result.error));
+          }
         } else if (spec.table === 'payments') {
-          const query = supabase.from('payments').select('id, receipt_number, status').limit(5);
-          const response = isUuid
-            ? await query.eq('id', term)
-            : await query.ilike('receipt_number', pattern);
-          data = response.data;
-          failed = Boolean(response.error);
+          const columns = 'id, receipt_number, status, payment_method, notes, rent_month, payment_date';
+          if (isUuid) {
+            const response = await supabase.from('payments').select(columns).eq('id', term).limit(5);
+            data = response.data;
+            failed = Boolean(response.error);
+          } else {
+            const matches = await Promise.all(['receipt_number', 'status', 'payment_method', 'notes'].map(column =>
+              supabase.from('payments').select(columns).ilike(column, pattern).limit(5),
+            ));
+            const dateMatches = isDate ? await Promise.all(['rent_month', 'payment_date'].map(column =>
+              supabase.from('payments').select(columns).eq(column, term).limit(5),
+            )) : [];
+            data = [...matches, ...dateMatches].flatMap(result => result.data ?? []).filter(
+              (record, index, all) => all.findIndex(item => item.id === record.id) === index,
+            );
+            failed = [...matches, ...dateMatches].some(result => Boolean(result.error));
+          }
         } else if (spec.table === 'maintenance_requests') {
-          const query = supabase.from('maintenance_requests').select('id, title, status').limit(5);
-          const response = isUuid
-            ? await query.eq('id', term)
-            : await query.ilike('title', pattern);
-          data = response.data;
-          failed = Boolean(response.error);
+          const columns = 'id, title, description, priority, assigned_to, admin_notes, status';
+          if (isUuid) {
+            const response = await supabase.from('maintenance_requests').select(columns).eq('id', term).limit(5);
+            data = response.data;
+            failed = Boolean(response.error);
+          } else {
+            const matches = await Promise.all(['title', 'description', 'priority', 'assigned_to', 'admin_notes', 'status'].map(column =>
+              supabase.from('maintenance_requests').select(columns).ilike(column, pattern).limit(5),
+            ));
+            data = matches.flatMap(result => result.data ?? []).filter(
+              (record, index, all) => all.findIndex(item => item.id === record.id) === index,
+            );
+            failed = matches.some(result => Boolean(result.error));
+          }
+        } else if (spec.table === 'rental_agreements') {
+          const columns = 'id, agreement_number, status, terms_and_conditions, lease_start_date, lease_end_date';
+          if (isUuid) {
+            const response = await supabase.from('rental_agreements').select(columns).eq('id', term).limit(5);
+            data = response.data;
+            failed = Boolean(response.error);
+          } else {
+            const matches = await Promise.all(['agreement_number', 'status', 'terms_and_conditions'].map(column =>
+              supabase.from('rental_agreements').select(columns).ilike(column, pattern).limit(5),
+            ));
+            const dateMatches = isDate ? await Promise.all(['lease_start_date', 'lease_end_date'].map(column =>
+              supabase.from('rental_agreements').select(columns).eq(column, term).limit(5),
+            )) : [];
+            data = [...matches, ...dateMatches].flatMap(result => result.data ?? []).filter(
+              (record, index, all) => all.findIndex(item => item.id === record.id) === index,
+            );
+            failed = [...matches, ...dateMatches].some(result => Boolean(result.error));
+          }
         } else if (spec.table === 'tenants') {
-          const query = supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').limit(5);
+          const columns = 'id, full_name, tenant_code, national_id, phone, email, car_registration, status';
+          const query = supabase.from('tenants').select(columns).limit(5);
           if (isUuid) {
             const response = await query.eq('id', term);
             data = response.data;
             failed = Boolean(response.error);
           } else {
-            const [names, codes, nationalIds, phones] = await Promise.all([
-              supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').ilike('full_name', pattern).limit(5),
-              supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').ilike('tenant_code', pattern).limit(5),
-              supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').ilike('national_id', pattern).limit(5),
-              supabase.from('tenants').select('id, full_name, tenant_code, national_id, phone').ilike('phone', pattern).limit(5),
+            const [names, codes, nationalIds, phones, emails, registrations, statuses] = await Promise.all([
+              supabase.from('tenants').select(columns).ilike('full_name', pattern).limit(5),
+              supabase.from('tenants').select(columns).ilike('tenant_code', pattern).limit(5),
+              supabase.from('tenants').select(columns).ilike('national_id', pattern).limit(5),
+              supabase.from('tenants').select(columns).ilike('phone', pattern).limit(5),
+              supabase.from('tenants').select(columns).ilike('email', pattern).limit(5),
+              supabase.from('tenants').select(columns).ilike('car_registration', pattern).limit(5),
+              supabase.from('tenants').select(columns).ilike('status', pattern).limit(5),
             ]);
-            data = [...(names.data ?? []), ...(codes.data ?? []), ...(nationalIds.data ?? []), ...(phones.data ?? [])].filter(
+            data = [...(names.data ?? []), ...(codes.data ?? []), ...(nationalIds.data ?? []), ...(phones.data ?? []), ...(emails.data ?? []), ...(registrations.data ?? []), ...(statuses.data ?? [])].filter(
               (record, index, all) => all.findIndex(item => item.id === record.id) === index,
             );
-            failed = Boolean(names.error || codes.error || nationalIds.error || phones.error);
+            failed = Boolean(names.error || codes.error || nationalIds.error || phones.error || emails.error || registrations.error || statuses.error);
           }
         } else if (spec.table === 'profiles' && spec.profileRole) {
           if (isUuid) {
@@ -302,12 +385,20 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
             failed = profileSearches.some(result => Boolean(result.error));
           }
         } else if (spec.table === 'houses') {
-          const query = supabase.from('houses').select('id, house_number, status').limit(5);
-          const response = isUuid
-            ? await query.eq('id', term)
-            : await query.ilike('house_number', pattern);
-          data = response.data;
-          failed = Boolean(response.error);
+          const columns = 'id, house_number, status';
+          if (isUuid) {
+            const response = await supabase.from('houses').select(columns).eq('id', term).limit(5);
+            data = response.data;
+            failed = Boolean(response.error);
+          } else {
+            const matches = await Promise.all(['house_number', 'status'].map(column =>
+              supabase.from('houses').select(columns).ilike(column, pattern).limit(5),
+            ));
+            data = matches.flatMap(result => result.data ?? []).filter(
+              (record, index, all) => all.findIndex(item => item.id === record.id) === index,
+            );
+            failed = matches.some(result => Boolean(result.error));
+          }
         } else if (spec.table === 'visitors') {
           if (isUuid) {
             const { data: visitorData, error } = await supabase
@@ -318,7 +409,7 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
             data = visitorData;
             failed = Boolean(error);
           } else {
-            const columns = ['visitor_name', 'phone', 'national_id', 'vehicle_registration'] as const;
+            const columns = ['visitor_name', 'phone', 'national_id', 'vehicle_registration', 'purpose'] as const;
             const visitorSearches = await Promise.all(columns.map(column =>
               supabase
                 .from('visitors')
@@ -411,7 +502,7 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
 
       {/* Search */}
       <div
-        className={`phone-search-box relative w-10 flex-none sm:w-auto sm:flex-1 sm:max-w-sm ${mobileSearchOpen ? 'phone-search-expanded' : 'phone-search-collapsed'}`}
+        className={`phone-search-box w-10 flex-none sm:relative sm:w-auto sm:flex-1 sm:max-w-sm ${mobileSearchOpen ? 'phone-search-expanded' : 'phone-search-collapsed'}`}
         ref={searchRef}
       >
         <div className="relative">
@@ -429,7 +520,7 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
           <input
             ref={searchInputRef}
             type="text"
-            className={`phone-navbar-search w-full rounded-xl py-2.5 pl-10 pr-16 text-xs text-slate-900 placeholder-slate-400 transition-all focus:outline-none sm:pr-9 sm:text-sm ${mobileSearchOpen ? 'block' : 'hidden sm:block'}`}
+            className={`phone-navbar-search w-full min-w-0 rounded-xl py-2.5 pl-10 pr-16 text-base text-slate-900 placeholder-slate-400 transition-all focus:outline-none sm:pr-9 sm:text-sm ${mobileSearchOpen ? 'block' : 'hidden sm:block'}`}
             value={searchTerm}
             placeholder={t('searchPlaceholder')}
             role="combobox"
@@ -489,7 +580,7 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
             <div
               id="topnav-search-results"
               role="listbox"
-              className="absolute left-0 top-full z-50 mt-2 max-h-[min(70vh,32rem)] w-[min(90vw,24rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl"
+              className="absolute left-0 top-full z-50 mt-2 max-h-[min(70vh,32rem)] w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl sm:w-[min(90vw,24rem)]"
             >
               {searching ? (
                 <p className="px-4 py-3 text-sm text-slate-500" role="status">{t('searchLoading')}</p>
@@ -551,11 +642,11 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
             </button>
             {currencyOpen && (
               <div
-                className="phone-navbar-dropdown absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-50 min-w-[110px] animate-fade-up"
+                className="phone-navbar-dropdown absolute right-0 top-full z-50 mt-2 min-w-[176px] max-w-[min(90vw,220px)] animate-fade-up overflow-hidden rounded-xl"
                 style={{ background: '#ffffff', border: '1px solid #e5e7eb', boxShadow: '0 16px 48px rgba(0,0,0,0.12)' }}
               >
                 {!currencyRatesAvailable && (
-                  <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-100" role={currencyRatesError ? 'alert' : 'status'}>
+                  <div className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500" role={currencyRatesError ? 'alert' : 'status'}>
                     <p>{currencyRatesLoading ? t('currencyRatesLoading') : t('currencyRatesUnavailable')}</p>
                     {currencyRatesError && (
                       <button
@@ -567,19 +658,23 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
                     )}
                   </div>
                 )}
-                {CURRENCIES.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => { setCurrency(c); closePanels(); }}
-                    disabled={c !== 'BIF' && !currencyRatesAvailable}
-                    className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                      currency === c ? 'text-emerald-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                    }`}
-                    style={currency === c ? { background: 'rgba(16,185,129,0.08)' } : {}}
-                  >
-                    <span className="font-mono text-xs w-8">{CURRENCY_SYMBOLS[c]}</span>
-                  </button>
-                ))}
+                <div className="grid grid-cols-2 gap-1 p-2">
+                  {CURRENCIES.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => { setCurrency(c); closePanels(); }}
+                      disabled={c !== 'BIF' && !currencyRatesAvailable}
+                      aria-label={`${c} (${CURRENCY_SYMBOLS[c]})`}
+                      title={`${c} (${CURRENCY_SYMBOLS[c]})`}
+                      className={`flex min-w-0 items-center justify-center rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                        currency === c ? 'text-emerald-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
+                      style={currency === c ? { background: 'rgba(16,185,129,0.08)' } : {}}
+                    >
+                      <span className="font-mono text-xs">{CURRENCY_SYMBOLS[c]}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
