@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
-  Check, Send, Search, ArrowLeft, UserRound,
+  Check, Search, ArrowLeft, UserRound,
   Smile, CheckCheck, CheckSquare, Copy, Reply, Trash2,
   MessagesSquare, X, UserPlus,
 } from 'lucide-react';
@@ -1365,7 +1365,7 @@ export default function AdminChatPage() {
                         boxShadow: input.trim() ? '0 2px 8px rgba(37,211,102,0.28)' : 'none',
                       }}
                     >
-                      <Send className="w-4 h-4" />
+                      <img src="/send.svg" alt="" className="h-4 w-4 object-contain" />
                     </motion.button>
                   </div>
                 </div>

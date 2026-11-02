@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCheck, Reply, Send, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, Reply, UserRound, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -695,7 +695,7 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
               aria-label={t('send')}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-white transition-colors hover:bg-[#1DA851] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Send className="h-4 w-4" />
+              <img src="/send.svg" alt="" className="h-4 w-4 object-contain" />
             </button>
             </div>
           </footer>
