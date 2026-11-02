@@ -32,6 +32,9 @@ interface AssignedManager {
   profile_photo_path: string | null;
 }
 
+const tenantConversationCache = new Map<string, { tenantId: string; conversations: Conversation[] }>();
+const tenantMessageCache = new Map<string, ChatMessage[]>();
+
 function dateLabel(iso: string, language: string): string {
   const date = new Date(iso);
   const today = new Date();
@@ -82,19 +85,30 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
   const { t, language, appLogoUrl } = useTheme();
   const { toasts, addToast, removeToast } = useToast();
   const reportPresenceError = useCallback((message: string) => addToast(message, 'error'), [addToast]);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [tenantId, setTenantId] = useState<string | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const cachedConversation = user?.id ? tenantConversationCache.get(user.id) : undefined;
+  const cachedInitialConversationId = cachedConversation?.conversations.find(item => item.conversation_type === 'tenant_admin')?.id
+    ?? cachedConversation?.conversations[0]?.id
+    ?? null;
+  const [conversationId, setConversationId] = useState<string | null>(cachedInitialConversationId);
+  const [tenantId, setTenantId] = useState<string | null>(cachedConversation?.tenantId ?? tenantRecord?.id ?? null);
+  const [conversations, setConversations] = useState<Conversation[]>(() => cachedConversation?.conversations ?? []);
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    user?.id && cachedInitialConversationId
+      ? tenantMessageCache.get(`${user.id}:${cachedInitialConversationId}`) ?? []
+      : [],
+  );
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedConversation);
   const tenantPhotoUrl = tenantRecord?.photo_url ?? undefined;
   const [myPhotoUrl, setMyPhotoUrl] = useState<string | undefined>(tenantPhotoUrl);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastScrolledMessageId = useRef<string | null>(null);
   const readUpdatesInFlight = useRef(new Set<string>());
+  const conversationCacheReady = useRef(Boolean(cachedConversation));
+  const lastTenantCacheKey = useRef(user?.id ?? '');
+  const skipTenantCacheWrite = useRef(false);
   const chatPresence = useChatPresence(conversationId, user?.id, reportPresenceError);
   const peerPresence = chatPresence
     .filter(participant => participant.user_id !== user?.id)
@@ -120,14 +134,44 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
     setMyPhotoUrl(tenantPhotoUrl);
   }, [tenantPhotoUrl]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    if (lastTenantCacheKey.current !== user.id) {
+      lastTenantCacheKey.current = user.id;
+      skipTenantCacheWrite.current = true;
+    }
+    const cached = tenantConversationCache.get(user.id);
+    if (!cached) {
+      conversationCacheReady.current = false;
+      setTenantId(tenantRecord?.id ?? null);
+      setConversationId(null);
+      setConversations([]);
+      setMessages([]);
+      setLoading(true);
+      return;
+    }
+    conversationCacheReady.current = true;
+    const cachedId = cached.conversations.find(item => item.conversation_type === 'tenant_admin')?.id
+      ?? cached.conversations[0]?.id
+      ?? null;
+    setTenantId(cached.tenantId);
+    setConversationId(cachedId);
+    setConversations(cached.conversations);
+    setMessages(cachedId ? tenantMessageCache.get(`${user.id}:${cachedId}`) ?? [] : []);
+    setLoading(false);
+  }, [user?.id, tenantRecord?.id]);
+
   const loadConversation = useCallback(async () => {
     if (!user || profile?.role !== 'tenant') return;
 
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const tenantLookup = tenantRecord?.id
+      ? Promise.resolve({ data: { id: tenantRecord.id }, error: null })
+      : supabase.from('tenants').select('id').eq('user_id', user.id).maybeSingle();
+    const [tenantResult, managersResult] = await Promise.all([
+      tenantLookup,
+      supabase.rpc('get_tenant_property_managers'),
+    ]);
+    const { data: tenant, error: tenantError } = tenantResult;
     if (tenantError) {
       addToast(tenantError.message, 'error');
       return;
@@ -135,33 +179,11 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
     if (!tenant) return;
     setTenantId(tenant.id);
 
-    const { data: managers, error: managersError } = await supabase
-      .rpc('get_tenant_property_managers');
+    const { data: managers, error: managersError } = managersResult;
     if (managersError) {
       addToast(managersError.message, 'error');
-      return;
     }
     const managerListWithPaths: AssignedManager[] = managers ?? [];
-    const managerPhotoPaths = [...new Set(managerListWithPaths
-      .map(manager => manager.profile_photo_path)
-      .filter((path): path is string => Boolean(path)))];
-    const managerPhotoUrls: Record<string, string> = {};
-    if (managerPhotoPaths.length > 0) {
-      const { data: signedPhotos, error: photoError } = await supabase.storage
-        .from('identity-documents')
-        .createSignedUrls(managerPhotoPaths, 3600);
-      if (photoError) {
-        addToast(photoError.message, 'error');
-        return;
-      }
-      (signedPhotos ?? []).forEach(photo => {
-        if (photo.path && photo.signedUrl) managerPhotoUrls[photo.path] = photo.signedUrl;
-      });
-    }
-    const managerList = managerListWithPaths.map(manager => ({
-      ...manager,
-      photoUrl: managerPhotoUrls[manager.profile_photo_path ?? ''],
-    }));
 
     const { data: existing, error: conversationError } = await supabase
       .from('chat_conversations')
@@ -173,6 +195,7 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
       addToast(conversationError.message, 'error');
       return;
     }
+    const managerList = managerListWithPaths.map(manager => ({ ...manager, photoUrl: undefined }));
     const normalized = (existing ?? []).map(conversation => {
       const manager = managerList.find(item => item.manager_id === conversation.manager_id);
       return {
@@ -187,17 +210,73 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
         } : null,
       };
     });
+    conversationCacheReady.current = true;
+    tenantConversationCache.set(user.id, { tenantId: tenant.id, conversations: normalized });
     setConversations(normalized);
     const adminConversation = normalized.find(conversation => conversation.conversation_type === 'tenant_admin');
     setConversationId(current => current && normalized.some(conversation => conversation.id === current)
       ? current
       : adminConversation?.id ?? normalized[0]?.id ?? null);
-  }, [user, profile, addToast]);
+
+    const managerPhotoPaths = [...new Set(managerListWithPaths
+      .map(manager => manager.profile_photo_path)
+      .filter((path): path is string => Boolean(path)))];
+    if (managerPhotoPaths.length > 0) {
+      void supabase.storage
+        .from('identity-documents')
+        .createSignedUrls(managerPhotoPaths, 3600)
+        .then(({ data: signedPhotos, error: photoError }) => {
+          if (photoError) {
+            addToast(photoError.message, 'error');
+            return;
+          }
+          const managerPhotoUrls = new Map<string, string>();
+          (signedPhotos ?? []).forEach(photo => {
+            if (photo.path && photo.signedUrl) managerPhotoUrls.set(photo.path, photo.signedUrl);
+          });
+          setConversations(previous => {
+            const updated = previous.map(conversation => {
+              const manager = conversation.managers;
+              if (!manager?.profile_photo_path) return conversation;
+              const photoUrl = managerPhotoUrls.get(manager.profile_photo_path);
+              return photoUrl ? { ...conversation, managers: { ...manager, photoUrl } } : conversation;
+            });
+            tenantConversationCache.set(user.id, { tenantId: tenant.id, conversations: updated });
+            return updated;
+          });
+        })
+        .catch((error: unknown) => addToast(
+          error instanceof Error ? error.message : 'Unable to load manager profile photos.',
+          'error',
+        ));
+    }
+  }, [user, profile, tenantRecord?.id, addToast]);
 
   useEffect(() => {
     if (profile?.role !== 'tenant') return;
-    loadConversation().finally(() => setLoading(false));
-  }, [profile, loadConversation]);
+    conversationCacheReady.current = Boolean(user?.id && tenantConversationCache.has(user.id));
+    if (conversationCacheReady.current) setLoading(false);
+    void loadConversation()
+      .catch((error: unknown) => addToast(
+        error instanceof Error ? error.message : 'Unable to load conversations.',
+        'error',
+      ))
+      .finally(() => setLoading(false));
+  }, [profile, user?.id, loadConversation, addToast]);
+
+  useEffect(() => {
+    if (skipTenantCacheWrite.current) {
+      skipTenantCacheWrite.current = false;
+      return;
+    }
+    if (!user?.id || !tenantId || !conversationCacheReady.current) return;
+    tenantConversationCache.set(user.id, { tenantId, conversations });
+  }, [user?.id, tenantId, conversations]);
+
+  useEffect(() => {
+    if (!user?.id || !conversationId) return;
+    tenantMessageCache.set(`${user.id}:${conversationId}`, messages);
+  }, [user?.id, conversationId, messages]);
 
   const startConversation = async () => {
     if (!tenantId || !user || sending) return;
@@ -243,6 +322,8 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
   useEffect(() => {
     if (!conversationId) return;
     let cancelled = false;
+    const cacheKey = `${user?.id}:${conversationId}`;
+    setMessages(tenantMessageCache.get(cacheKey) ?? []);
     supabase
       .from('chat_messages')
       .select('*')
@@ -251,10 +332,18 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) addToast(error.message, 'error');
-        else setMessages(data ?? []);
+        else {
+          setMessages(previous => {
+            const merged = new Map((data ?? []).map(message => [message.id, message as ChatMessage]));
+            previous.forEach(message => merged.set(message.id, message));
+            const next = [...merged.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
+            tenantMessageCache.set(cacheKey, next);
+            return next;
+          });
+        }
       });
     return () => { cancelled = true; };
-  }, [conversationId, addToast]);
+  }, [conversationId, user?.id, addToast]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -526,15 +615,15 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
                             </div>
                           : <div className="w-6 shrink-0" />
                       )}
-                      <div className={`max-w-[78%] rounded-[12px] px-2.5 py-1 shadow-sm sm:max-w-[65%] ${mine ? 'rounded-br-[4px] bg-[#dcf8c6]' : 'rounded-bl-[4px] bg-white'}`}>
+                      <div className={`whatsapp-chat-bubble max-w-[78%] rounded-[12px] px-2.5 py-1 shadow-sm sm:max-w-[65%] ${mine ? 'whatsapp-chat-outgoing rounded-br-[4px]' : 'whatsapp-chat-incoming rounded-bl-[4px]'}`}>
                         {message.reply_to_id && (
-                          <div className={`mb-2 rounded-md border-l-[3px] px-2 py-1 text-[10px] ${mine ? 'border-emerald-800/50 bg-emerald-100/70' : 'border-emerald-600 bg-slate-50'}`}>
+                          <div className={`whatsapp-chat-quote mb-2 rounded-md border-l-[3px] px-2 py-1 text-[10px] ${mine ? 'border-emerald-800/50' : 'border-emerald-600'}`}>
                             <p className="font-semibold" style={{ color: '#111827' }}>{t('replyingTo')}</p>
                             <p className="truncate font-semibold" style={{ color: '#111827' }}>{quotedMessage?.body ?? t('originalMessageUnavailable')}</p>
                           </div>
                         )}
-                        <p className="whitespace-pre-wrap break-words text-[13px] leading-[1.3]" style={mine ? { color: '#111827', fontWeight: 700 } : undefined}>{message.body}</p>
-                        <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-slate-500">
+                        <p className="whatsapp-chat-message whitespace-pre-wrap break-words text-[13px] leading-[1.3]" style={mine ? { fontWeight: 700 } : undefined}>{message.body}</p>
+                        <div className="whatsapp-chat-meta mt-0.5 flex items-center justify-end gap-1 text-[10px] text-slate-500">
                           <button
                             type="button"
                             onClick={() => setReplyTo(message)}
@@ -576,9 +665,9 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
         </div>
 
         {conversationId && (
-          <footer className="relative z-10 shrink-0 border-t border-white/10 bg-[#111b21]/65 p-2.5 backdrop-blur-2xl sm:px-4 sm:py-3">
+          <footer className="whatsapp-chat-composer relative z-10 shrink-0 border-t border-white/10 bg-[#111b21]/65 p-2.5 backdrop-blur-2xl sm:px-4 sm:py-3">
             {replyTo && (
-              <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-xl border-l-4 border-emerald-600 bg-[#202c33] px-3 py-2">
+              <div className="whatsapp-chat-reply-preview mx-auto mb-2 flex max-w-3xl items-center gap-2 rounded-xl border-l-4 border-emerald-600 bg-[#202c33] px-3 py-2">
                 <Reply className="h-4 w-4 shrink-0 text-emerald-700" />
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-semibold text-emerald-700">{t('replyingTo')}</p>
@@ -597,7 +686,7 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
               placeholder={t('typeMessage')}
               rows={1}
               maxLength={4000}
-              className="max-h-32 min-h-11 flex-1 resize-y rounded-2xl border border-white/15 bg-white/[0.08] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 backdrop-blur-xl focus:border-emerald-400"
+              className="whatsapp-chat-input max-h-32 min-h-11 flex-1 resize-y rounded-2xl border border-white/15 bg-white/[0.08] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 backdrop-blur-xl focus:border-emerald-400"
             />
             <button
               type="button"

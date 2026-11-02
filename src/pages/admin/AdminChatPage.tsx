@@ -43,6 +43,10 @@ interface ChatContact {
   kind: 'tenant' | 'manager';
 }
 
+const conversationCache = new Map<string, Conversation[]>();
+const activeConversationCache = new Map<string, string>();
+const messageCache = new Map<string, ChatMessage[]>();
+
 function timeAgo(iso: string, language: string, t: (key: string) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -108,12 +112,16 @@ export default function AdminChatPage() {
   const { t, language, appLogoUrl } = useTheme();
   const { toasts, addToast, removeToast } = useToast();
   const reportPresenceError = useCallback((message: string) => addToast(message, 'error'), [addToast]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const cacheKey = profile?.id ?? user?.id ?? '';
+  const cachedActiveId = activeConversationCache.get(cacheKey) ?? null;
+  const [conversations, setConversations] = useState<Conversation[]>(() => conversationCache.get(cacheKey) ?? []);
+  const [activeId, setActiveId] = useState<string | null>(cachedActiveId);
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    cachedActiveId ? messageCache.get(`${cacheKey}:${cachedActiveId}`) ?? [] : [],
+  );
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !conversationCache.has(cacheKey));
   const [search, setSearch] = useState('');
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -136,6 +144,9 @@ export default function AdminChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const readUpdatesInFlight = useRef(new Set<string>());
+  const conversationCacheReady = useRef(conversationCache.has(cacheKey));
+  const lastCacheKey = useRef(cacheKey);
+  const skipCacheWrite = useRef(false);
   const chatPresence = useChatPresence(activeId, user?.id, reportPresenceError);
   const peerIsOnline = chatPresence.some(participant =>
     participant.user_id !== user?.id
@@ -203,6 +214,9 @@ export default function AdminChatPage() {
           : null
         : c.tenants,
     }));
+    conversationCacheReady.current = true;
+    setConversations(records as Conversation[]);
+    setLoading(false);
     const photoPaths = [...new Set(records
       .flatMap(conversation => [
         conversation.managers?.profile_photo_path,
@@ -234,8 +248,52 @@ export default function AdminChatPage() {
         : null,
     }));
     setConversations(normalized as Conversation[]);
-    setLoading(false);
   }, [addToast]);
+
+  useEffect(() => {
+    if (!cacheKey) return;
+    if (lastCacheKey.current !== cacheKey) {
+      lastCacheKey.current = cacheKey;
+      skipCacheWrite.current = true;
+    }
+    const cached = conversationCache.get(cacheKey);
+    if (!cached) {
+      conversationCacheReady.current = false;
+      setConversations([]);
+      setActiveId(null);
+      setMessages([]);
+      setLoading(true);
+      return;
+    }
+    conversationCacheReady.current = true;
+    const cachedId = activeConversationCache.get(cacheKey) ?? null;
+    setConversations(cached);
+    setActiveId(cachedId);
+    setMessages(cachedId ? messageCache.get(`${cacheKey}:${cachedId}`) ?? [] : []);
+    setLoading(false);
+  }, [cacheKey]);
+
+  useEffect(() => {
+    conversationCacheReady.current = conversationCache.has(cacheKey);
+  }, [cacheKey]);
+
+  useEffect(() => {
+    if (skipCacheWrite.current) {
+      skipCacheWrite.current = false;
+      return;
+    }
+    if (!cacheKey || !conversationCacheReady.current) return;
+    conversationCache.set(cacheKey, conversations);
+  }, [cacheKey, conversations]);
+
+  useEffect(() => {
+    if (cacheKey && activeId) activeConversationCache.set(cacheKey, activeId);
+  }, [cacheKey, activeId]);
+
+  useEffect(() => {
+    if (!cacheKey || !activeId) return;
+    messageCache.set(`${cacheKey}:${activeId}`, messages);
+  }, [cacheKey, activeId, messages]);
 
   // Load unread counts for ALL conversations from the database
   const loadUnreadCounts = useCallback(async () => {
@@ -243,7 +301,8 @@ export default function AdminChatPage() {
     const { data, error } = await supabase
       .from('chat_messages')
       .select('conversation_id, sender_id, read_at, admin_read_at, chat_conversations(conversation_type)')
-      .neq('sender_id', user.id);
+      .neq('sender_id', user.id)
+      .or('read_at.is.null,admin_read_at.is.null');
     if (error) {
       addToast(error.message, 'error');
       return;
@@ -417,7 +476,7 @@ export default function AdminChatPage() {
     setContacts([]);
     await loadConversations();
     setActiveId(conversationId);
-    setMessages([]);
+    setMessages(messageCache.get(`${cacheKey}:${conversationId}`) ?? []);
     setReplyTo(null);
     setMobileView('chat');
   };
@@ -451,7 +510,8 @@ export default function AdminChatPage() {
   useEffect(() => {
     if (!activeId) return;
     let cancelled = false;
-    setMessages([]);
+    const key = `${cacheKey}:${activeId}`;
+    setMessages(messageCache.get(key) ?? []);
     supabase
       .from('chat_messages')
       .select('*')
@@ -460,10 +520,18 @@ export default function AdminChatPage() {
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) addToast(error.message, 'error');
-        else setMessages(data ?? []);
+        else {
+          setMessages(previous => {
+            const merged = new Map((data ?? []).map(message => [message.id, message as ChatMessage]));
+            previous.forEach(message => merged.set(message.id, message));
+            const next = [...merged.values()].sort((a, b) => a.created_at.localeCompare(b.created_at));
+            messageCache.set(key, next);
+            return next;
+          });
+        }
       });
     return () => { cancelled = true; };
-  }, [activeId, addToast]);
+  }, [activeId, addToast, cacheKey]);
 
   useEffect(() => {
     const channel = supabase
@@ -899,7 +967,7 @@ export default function AdminChatPage() {
                           : [...previous, c.id]);
                         return;
                       }
-                      setMessages([]);
+                      setMessages(messageCache.get(`${cacheKey}:${c.id}`) ?? []);
                       setReplyTo(null);
                       setActiveId(c.id);
                       setMobileView('chat');
@@ -1118,10 +1186,10 @@ export default function AdminChatPage() {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.2 }}
-                                className={`group relative max-w-[78%] sm:max-w-[65%] px-2.5 py-1 ${
+                                className={`whatsapp-chat-bubble group relative max-w-[78%] sm:max-w-[65%] px-2.5 py-1 ${
                                   mine
-                                    ? 'bg-[#dcf8c6] text-slate-800 rounded-[12px] rounded-br-[4px]'
-                                    : 'bg-white text-slate-800 rounded-[12px] rounded-bl-[4px]'
+                                    ? 'whatsapp-chat-outgoing text-slate-800 rounded-[12px] rounded-br-[4px]'
+                                    : 'whatsapp-chat-incoming text-slate-800 rounded-[12px] rounded-bl-[4px]'
                                 }`}
                                 style={{
                                   boxShadow: mine
@@ -1131,16 +1199,16 @@ export default function AdminChatPage() {
                                 }}
                               >
                                 {m.reply_to_id && (
-                                  <div className={`mb-2 rounded-md border-l-[3px] px-2 py-1 text-[10px] ${mine ? 'border-emerald-800/50 bg-emerald-100/70' : 'border-emerald-600 bg-slate-50'}`}>
+                                  <div className={`whatsapp-chat-quote mb-2 rounded-md border-l-[3px] px-2 py-1 text-[10px] ${mine ? 'border-emerald-800/50' : 'border-emerald-600'}`}>
                                     <p className="font-semibold" style={{ color: '#111827' }}>{t('replyingTo')}</p>
                                     <p className="truncate font-semibold" style={{ color: '#111827' }}>{quotedMessage?.body ?? t('originalMessageUnavailable')}</p>
                                   </div>
                                 )}
 
-                                <p className="text-[13px] leading-[1.35] whitespace-pre-wrap break-words">{m.body}</p>
+                                <p className="whatsapp-chat-message text-[13px] leading-[1.35] whitespace-pre-wrap break-words">{m.body}</p>
 
                                 {/* Timestamp + read status */}
-                                <div className={`flex items-center gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`whatsapp-chat-meta flex items-center gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
                                   <span className="text-[10px] text-slate-500" style={mine ? { color: '#111827', fontWeight: 700 } : undefined}>
                                     {formatTime(m.created_at, language)}
                                   </span>
@@ -1221,7 +1289,7 @@ export default function AdminChatPage() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="px-4 sm:px-6 py-2 border-t border-white/10 bg-[#172329]/70 backdrop-blur-xl flex items-center gap-3"
+                      className="whatsapp-chat-reply-preview px-4 sm:px-6 py-2 border-t border-white/10 bg-[#172329]/70 backdrop-blur-xl flex items-center gap-3"
                     >
                       <Reply className="w-4 h-4 text-slate-400 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -1260,7 +1328,7 @@ export default function AdminChatPage() {
                 </AnimatePresence>
 
                 {/* ─── Message Input ─── */}
-                <div className="relative z-10 px-3 sm:px-4 py-3 border-t border-white/10 bg-[#111b21]/65 backdrop-blur-2xl">
+                <div className="whatsapp-chat-composer relative z-10 px-3 sm:px-4 py-3 border-t border-white/10 bg-[#111b21]/65 backdrop-blur-2xl">
                   <div className="flex items-end gap-2">
                     {/* Emoji button */}
                     <button
@@ -1280,7 +1348,7 @@ export default function AdminChatPage() {
                       placeholder={t('typeMessage')}
                       rows={1}
                       maxLength={4000}
-                      className="flex-1 bg-white/[0.08] text-white placeholder:text-slate-400 text-sm rounded-2xl px-4 py-2.5 resize-none outline-none transition-all max-h-32 backdrop-blur-xl"
+                      className="whatsapp-chat-input flex-1 bg-white/[0.08] text-white placeholder:text-slate-400 text-sm rounded-2xl px-4 py-2.5 resize-none outline-none transition-all max-h-32 backdrop-blur-xl"
                       style={{ border: '1px solid rgba(255,255,255,0.18)', minHeight: '42px' }}
                       onFocus={e => { e.currentTarget.style.borderColor = '#25D366'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37,211,102,0.15)'; }}
                       onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; e.currentTarget.style.boxShadow = 'none'; }}

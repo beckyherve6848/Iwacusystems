@@ -3009,6 +3009,69 @@
   background-color: #202a23 !important;
 }
 
+.whatsapp-chat-bubble {
+  color: #e9edef !important;
+  background-color: #202c33 !important;
+  border-color: transparent !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18) !important;
+}
+
+.whatsapp-chat-bubble.whatsapp-chat-outgoing {
+  background-color: #005c4b !important;
+}
+
+.whatsapp-chat-message {
+  color: #e9edef !important;
+}
+
+.whatsapp-chat-quote {
+  background-color: rgba(17, 27, 33, 0.58) !important;
+  border-left-color: #00a884 !important;
+}
+
+.whatsapp-chat-quote p {
+  color: #d1d7db !important;
+}
+
+.whatsapp-chat-meta {
+  color: #aebac1 !important;
+}
+
+.whatsapp-chat-outgoing .whatsapp-chat-meta svg:not(.text-sky-600) {
+  color: #c4e7df !important;
+}
+
+.whatsapp-chat-composer {
+  background-color: #111b21 !important;
+  border-color: #26333a !important;
+}
+
+.whatsapp-chat-reply-preview {
+  color: #e9edef !important;
+  background-color: #202c33 !important;
+  border-color: #00a884 !important;
+}
+
+.whatsapp-chat-reply-preview .text-slate-200,
+.whatsapp-chat-reply-preview .text-slate-400 {
+  color: #d1d7db !important;
+}
+
+.whatsapp-chat-reply-preview .text-emerald-700,
+.whatsapp-chat-reply-preview .text-emerald-400 {
+  color: #00a884 !important;
+}
+
+.whatsapp-chat-input {
+  color: #e9edef !important;
+  background-color: #202c33 !important;
+  border-color: #2a3942 !important;
+}
+
+.whatsapp-chat-input::placeholder {
+  color: #8696a0 !important;
+}
+
 .phone-dark .agreement-table-panel {
   border-color: #45474a !important;
   background: linear-gradient(145deg, #2b2c2e 0%, #242526 58%, #222325 100%) !important;

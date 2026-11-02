@@ -5,6 +5,7 @@ import {
   Building2, StickyNote
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
 import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
@@ -29,6 +30,16 @@ interface Stats {
   monthlyIncome: { month: string; amount: number }[];
   paymentStatusCounts: { status: string; count: number }[];
 }
+
+const EMPTY_STATS: Stats = {
+  totalHouses: 0, occupiedHouses: 0, vacantHouses: 0, maintenanceHouses: 0,
+  totalTenants: 0, totalFamilyMembers: 0, monthlyExpectedRent: 0,
+  monthlyCollected: 0, outstandingRent: 0, invoicesToCreate: 0, unpaidInvoices: 0, visitorsToday: 0,
+  recentPayments: [], recentVisitors: [], recentMaintenance: [],
+  monthlyIncome: [], paymentStatusCounts: [],
+};
+
+const dashboardStatsCache = new Map<string, Stats>();
 
 function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, moneyAmount, outstanding = false }: {
   icon: any; title: string; label: string; value: string | number; sub?: string; onClick?: () => void;
@@ -303,48 +314,92 @@ const statusColors: Record<string, string> = {
 const panelClass = 'bg-white border border-slate-200 rounded-2xl';
 
 export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string) => void }) {
+  const { profile } = useAuth();
   const { t, fmt, language } = useTheme();
+  const profileId = profile?.id ?? '';
   const [pendingRegistrationCount, setPendingRegistrationCount] = useState(0);
   const [pendingRegistrationError, setPendingRegistrationError] = useState<string | null>(null);
-  const [stats, setStats] = useState<Stats>({
-    totalHouses: 0, occupiedHouses: 0, vacantHouses: 0, maintenanceHouses: 0,
-    totalTenants: 0, totalFamilyMembers: 0, monthlyExpectedRent: 0,
-    monthlyCollected: 0, outstandingRent: 0, invoicesToCreate: 0, unpaidInvoices: 0, visitorsToday: 0,
-    recentPayments: [], recentVisitors: [], recentMaintenance: [],
-    monthlyIncome: [], paymentStatusCounts: [],
-  });
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<Stats>(() => dashboardStatsCache.get(profileId) ?? EMPTY_STATS);
+  const [loading, setLoading] = useState(() => !dashboardStatsCache.has(profileId));
 
   useEffect(() => {
+    if (!profileId) return;
+    let cancelled = false;
+    let refreshTimer: number | undefined;
+    let requestId = 0;
+
+    setStats(dashboardStatsCache.get(profileId) ?? EMPTY_STATS);
+    setLoading(!dashboardStatsCache.has(profileId));
+
     async function load() {
+      const currentRequestId = ++requestId;
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
 
-      const [houses, tenants, family, payments, visitors, maintenance, invoiceBalances, utilityPayments, activeLeases] = await Promise.all([
+      const [houses, activeTenantCount, family, recentPayments, visitors, maintenance, maintenanceCount, visitorsTodayCount] = await Promise.all([
         supabase.from('houses').select('id, status, monthly_rent'),
-        supabase.from('tenants').select('id, status, house_id, move_in_date, move_out_date'),
-        supabase.from('tenant_family').select('id'),
-        supabase.from('payments').select('id, amount_paid, rent_paid_amount, amount_due, status, rent_month, tenants(full_name), houses(house_number), payment_date, receipt_number').order('created_at', { ascending: false }).limit(50),
+        supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('tenant_family').select('id', { count: 'exact', head: true }),
+        supabase.from('payments').select('id, status, tenants(full_name), houses(house_number), receipt_number').order('created_at', { ascending: false }).limit(5),
         supabase.from('visitors').select('id, visitor_name, purpose, time_in, status, houses(house_number)').order('time_in', { ascending: false }).limit(5),
-        supabase.from('maintenance_requests').select('id, title, priority, status, tenants(full_name), houses(house_number), created_at').order('created_at', { ascending: false }),
-        supabase.from('utility_invoices').select('id, tenant_id, rent_month, rent_balance, water_amount, electricity_amount'),
+        supabase.from('maintenance_requests').select('id, title, priority, status, tenants(full_name), houses(house_number), created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('maintenance_requests').select('id', { count: 'exact', head: true }).neq('status', 'completed').neq('status', 'rejected'),
+        supabase.from('visitors').select('id', { count: 'exact', head: true }).gte('time_in', todayStart.toISOString()),
+      ]);
+
+      if (cancelled || currentRequestId !== requestId) return;
+      const summaryErrors = [
+        houses.error, activeTenantCount.error, family.error, recentPayments.error, visitors.error,
+        maintenance.error, maintenanceCount.error, visitorsTodayCount.error,
+      ].filter((error): error is NonNullable<typeof error> => error !== null);
+      if (summaryErrors.length) {
+        console.error('Unable to load all admin dashboard summary data:', summaryErrors.map(error => error.message).join('; '));
+      }
+      const houseData = houses.data ?? [];
+      const occupied = houseData.filter(h => h.status === 'occupied').length;
+      const vacant = houseData.filter(h => h.status === 'vacant').length;
+      const monthlyExpectedRent = houseData
+        .filter(h => h.status === 'occupied')
+        .reduce((sum, house) => sum + Number(house.monthly_rent), 0);
+      setStats(previous => {
+        const next = {
+          ...previous,
+          totalHouses: houseData.length,
+          occupiedHouses: occupied,
+          vacantHouses: vacant,
+          maintenanceHouses: maintenanceCount.count ?? 0,
+          totalTenants: activeTenantCount.count ?? 0,
+          totalFamilyMembers: family.count ?? 0,
+          monthlyExpectedRent,
+          visitorsToday: visitorsTodayCount.count ?? 0,
+          recentPayments: recentPayments.data ?? [],
+          recentVisitors: visitors.data ?? [],
+          recentMaintenance: maintenance.data ?? [],
+        };
+        dashboardStatsCache.set(profileId, next);
+        return next;
+      });
+      setLoading(false);
+
+      const [tenants, payments, invoiceBalances, utilityPayments, activeLeases] = await Promise.all([
+        supabase.from('tenants').select('id, house_id, move_in_date, move_out_date').eq('status', 'active'),
+        supabase.from('payments').select('id, amount_paid, rent_paid_amount, amount_due, status, rent_month, tenants(full_name), houses(house_number), payment_date, receipt_number').order('created_at', { ascending: false }).limit(50),
+        supabase.from('utility_invoices').select('id, tenant_id, rent_month, rent_balance, water_amount, electricity_amount').or('rent_balance.gt.0,water_amount.gt.0,electricity_amount.gt.0'),
         supabase.from('payments').select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount'),
         supabase.from('rental_agreements').select('tenant_id, lease_start_date, lease_end_date').eq('status', 'active'),
       ]);
 
+      if (cancelled || currentRequestId !== requestId) return;
       if (invoiceBalances.error || utilityPayments.error) {
         console.error('Unable to load outstanding invoice balance:', invoiceBalances.error?.message ?? utilityPayments.error?.message);
       }
-      if (activeLeases.error) {
-        console.error('Unable to load active leases for invoice reminders:', activeLeases.error.message);
+      if (activeLeases.error || tenants.error) {
+        console.error('Unable to load active tenant leases for invoice reminders:', activeLeases.error?.message ?? tenants.error?.message);
       }
-      const houseData = houses.data ?? [];
+      if (payments.error) {
+        console.error('Unable to load dashboard payment analytics:', payments.error.message);
+      }
       const tenantData = tenants.data ?? [];
       const paymentData = payments.data ?? [];
-
-      const occupied = houseData.filter(h => h.status === 'occupied').length;
-      const vacant = houseData.filter(h => h.status === 'vacant').length;
-      const maint = (maintenance.data ?? []).filter(m => m.status !== 'completed' && m.status !== 'rejected').length;
-      const activeTenants = tenantData.filter(t => t.status === 'active');
 
       // Current month in YYYY-MM format
       const currentMonth = new Date().toISOString().slice(0, 7);
@@ -366,15 +421,11 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       const invoicesToCreate = activeLeases.error
         ? 0
         : getTenantsDueForInvoice(
-            tenantData.filter(tenant => tenant.status === 'active'),
+            tenantData,
             invoiceBalances.data ?? [],
             activeLeases.data ?? [],
             new Date(),
           ).length;
-
-      const visitorsToday = (visitors.data ?? []).filter(v =>
-        new Date(v.time_in) >= todayStart
-      ).length;
 
       const monthlyMap: Record<string, number> = {};
       paymentData.forEach(p => {
@@ -394,35 +445,38 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       paymentData.forEach(p => { statusMap[p.status] = (statusMap[p.status] ?? 0) + 1; });
       const paymentStatusCounts = Object.entries(statusMap).map(([status, count]) => ({ status, count }));
 
-      setStats({
-        totalHouses: houseData.length,
-        occupiedHouses: occupied,
-        vacantHouses: vacant,
-        maintenanceHouses: maint,
-        totalTenants: activeTenants.length,
-        totalFamilyMembers: family.data?.length ?? 0,
-        monthlyExpectedRent: houseData.filter(h => h.status === 'occupied').reduce((s, h) => s + Number(h.monthly_rent), 0),
-        monthlyCollected: collected,
-        outstandingRent: outstanding,
-        invoicesToCreate,
-        unpaidInvoices: unpaidInvoiceCount,
-        visitorsToday,
-        recentPayments: paymentData.slice(0, 5),
-        recentVisitors: visitors.data ?? [],
-        recentMaintenance: maintenance.data ?? [],
-        monthlyIncome,
-        paymentStatusCounts,
+      setStats(previous => {
+        const next = {
+          ...previous,
+          monthlyCollected: collected,
+          outstandingRent: outstanding,
+          invoicesToCreate,
+          unpaidInvoices: unpaidInvoiceCount,
+          recentPayments: paymentData.slice(0, 5),
+          monthlyIncome,
+          paymentStatusCounts,
+        };
+        dashboardStatsCache.set(profileId, next);
+        return next;
       });
-      setLoading(false);
     }
     void load();
+    const scheduleLoad = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => { void load(); }, 250);
+    };
     const channel = supabase
       .channel('admin-dashboard-invoice-status')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'utility_invoices' }, () => { void load(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'utility_invoices' }, scheduleLoad)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, scheduleLoad)
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [language]);
+    return () => {
+      cancelled = true;
+      requestId += 1;
+      window.clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [language, profileId]);
 
   const loadPendingRegistrations = useCallback(async () => {
     const [{ data: profiles, error: profileError }, { data: tenants, error: tenantError }] = await Promise.all([
@@ -447,9 +501,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadPendingRegistrations)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tenants' }, loadPendingRegistrations)
       .subscribe();
-    const interval = window.setInterval(loadPendingRegistrations, 30_000);
     return () => {
-      window.clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [loadPendingRegistrations]);
