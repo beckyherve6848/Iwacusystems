@@ -361,6 +361,24 @@
     -webkit-backdrop-filter: none !important;
   }
 
+  .maintenance-request-button {
+    max-width: 100%;
+    background: #1f2937 !important;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14) !important;
+    transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  }
+
+  .maintenance-request-button:hover:not(:disabled) {
+    background: #334155 !important;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.18) !important;
+    transform: translateY(-1px);
+  }
+
+  .maintenance-request-button:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14) !important;
+  }
+
   .property-manager-card {
     overflow: hidden;
     border-color: rgba(148, 163, 184, 0.2) !important;
