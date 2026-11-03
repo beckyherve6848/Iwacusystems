@@ -111,23 +111,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
+    let active = true;
+    let authEventReceived = false;
+    const initializeSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (!active || authEventReceived) return;
+
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) await fetchProfile(session.user.id);
+      } catch (error) {
+        if (!active) return;
+        console.error('Unable to initialize the authentication session:', error);
+        if (!authEventReceived) {
+          setSession(null);
+          setUser(null);
+        }
+      } finally {
+        if (active) setLoading(false);
       }
-    });
+    };
+    void initializeSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      authEventReceived = true;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        (async () => {
-          await fetchProfile(session.user.id);
-        })();
+        void fetchProfile(session.user.id).catch(error => {
+          console.error('Unable to load the signed-in account profile:', error);
+        });
       } else {
         setProfile(null);
         setTenantRecord(null);
@@ -135,7 +150,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string, captchaToken?: string) => {

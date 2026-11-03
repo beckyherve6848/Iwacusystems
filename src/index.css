@@ -3311,12 +3311,28 @@
   color: #f0f2f5;
 }
 
-.phone-dashboard-collected {
+.dashboard-content .phone-dashboard-expected {
+  color: #0f172a;
+}
+
+.phone-dark .dashboard-content .phone-dashboard-expected {
+  color: #ffffff !important;
+}
+
+.dashboard-content .phone-dashboard-collected {
   color: #15803d !important;
 }
 
-.phone-dark .phone-dashboard-collected {
+.phone-dark .dashboard-content .phone-dashboard-collected {
   color: #4ade80 !important;
+}
+
+.dashboard-content .phone-dashboard-outstanding {
+  color: #dc2626 !important;
+}
+
+.phone-dark .dashboard-content .phone-dashboard-outstanding {
+  color: #f87171 !important;
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
@@ -3893,6 +3909,14 @@ body.phone-dark,
   box-shadow:
     0 12px 30px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.payment-status-unpaid-glow {
+  background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.045) 58%, transparent 100%);
+}
+
+.phone-dark .app-shell main .payment-status-unpaid-glow {
+  background: radial-gradient(ellipse at center, rgba(248, 113, 113, 0.18) 0%, rgba(248, 113, 113, 0.07) 58%, transparent 100%);
 }
 
 .phone-dark .app-shell main .dashboard-content .pending-registration-card,

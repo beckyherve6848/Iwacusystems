@@ -336,11 +336,52 @@ function PageLoadingFallback() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-        <PwaInstallPrompt />
-      </AuthProvider>
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+          <PwaInstallPrompt />
+        </AuthProvider>
+      </ThemeProvider>
+    </AppErrorBoundary>
   );
+}
+
+class AppErrorBoundary extends React.Component<React.PropsWithChildren, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('The application failed to render:', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      const isFrench = document.documentElement.lang.startsWith('fr');
+      return (
+        <main className="flex min-h-screen items-center justify-center bg-slate-50 px-5">
+          <section role="alert" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-lg">
+            <h1 className="text-lg font-semibold text-slate-900">
+              {isFrench ? 'La page n’a pas pu se charger' : 'This page could not load'}
+            </h1>
+            <p className="mt-2 text-sm text-slate-600">
+              {isFrench ? 'Rechargez la page pour réessayer.' : 'Reload the page to try again.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-5 rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+            >
+              {isFrench ? 'Recharger la page' : 'Reload page'}
+            </button>
+          </section>
+        </main>
+      );
+    }
+
+    return this.props.children;
+  }
 }

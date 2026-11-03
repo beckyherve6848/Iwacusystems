@@ -41,11 +41,11 @@ const EMPTY_STATS: Stats = {
 
 const dashboardStatsCache = new Map<string, Stats>();
 
-function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, moneyAmount, outstanding = false }: {
+function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, moneyAmount, amountTone }: {
   icon: any; title: string; label: string; value: string | number; sub?: string; onClick?: () => void;
   iconStyle: string;
   moneyAmount?: number;
-  outstanding?: boolean;
+  amountTone?: 'expected' | 'collected' | 'outstanding';
 }) {
   const isMoney = moneyAmount !== undefined;
   const moneySizeClass = moneyAmount !== undefined && moneyAmount >= 1_000_000_000
@@ -53,11 +53,7 @@ function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, mo
     : moneyAmount !== undefined && moneyAmount >= 100_000_000
       ? 'phone-dashboard-money-hundred-million'
       : '';
-  const moneyColorClass = outstanding
-    ? moneyAmount && moneyAmount > 0
-      ? 'phone-dashboard-outstanding-positive'
-      : 'phone-dashboard-outstanding-zero'
-    : 'phone-dashboard-collected';
+  const moneyColorClass = `phone-dashboard-${amountTone ?? 'expected'}`;
 
   return (
     <div
@@ -377,8 +373,9 @@ function LineChart({ data, noDataLabel, fmtCurrency }: { data: { month: string; 
 
 const statusColors: Record<string, string> = {
   paid: 'bg-emerald-500',
-  pending: 'bg-amber-500',
-  partial: 'bg-blue-500',
+  unpaid: 'bg-red-500',
+  partial: 'bg-slate-950',
+  pending: 'bg-red-500',
   overdue: 'bg-red-500',
   outstanding: 'bg-red-500',
 };
@@ -561,23 +558,28 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
     const [year, month] = paymentStatusMonth.split('-').map(Number);
     const startDate = `${paymentStatusMonth}-01`;
     const nextMonthDate = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
-    const statuses = ['paid', 'pending', 'partial', 'overdue'] as const;
-
     setPaymentStatusLoading(true);
     setPaymentStatusError(null);
     setStats(previous => ({ ...previous, paymentStatusCounts: [] }));
 
     async function loadPaymentStatus() {
-      const results = await Promise.all(statuses.map(status =>
+      const [payments, invoices, utilityPayments] = await Promise.all([
         supabase.from('payments')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', status)
+          .select('id, tenant_id, rent_month, status')
           .gte('rent_month', startDate)
-          .lt('rent_month', nextMonthDate)
-      ));
+          .lt('rent_month', nextMonthDate),
+        supabase.from('utility_invoices')
+          .select('id, tenant_id, rent_month, rent_balance, water_amount, electricity_amount')
+          .gte('rent_month', startDate)
+          .lt('rent_month', nextMonthDate),
+        supabase.from('payments')
+          .select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount')
+          .gte('rent_month', startDate)
+          .lt('rent_month', nextMonthDate),
+      ]);
 
       if (cancelled) return;
-      const failedResult = results.find(result => result.error);
+      const failedResult = [payments, invoices, utilityPayments].find(result => result.error);
       if (failedResult?.error) {
         console.error('Unable to load monthly payment status counts:', failedResult.error.message);
         setPaymentStatusError(failedResult.error.message);
@@ -585,9 +587,21 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         return;
       }
 
-      const paymentStatusCounts = statuses
-        .map((status, index) => ({ status, count: results[index].count ?? 0 }))
-        .filter(item => item.count > 0);
+      const outstandingByInvoice = calculateInvoiceChargeBalances(invoices.data ?? [], utilityPayments.data ?? []);
+      const unpaidBillingPeriods = new Set(
+        (invoices.data ?? [])
+          .filter(invoice => (outstandingByInvoice.get(invoice.id)?.total_balance_due ?? 0) > 0)
+          .map(invoice => `${invoice.tenant_id}:${invoice.rent_month.slice(0, 7)}`),
+      );
+      (payments.data ?? [])
+        .filter(payment => payment.status === 'pending' || payment.status === 'overdue')
+        .forEach(payment => unpaidBillingPeriods.add(`${payment.tenant_id}:${payment.rent_month.slice(0, 7)}`));
+
+      const paymentStatusCounts = [
+        { status: 'paid', count: (payments.data ?? []).filter(payment => payment.status === 'paid').length },
+        { status: 'unpaid', count: unpaidBillingPeriods.size },
+        { status: 'partial', count: (payments.data ?? []).filter(payment => payment.status === 'partial').length },
+      ];
       setStats(previous => {
         const next = { ...previous, paymentStatusCounts };
         dashboardStatsCache.set(profileId, next);
@@ -715,9 +729,9 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         <StatCard icon={Home} title={t('houses')} label={t('vacant')} value={stats.vacantHouses} iconStyle="bg-amber-50 text-amber-700" onClick={() => onNavigate('houses')} />
         <StatCard icon={Wrench} title={t('maintenance')} label={t('maintenanceHouses')} value={stats.maintenanceHouses} iconStyle="bg-red-50 text-red-700" onClick={() => onNavigate('maintenance')} />
         <StatCard icon={Users} title={t('tenants')} label={t('activeTenants')} value={stats.totalTenants} sub={`${stats.totalFamilyMembers} ${t('familyMembers')}`} iconStyle="bg-violet-50 text-violet-700" onClick={() => onNavigate('tenants')} />
-        <StatCard icon={Wallet} title={t('payments')} label={t('expectedRent')} value={fmt(stats.monthlyExpectedRent)} moneyAmount={stats.monthlyExpectedRent} iconStyle="bg-sky-50 text-sky-700" onClick={() => onNavigate('payments')} />
-        <StatCard icon={TrendingUp} title={t('payments')} label={t('collected')} value={fmt(stats.monthlyCollected)} moneyAmount={stats.monthlyCollected} iconStyle="bg-green-50 text-green-700" onClick={() => onNavigate('payments')} />
-        <StatCard icon={AlertCircle} title={t('payments')} label={t('outstanding')} value={fmt(stats.outstandingRent)} moneyAmount={stats.outstandingRent} outstanding iconStyle="bg-red-50 text-red-700" onClick={() => onNavigate('payments')} />
+        <StatCard icon={Wallet} title={t('payments')} label={t('expectedRent')} value={fmt(stats.monthlyExpectedRent)} moneyAmount={stats.monthlyExpectedRent} amountTone="expected" iconStyle="bg-sky-50 text-sky-700" onClick={() => onNavigate('payments')} />
+        <StatCard icon={TrendingUp} title={t('payments')} label={t('collected')} value={fmt(stats.monthlyCollected)} moneyAmount={stats.monthlyCollected} amountTone="collected" iconStyle="bg-green-50 text-green-700" onClick={() => onNavigate('payments')} />
+        <StatCard icon={AlertCircle} title={t('payments')} label={t('outstanding')} value={fmt(stats.outstandingRent)} moneyAmount={stats.outstandingRent} amountTone="outstanding" iconStyle="bg-red-50 text-red-700" onClick={() => onNavigate('invoices')} />
         <StatCard
           icon={StickyNote}
           title={t('invoices')}
@@ -777,18 +791,18 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
               <div className="space-y-3">
                 {stats.paymentStatusCounts.map(({ status, count }) => {
                   const total = stats.paymentStatusCounts.reduce((s, x) => s + x.count, 0);
-                  const pct = Math.round((count / total) * 100);
+                  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
                   return (
-                    <div key={status}>
+                    <div key={status} className={status === 'unpaid' ? 'payment-status-unpaid-glow rounded-xl px-2 py-1 -mx-2' : undefined}>
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
-                          <div className={`h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm ${statusColors[status] ?? 'bg-slate-400'}`} />
-                          <span className="text-sm capitalize text-slate-700">{t(status)}</span>
+                          <div className={`h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm ${statusColors[status] ?? 'bg-slate-400'} ${status === 'unpaid' ? 'shadow-red-500/40' : ''}`} />
+                          <span className="text-sm capitalize text-slate-700">{status === 'unpaid' ? t('unpaid') : t(status)}</span>
                         </div>
                         <span className="text-sm font-semibold text-slate-900">{count}</span>
                       </div>
-                      <div className="h-1.5 rounded-full overflow-hidden bg-slate-100">
-                        <div className={`h-full rounded-full ${statusColors[status] ?? 'bg-slate-400'}`} style={{ width: `${pct}%` }} />
+                      <div className={`h-1.5 rounded-full overflow-hidden ${status === 'unpaid' ? 'bg-red-100/70' : 'bg-slate-100'}`}>
+                        <div className={`h-full rounded-full ${statusColors[status] ?? 'bg-slate-400'} ${status === 'unpaid' ? 'shadow-[0_0_10px_rgba(239,68,68,0.65)]' : ''}`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );

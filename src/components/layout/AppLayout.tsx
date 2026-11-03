@@ -118,8 +118,8 @@ export default function AppLayout({ currentPage, onNavigate, onPrefetch, childre
               <WifiOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
                 {language === 'fr'
-                  ? 'Vous êtes hors ligne. Les données enregistrées sont affichées si disponibles. Les modifications sont désactivées jusqu’au rétablissement de la connexion ; certaines données n’ont peut-être pas encore été mises en cache. Les photos et documents ne sont pas disponibles hors ligne.'
-                  : 'You are offline. Showing saved data where available. Changes are disabled until you reconnect; some records may not have been cached yet. Photos and documents are unavailable offline.'}
+                  ? 'Vous êtes hors ligne. Vérifiez votre connexion Internet.'
+                  : 'You are offline. Check your internet connection.'}
               </span>
             </div>
           )}
