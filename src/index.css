@@ -87,6 +87,10 @@
     background-color: #000000 !important;
   }
 
+  html.auth-screen {
+    color-scheme: dark;
+  }
+
   .app-sidebar {
     background: #000000;
   }

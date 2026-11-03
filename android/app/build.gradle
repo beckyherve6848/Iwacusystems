@@ -28,10 +28,10 @@ def twaManifest = [
     launcherName: 'Iwacusystem', // The name shown on the Android Launcher.
     themeColor: '#e2e8f0', // The color used for the status bar.
     themeColorDark: '#242526', // The color used for the dark status bar.
-    navigationColor: '#18191a', // The color used for the navigation bar.
-    navigationColorDark: '#18191a', // The color used for the dark navbar.
-    navigationDividerColor: '#18191a', // The navbar divider color.
-    navigationDividerColorDark: '#18191a', // The dark navbar divider color.
+    navigationColor: '#000000', // The color used for the navigation bar.
+    navigationColorDark: '#000000', // The color used for the dark navbar.
+    navigationDividerColor: '#000000', // The navbar divider color.
+    navigationDividerColorDark: '#000000', // The dark navbar divider color.
     backgroundColor: '#18191a', // The color used for the splash screen background.
     enableNotifications: true, // Set to true to enable notification delegation.
     // Every shortcut must include the following fields:

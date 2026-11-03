@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
-import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp, ChevronDown, LockKeyhole } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import 'flag-icons/css/flag-icons.min.css';
 import type { CountryCode } from 'libphonenumber-js';
@@ -251,9 +251,9 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   };
 
   const stats = [
-    { icon: Home, label: language === 'fr' ? 'Maisons gérées' : 'Houses Managed', value: '100+' },
-    { icon: Users, label: language === 'fr' ? 'Locataires actifs' : 'Active Tenants', value: '500+' },
-    { icon: TrendingUp, label: language === 'fr' ? 'Paiements suivis' : 'Payments Tracked', value: '10K+' },
+    { icon: Home, label: language === 'fr' ? 'Gestion des maisons' : 'House Managing', value: '100K+' },
+    { icon: Users, label: language === 'fr' ? 'Locataires actifs' : 'Active Tenants', value: '500K+' },
+    { icon: TrendingUp, label: language === 'fr' ? 'Paiements suivis' : 'Payments Tracked', value: '1B+' },
   ];
 
   if (forgotPasswordOpen) {
@@ -267,8 +267,8 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               <p className="text-xs text-white/50">{t('propertyPlatform')}</p>
             </div>
           </div>
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-red-500 bg-amber-400/10 text-amber-300 shadow-[0_0_14px_rgba(239,68,68,0.2)]">
-            <Mail className="h-6 w-6" aria-hidden="true" />
+          <div className="mb-5 flex h-12 w-12 items-center justify-center text-red-500">
+            <LockKeyhole className="h-8 w-8" strokeWidth={2.2} aria-hidden="true" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">
             {language === 'fr' ? 'Aide pour le mot de passe' : 'Password help'}
@@ -290,7 +290,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               setForgotPasswordOpen(false);
               setError('');
             }}
-            className="mt-7 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+            className="mt-7 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-600 active:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             {language === 'fr' ? 'Retour à la connexion' : 'Back to sign in'}
