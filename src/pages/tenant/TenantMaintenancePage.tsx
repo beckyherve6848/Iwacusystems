@@ -150,7 +150,7 @@ export default function TenantMaintenancePage() {
               </span>
             </div>
           )}
-          <Button size="sm" className="maintenance-request-button w-full max-w-[18rem] self-start whitespace-normal text-center leading-tight sm:w-auto" icon={<Plus className="h-4 w-4 shrink-0" />} onClick={() => setRequestModalOpen(true)} disabled={!tenantId}>
+          <Button className="maintenance-request-button h-[38px] w-auto self-start whitespace-nowrap rounded-xl" icon={<Plus className="h-4 w-4 shrink-0" />} onClick={() => setRequestModalOpen(true)} disabled={!tenantId}>
             {t('maintenanceRequest')}
           </Button>
         </div>
