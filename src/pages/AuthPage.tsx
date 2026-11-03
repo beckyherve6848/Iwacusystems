@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +36,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const [confirmPasswordInputEnabled, setConfirmPasswordInputEnabled] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const [isPhoneViewport, setIsPhoneViewport] = useState(() => window.matchMedia('(max-width: 767px)').matches);
   const formRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
@@ -44,6 +45,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
+
+  useEffect(() => {
+    const viewport = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => setIsPhoneViewport(viewport.matches);
+    viewport.addEventListener('change', updateViewport);
+    return () => viewport.removeEventListener('change', updateViewport);
+  }, []);
 
   const getAuthErrorMessage = (message: string) => {
     const normalized = message.toLowerCase();
@@ -268,7 +276,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
       {/* Full-screen background */}
       <div className="min-h-screen min-h-[100dvh] relative overflow-x-clip lg:overflow-hidden" style={{ background: '#000000' }}>
-        {loginBackgroundUrl && !bgFailed && (
+        {!isPhoneViewport && loginBackgroundUrl && !bgFailed && (
           <img
             src={loginBackgroundUrl}
             alt=""
@@ -302,12 +310,14 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               boxShadow: '0 30px 100px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)',
             }}
           >
-            <img
-              src={loginFamilyImageUrl && !familyImageFailed ? loginFamilyImageUrl : '/Bck.png'}
-              alt="Happy family under a home roof"
-              className="absolute inset-0 w-full h-full object-contain object-bottom opacity-70"
-              onError={() => setFamilyImageFailed(true)}
-            />
+            {!isPhoneViewport && (
+              <img
+                src={loginFamilyImageUrl && !familyImageFailed ? loginFamilyImageUrl : '/Bck.png'}
+                alt="Happy family under a home roof"
+                className="absolute inset-0 w-full h-full object-contain object-bottom opacity-70"
+                onError={() => setFamilyImageFailed(true)}
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0b] via-[#0b0b0b]/75 to-[#0b0b0b]/35" />
             <div className="glass-reflection" />
 
@@ -407,7 +417,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
             <motion.div
               ref={formRef}
-              layout="size"
+              layout={isPhoneViewport ? false : 'size'}
               transition={{ layout: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
               className="auth-form-card relative z-10 flex-1 flex flex-col p-5 sm:p-6 xl:p-10 pt-6 sm:pt-9 lg:pt-16"
             >
@@ -476,7 +486,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
 
               {/* Form */}
               <motion.form
-                layout="size"
+                layout={isPhoneViewport ? false : 'size'}
                 transition={{ layout: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
                 onSubmit={handleSubmit}
                 autoComplete="off"
@@ -486,7 +496,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   {mode === 'register' && (
                     <motion.div
                       key="full-name"
-                      layout
+                      layout={!isPhoneViewport}
                       initial={{ opacity: 0, height: 0, y: -6 }}
                       animate={{ opacity: 1, height: 'auto', y: 0 }}
                       exit={{ opacity: 0, height: 0, y: -6 }}
@@ -497,14 +507,14 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <motion.div layout>
+                <motion.div layout={!isPhoneViewport}>
                   <Input label={t('email')} labelClassName="text-white/60 font-medium" type="email" placeholder={language === 'fr' ? 'Entrez votre e-mail' : 'Enter email'} value={form.email} onChange={set('email')} icon={<Mail className="w-4 h-4" />} autoComplete="off" readOnly={!emailInputEnabled} onFocus={() => setEmailInputEnabled(true)} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                 </motion.div>
                 <AnimatePresence initial={false}>
                   {mode === 'register' && (
                     <motion.div
                       key="phone"
-                      layout
+                      layout={!isPhoneViewport}
                       initial={{ opacity: 0, height: 0, y: -6 }}
                       animate={{ opacity: 1, height: 'auto', y: 0 }}
                       exit={{ opacity: 0, height: 0, y: -6 }}
@@ -515,7 +525,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <motion.div layout className="relative">
+                <motion.div layout={!isPhoneViewport} className="relative">
                   <Input label={t('password')} labelClassName="text-white/60 font-medium" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Votre mot de passe' : 'Enter your password'} value={form.password} onChange={set('password')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!passwordInputEnabled} onFocus={() => setPasswordInputEnabled(true)} minLength={mode === 'register' ? 8 : undefined} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                   <button
                     type="button"
@@ -533,7 +543,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   {mode === 'register' && (
                     <motion.div
                       key="confirm-password"
-                      layout
+                      layout={!isPhoneViewport}
                       initial={{ opacity: 0, height: 0, y: -6 }}
                       animate={{ opacity: 1, height: 'auto', y: 0 }}
                       exit={{ opacity: 0, height: 0, y: -6 }}
