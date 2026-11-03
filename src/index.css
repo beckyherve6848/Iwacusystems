@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Keep row and section separators visible across every application page. */
+.app-shell main [class*="divide-y"] > :not([hidden]) ~ :not([hidden]) {
+  border-top-color: #cbd5e1;
+}
+
+.app-shell main [class~="border-b"] {
+  border-bottom-color: #cbd5e1;
+}
+
+.app-shell main [class~="border-t"] {
+  border-top-color: #cbd5e1;
+}
+
+.phone-dark .app-shell main [class*="divide-y"] > :not([hidden]) ~ :not([hidden]) {
+  border-top-color: #62666c !important;
+}
+
+.phone-dark .app-shell main [class~="border-b"] {
+  border-bottom-color: #62666c !important;
+}
+
+.phone-dark .app-shell main [class~="border-t"] {
+  border-top-color: #62666c !important;
+}
+
 @layer base {
   html {
     color-scheme: light;
