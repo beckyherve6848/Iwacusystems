@@ -130,16 +130,16 @@ export default function TenantMaintenancePage() {
     <div className="space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="break-words text-xl font-bold text-slate-900 sm:text-2xl">
             {t('tenantMaintenanceTitle')}
           </h1>
-          <p className="text-slate-500 text-sm mt-0.5">
+          <p className="mt-0.5 break-words text-sm text-slate-500">
             {t('tenantMaintenanceDescription')}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:shrink-0 sm:flex-row sm:items-center">
           {activeRequests.length > 0 && (
             <div className="flex items-center gap-2 rounded-xl px-3 py-2"
               style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)' }}>
@@ -150,7 +150,7 @@ export default function TenantMaintenancePage() {
               </span>
             </div>
           )}
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setRequestModalOpen(true)} disabled={!tenantId}>
+          <Button className="w-full whitespace-normal text-center leading-tight sm:w-auto" icon={<Plus className="h-4 w-4 shrink-0" />} onClick={() => setRequestModalOpen(true)} disabled={!tenantId}>
             {t('maintenanceRequest')}
           </Button>
         </div>
@@ -187,7 +187,7 @@ export default function TenantMaintenancePage() {
 
       {/* Empty state */}
       {!loading && displayed.length === 0 && (
-        <div className="dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
+        <div className="dark-theme-surface rounded-2xl p-6 text-center sm:p-12" style={panelStyle}>
           <Wrench className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-500">
             {filter === 'active' ? t('noActiveMaintenanceRequests') : t('tenantNoMaintenanceRequests')}
