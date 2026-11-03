@@ -74,7 +74,7 @@ function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, mo
               ? 'phone-stat-icon-outstanding h-9 w-9 shrink-0 rounded-full bg-transparent p-0 sm:h-10 sm:w-10'
               : `h-9 w-9 shrink-0 rounded-full sm:h-10 sm:w-10 ${iconStyle}`
           }`}>
-            <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${amountTone === 'outstanding' || iconOnly ? 'text-[#ff0000]' : ''}`} strokeWidth={1.75} />
+            <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${amountTone === 'outstanding' || iconOnly ? 'text-amber-700' : ''}`} strokeWidth={1.75} />
           </div>
           <span className="phone-stat-title block truncate text-xs font-semibold text-slate-500 md:hidden">{title}</span>
         </div>
@@ -88,7 +88,7 @@ function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, mo
           </>
         ) : value}
       </p>
-      <p className="phone-stat-description min-w-0 border-l border-[#ff0000] pl-2 text-xs italic leading-5 text-slate-500 md:hidden">
+      <p className="phone-stat-description min-w-0 border-l border-amber-600 pl-2 text-xs italic leading-5 text-slate-500 md:hidden">
         <span className="block">{label}</span>
         {sub && <span className="block text-slate-400">{sub}</span>}
       </p>

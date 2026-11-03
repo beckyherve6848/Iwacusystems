@@ -28,7 +28,7 @@ export default function InvoiceDocument({
   });
 
   return (
-    <article id={id} className="invoice-document rounded-2xl bg-white p-6 text-slate-900 sm:p-9">
+    <article id={id} className="invoice-document rounded-2xl bg-white p-4 text-slate-900 sm:p-9">
       <header className="invoice-header flex items-start justify-between gap-5 border-b-2 border-red-600 pb-6">
         <div className="flex min-w-0 items-center gap-4">
           <img src={appLogoUrl} alt={`${appName} logo`} className="h-16 w-16 shrink-0 object-contain" />

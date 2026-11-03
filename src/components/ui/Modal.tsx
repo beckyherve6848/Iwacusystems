@@ -20,7 +20,7 @@ const sizes = {
 export default function Modal({ open, onClose, title, children, size = 'md', className = '' }: ModalProps) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
         className={`app-modal relative w-full ${sizes[size]} flex flex-col max-h-[90vh] animate-fade-up ${className}`}

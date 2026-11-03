@@ -1,10 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp, ChevronDown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import 'flag-icons/css/flag-icons.min.css';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import Input from '@/components/ui/Input';
 import TurnstileCaptcha from '@/components/auth/TurnstileCaptcha';
+import { getPhoneCountryOptions, normalizePhoneNumber } from '@/lib/phone';
 
 const authInputStyle: React.CSSProperties = {
   background: '#ffffff',
@@ -38,8 +41,16 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const [captchaVisible, setCaptchaVisible] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const [callingCode, setCallingCode] = useState('+257');
+  const [selectedCountryCode, setSelectedCountryCode] = useState('BI');
+  const [countryCodeOpen, setCountryCodeOpen] = useState(false);
+  const [countryMenuPosition, setCountryMenuPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 256 });
   const [isPhoneViewport, setIsPhoneViewport] = useState(() => window.matchMedia('(max-width: 767px)').matches);
   const formRef = useRef<HTMLDivElement>(null);
+  const callingCodePickerRef = useRef<HTMLDivElement>(null);
+  const countryMenuRef = useRef<HTMLDivElement>(null);
+  const phoneCountryOptions = useMemo(() => getPhoneCountryOptions(language), [language]);
+  const selectedPhoneCountry = phoneCountryOptions.find(option => option.countryCode === selectedCountryCode);
 
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '',
@@ -48,12 +59,61 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const updateCountryMenuPosition = useCallback(() => {
+    const trigger = callingCodePickerRef.current?.querySelector('button');
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+    const viewportTop = window.visualViewport?.offsetTop ?? 0;
+    const maxHeight = Math.max(120, Math.min(256, viewportHeight - 24));
+    const below = viewportTop + viewportHeight - rect.bottom - 8;
+    const above = rect.top - viewportTop - 8;
+    const openAbove = below < Math.min(200, maxHeight) && above > below;
+    const availableHeight = Math.max(120, Math.min(maxHeight, openAbove ? above : below));
+    const width = Math.min(Math.max(rect.width, 280), viewportWidth - 24);
+    const left = Math.max(12, Math.min(rect.left, viewportWidth - width - 12));
+    setCountryMenuPosition({
+      top: openAbove ? Math.max(viewportTop + 8, rect.top - availableHeight - 8) : rect.bottom + 8,
+      left,
+      width,
+      maxHeight: availableHeight,
+    });
+  }, []);
+
   useEffect(() => {
     const viewport = window.matchMedia('(max-width: 767px)');
     const updateViewport = () => setIsPhoneViewport(viewport.matches);
     viewport.addEventListener('change', updateViewport);
     return () => viewport.removeEventListener('change', updateViewport);
   }, []);
+
+  useEffect(() => {
+    if (!countryCodeOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!callingCodePickerRef.current?.contains(target) && !countryMenuRef.current?.contains(target)) {
+        setCountryCodeOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCountryCodeOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', updateCountryMenuPosition);
+    window.addEventListener('scroll', updateCountryMenuPosition, true);
+    window.visualViewport?.addEventListener('resize', updateCountryMenuPosition);
+    window.visualViewport?.addEventListener('scroll', updateCountryMenuPosition);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', updateCountryMenuPosition);
+      window.removeEventListener('scroll', updateCountryMenuPosition, true);
+      window.visualViewport?.removeEventListener('resize', updateCountryMenuPosition);
+      window.visualViewport?.removeEventListener('scroll', updateCountryMenuPosition);
+    };
+  }, [countryCodeOpen, updateCountryMenuPosition]);
 
   const getAuthErrorMessage = (message: string) => {
     const normalized = message.toLowerCase();
@@ -79,6 +139,20 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
       (mode === 'register' && (!form.firstName.trim() || !form.lastName.trim() || !form.phone.trim() || !form.confirmPassword))
     ) {
       setError(language === 'fr' ? 'Veuillez remplir tous les champs obligatoires.' : 'Please fill in all required fields.');
+      return;
+    }
+    const enteredPhone = form.phone.trim();
+    const enteredCallingCode = callingCode.match(/^\s*\+?(\d{1,3})/)?.[1] ?? '';
+    const internationalPhone = enteredPhone.startsWith('+') || enteredPhone.startsWith('00')
+      ? enteredPhone
+      : `+${enteredCallingCode}${enteredPhone.replace(/\D/g, '').replace(/^0+/, '')}`;
+    const normalizedPhone = mode === 'register' && /^\d{1,3}$/.test(enteredCallingCode)
+      ? normalizePhoneNumber(internationalPhone, enteredCallingCode) ?? ''
+      : '';
+    if (mode === 'register' && !normalizedPhone) {
+      setError(language === 'fr'
+        ? 'Saisissez un numéro valide avec l’indicatif du pays.'
+        : 'Enter a valid phone number with its country calling code.');
       return;
     }
     if (import.meta.env.PROD && !captchaSiteKey) {
@@ -127,7 +201,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
       }
       try {
         const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`;
-        const { error } = await signUp(form.email, form.password, fullName, form.phone, captchaToken ?? undefined);
+        const { error } = await signUp(form.email, form.password, fullName, normalizedPhone, captchaToken ?? undefined);
         if (error) setError(getAuthErrorMessage(error.message) || (language === 'fr' ? "Échec de l'inscription." : 'Registration failed.'));
         else {
           setMode('login');
@@ -300,7 +374,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
         }} />
 
         {/* Two-panel layout */}
-        <div className="auth-layout relative z-10 min-h-screen min-h-[100dvh] flex flex-col lg:flex-row items-center justify-center gap-6 p-3 sm:p-4 lg:p-10">
+        <div className="auth-layout relative z-10 min-h-screen min-h-[100dvh] flex flex-col lg:flex-row items-center justify-center gap-4 p-2 min-[400px]:gap-6 min-[400px]:p-3 sm:p-4 lg:p-10">
 
           {/* ─── LEFT PANEL: Branding (55%) ─── */}
           <div
@@ -423,7 +497,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               ref={formRef}
               layout={isPhoneViewport ? false : 'size'}
               transition={{ layout: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
-              className="auth-form-card relative z-10 flex-1 flex flex-col p-5 sm:p-6 xl:p-10 pt-6 sm:pt-9 lg:pt-16"
+              className="auth-form-card relative z-10 flex-1 flex flex-col p-3 min-[400px]:p-5 sm:p-6 xl:p-10 pt-5 min-[400px]:pt-6 sm:pt-9 lg:pt-16"
             >
 
               {/* Mobile logo */}
@@ -507,7 +581,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       transition={{ duration: 0.22, ease: 'easeInOut' }}
                       className="overflow-hidden"
                     >
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
                         <Input
                           label={language === 'fr' ? 'Prénom' : 'First name'}
                           labelClassName="text-white/90 font-semibold"
@@ -551,7 +625,97 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       transition={{ duration: 0.22, ease: 'easeInOut' }}
                       className="overflow-hidden"
                     >
-                      <Input label={t('phone')} labelClassName="text-white/90 font-semibold" type="tel" placeholder="+257 68 000 000" value={form.phone} onChange={set('phone')} icon={<Phone className="w-4 h-4" />} autoComplete="tel" maxLength={40} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                      <div className="space-y-1.5">
+                        <label htmlFor="registration-phone" className="block text-sm font-semibold text-white/90">
+                          {t('phone')}
+                        </label>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div ref={callingCodePickerRef} className="relative w-[6.75rem] shrink-0">
+                            <button
+                              type="button"
+                              aria-label={language === 'fr' ? 'Choisir un pays et son indicatif' : 'Choose country and calling code'}
+                              aria-expanded={countryCodeOpen}
+                              aria-haspopup="listbox"
+                              onClick={() => {
+                                if (countryCodeOpen) {
+                                  setCountryCodeOpen(false);
+                                } else {
+                                  updateCountryMenuPosition();
+                                  setCountryCodeOpen(true);
+                                }
+                              }}
+                              className="flex h-11 w-full min-w-0 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 text-left text-sm font-semibold text-slate-700 outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-green-600 sm:px-3"
+                            >
+                              {selectedPhoneCountry
+                                ? <span aria-hidden="true" className={`fi fi-${selectedPhoneCountry.countryCode.toLowerCase()} shrink-0`} />
+                                : <Globe className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                              <span className="shrink-0 tabular-nums text-slate-700">{callingCode}</span>
+                              <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                            </button>
+                            {countryCodeOpen && createPortal(
+                              <div
+                                ref={countryMenuRef}
+                                style={{
+                                  position: 'fixed',
+                                  top: countryMenuPosition.top,
+                                  left: countryMenuPosition.left,
+                                  width: countryMenuPosition.width,
+                                  maxHeight: countryMenuPosition.maxHeight,
+                                  zIndex: 10000,
+                                }}
+                                className="overflow-hidden rounded-xl border border-white/10 bg-[#171717] text-white shadow-xl"
+                              >
+                                <div role="listbox" aria-label={language === 'fr' ? 'Pays et indicatifs' : 'Countries and calling codes'} className="overflow-y-auto overscroll-contain p-1" style={{ maxHeight: countryMenuPosition.maxHeight }}>
+                                  {phoneCountryOptions.map(option => (
+                                    <button
+                                      key={`${option.countryCode}-${option.code}`}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={selectedCountryCode === option.countryCode}
+                                      onClick={() => {
+                                        setCallingCode(`+${option.code}`);
+                                        setSelectedCountryCode(option.countryCode);
+                                        setCountryCodeOpen(false);
+                                      }}
+                                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                                    >
+                                      <span className="flex w-6 shrink-0 justify-center" aria-hidden="true">
+                                        <span className={`fi fi-${option.countryCode.toLowerCase()}`} />
+                                      </span>
+                                      <span className="min-w-0 flex-1 truncate">{option.name}</span>
+                                      <span className="font-medium tabular-nums text-white/55">+{option.code}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>,
+                              document.body,
+                            )}
+                          </div>
+                          <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 focus-within:border-green-600 focus-within:ring-2 focus-within:ring-green-600/20 sm:gap-3 sm:px-3">
+                            <label htmlFor="registration-phone" className="sr-only">
+                              {language === 'fr' ? 'Numéro de téléphone' : 'Phone number'}
+                            </label>
+                            <Phone className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+                            <input
+                              id="registration-phone"
+                              type="tel"
+                              inputMode="tel"
+                              autoComplete="tel-national"
+                              placeholder="68 000 000"
+                              value={form.phone}
+                              onChange={event => setForm(current => ({ ...current, phone: event.target.value }))}
+                              maxLength={24}
+                              required
+                              className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-white/70">
+                          {language === 'fr'
+                            ? 'Sélectionnez votre pays pour ajouter automatiquement son indicatif.'
+                            : 'Select your country to add its calling code automatically.'}
+                        </p>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -676,7 +840,11 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                 >
                   {loading
                     ? <span className="flex items-center justify-center gap-2">
-                        <span className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                        <span className="flex items-center gap-1" aria-hidden="true">
+                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white [animation-delay:-0.3s]" />
+                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white [animation-delay:-0.15s]" />
+                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-white" />
+                        </span>
                         {language === 'fr' ? 'Chargement...' : 'Loading...'}
                       </span>
                     : (mode === 'login' ? t('signIn') : t('createAccount'))

@@ -1152,7 +1152,7 @@
   }
 
   .phone-dashboard-outstanding-positive {
-    color: #ff0000;
+    color: #b45309;
   }
 
   .phone-dark .phone-dashboard-outstanding-zero {
@@ -3387,18 +3387,22 @@
 }
 
 .dashboard-content .phone-dashboard-outstanding {
-  color: #ff0000 !important;
+  color: #b45309 !important;
 }
 
 .phone-dark .dashboard-content .phone-dashboard-outstanding {
-  color: #ff0000 !important;
+  color: #fbbf24 !important;
 }
 
 .dashboard-content .phone-stat-icon-outstanding {
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  color: #ff0000 !important;
+  color: #b45309 !important;
+}
+
+.phone-dark .dashboard-content .phone-stat-icon-outstanding {
+  color: #fbbf24 !important;
 }
 
 .phone-dark .app-shell main .dashboard-activity-header {
@@ -5340,6 +5344,63 @@ html:not(.phone-dark) .app-shell main .dark-theme-subtle-surface {
   .document-modal > .overflow-y-auto {
     min-height: 0;
     padding: 0.75rem !important;
+  }
+
+  .invoice-document-modal > .overflow-y-auto > .invoice-document {
+    padding: 0.875rem !important;
+  }
+
+  .invoice-document-modal .invoice-header {
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+  }
+
+  .invoice-document-modal .invoice-header img {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .invoice-document-modal .invoice-header > div:last-child > p:nth-child(2) {
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+  }
+
+  .invoice-document-modal .invoice-items th,
+  .invoice-document-modal .invoice-items td {
+    padding: 0.6rem 0.35rem !important;
+    font-size: 0.75rem;
+  }
+
+  .invoice-document-modal .invoice-items td:last-child,
+  .invoice-document-modal .invoice-items th:last-child {
+    white-space: nowrap;
+  }
+
+  .invoice-share-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .invoice-share-actions > * {
+    min-width: 0;
+    justify-content: center;
+    padding-left: 0.65rem !important;
+    padding-right: 0.65rem !important;
+  }
+
+  .invoice-document-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem !important;
+  }
+
+  .invoice-document-actions > * {
+    min-width: 0;
+    justify-content: center;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    font-size: 0.75rem !important;
+    white-space: normal;
   }
 
   #receipt-content {

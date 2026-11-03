@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import PrivateDocumentLink from '@/components/identity/PrivateDocumentLink';
 import StaffIdentityForm, { StaffHouse, StaffProperty } from '@/components/identity/StaffIdentityForm';
 import { hasExactImageDimensions, imageFileExtension, isPngOrJpeg } from '@/lib/identityFiles';
+import { normalizePhoneNumber } from '@/lib/phone';
 
 const PER_PAGE = 10;
 
@@ -264,13 +265,18 @@ export default function TenantsPage() {
     if (!form.full_name.trim() || !form.phone.trim() || !form.email.trim()) {
       addToast(text('Name, phone and email are required', 'Le nom, le téléphone et l’adresse e-mail sont obligatoires.'), 'error'); return;
     }
+    const phone = normalizePhoneNumber(form.phone, '257');
+    if (!phone) {
+      addToast(text('Enter a valid phone number with country code +257', 'Saisissez un numéro de téléphone valide avec l’indicatif +257.'), 'error');
+      return;
+    }
     setSaving(true);
     const previousHouseId = editingId
       ? tenants.find(tenant => tenant.id === editingId)?.house_id ?? null
       : null;
     let followUpError: string | null = null;
     const payload = {
-      full_name: form.full_name.trim(), phone: form.phone.trim(), email: form.email.trim(),
+      full_name: form.full_name.trim(), phone, email: form.email.trim(),
       gender: form.gender || null, national_id: form.national_id || null,
       house_id: form.house_id || null, move_in_date: form.move_in_date || null,
       move_out_date: form.move_out_date || null,
@@ -690,7 +696,7 @@ export default function TenantsPage() {
             <h3 className="tenant-edit-section-title text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{text('Personal Information', 'Informations personnelles')}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label={text('Full Name *', 'Nom complet *')} placeholder={text('Enter full name', 'Saisissez le nom complet')} value={form.full_name} onChange={set('full_name')} />
-              <Input label={text('Phone *', 'Téléphone *')} placeholder="+254 700 000 000" value={form.phone} onChange={set('phone')} />
+              <Input label={text('Phone *', 'Téléphone *')} placeholder="+257 68 000 000" value={form.phone} onChange={set('phone')} />
               <Input label={text('Email *', 'E-mail *')} type="email" placeholder="name@example.com" value={form.email} onChange={set('email')} />
               <Select label={text('Gender', 'Genre')} value={form.gender} onChange={set('gender')}>
                 <option value="">{text('Select gender', 'Sélectionner le genre')}</option>
@@ -852,7 +858,7 @@ export default function TenantsPage() {
             <h3 className="tenant-edit-section-title text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{text('Emergency Contact (Optional)', 'Contact d’urgence (facultatif)')}</h3>
             <div className="grid grid-cols-2 gap-4">
               <Input label={text('Contact Name', 'Nom du contact')} placeholder={text('Emergency contact full name', 'Nom complet du contact d’urgence')} value={form.emergency_contact_name} onChange={set('emergency_contact_name')} />
-              <Input label={text('Contact Phone', 'Téléphone du contact')} placeholder="+254 700 000 000" value={form.emergency_contact_phone} onChange={set('emergency_contact_phone')} />
+              <Input label={text('Contact Phone', 'Téléphone du contact')} placeholder="+257 68 000 000" value={form.emergency_contact_phone} onChange={set('emergency_contact_phone')} />
             </div>
           </div>
 

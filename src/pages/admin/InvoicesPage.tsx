@@ -14,6 +14,7 @@ import InvoiceDocument from '@/components/InvoiceDocument';
 import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
 import { getTenantsDueForInvoice } from '@/lib/invoiceDue';
+import { normalizePhoneNumber } from '@/lib/phone';
 
 type InvoiceForm = {
   tenant_id: string;
@@ -588,12 +589,12 @@ export default function InvoicesPage() {
         </div>
       </Modal>}
 
-      <Modal open={!!viewing} onClose={() => setViewing(null)} title={t('invoice')} size="lg">
+      <Modal open={!!viewing} onClose={() => setViewing(null)} title={t('invoice')} size="lg" className="document-modal invoice-document-modal">
         {viewing && <InvoiceDocument invoice={viewing} />}
         {viewing && canManageInvoices && (
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="invoice-share-actions mt-4 flex flex-wrap items-center gap-2">
             {(() => {
-              const phone = viewing.tenants?.phone?.replace(/\D/g, '');
+              const phone = normalizePhoneNumber(viewing.tenants?.phone ?? '', '257')?.slice(1);
               const message = createInvoiceMessage(viewing);
               const disabledLinkClasses = 'pointer-events-none opacity-50';
               const linkClasses = 'invoice-share-action inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold';
@@ -634,7 +635,7 @@ export default function InvoicesPage() {
             })()}
           </div>
         )}
-        <div className="mt-4 flex justify-end gap-3">
+        <div className="invoice-document-actions mt-4 flex justify-end gap-3">
           <Button className="document-close-button" variant="ghost" onClick={() => setViewing(null)}>{t('closeButton')}</Button>
           <Button className="document-print-button" icon={<Printer className="h-4 w-4" />} onClick={() => printDocument('invoice', 'invoice-print-document')}>{t('printSavePdf')}</Button>
         </div>
