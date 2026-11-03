@@ -3971,6 +3971,22 @@ body.phone-dark,
   outline-offset: 3px;
 }
 
+.invoice-cancel-button {
+  transition: color 160ms ease, box-shadow 160ms ease, transform 160ms ease !important;
+}
+
+.invoice-cancel-button:hover,
+.invoice-cancel-button:active {
+  background: transparent !important;
+  color: #b91c1c !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+}
+
+.invoice-cancel-button:active {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.26) !important;
+  transform: scale(0.97);
+}
+
 .phone-dark .app-shell main .app-modal.notification-compose-modal textarea {
   border-color: #cbd5e1 !important;
   background-color: #f1f5f9 !important;

@@ -439,7 +439,7 @@ export default function InvoicesPage() {
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
+          <Button className="invoice-cancel-button" variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
           <Button className="page-action-button" loading={saving} onClick={saveInvoice}>{t('saveInvoice')}</Button>
         </div>
       </Modal>}
