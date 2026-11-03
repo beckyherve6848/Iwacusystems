@@ -7,8 +7,9 @@ import Input from '@/components/ui/Input';
 import TurnstileCaptcha from '@/components/auth/TurnstileCaptcha';
 
 const authInputStyle: React.CSSProperties = {
-  background: '#e5e7eb',
+  background: '#ffffff',
   borderColor: '#cbd5e1',
+  color: '#111827',
 };
 
 interface AuthPageProps {
@@ -41,7 +42,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const formRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
-    fullName: '', email: '', phone: '', password: '', confirmPassword: '',
+    firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '',
   });
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -75,7 +76,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
     if (
       !form.email.trim() ||
       !form.password ||
-      (mode === 'register' && (!form.fullName.trim() || !form.phone.trim() || !form.confirmPassword))
+      (mode === 'register' && (!form.firstName.trim() || !form.lastName.trim() || !form.phone.trim() || !form.confirmPassword))
     ) {
       setError(language === 'fr' ? 'Veuillez remplir tous les champs obligatoires.' : 'Please fill in all required fields.');
       return;
@@ -125,7 +126,8 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
         setLoading(false); return;
       }
       try {
-        const { error } = await signUp(form.email, form.password, form.fullName, form.phone, captchaToken ?? undefined);
+        const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`;
+        const { error } = await signUp(form.email, form.password, fullName, form.phone, captchaToken ?? undefined);
         if (error) setError(getAuthErrorMessage(error.message) || (language === 'fr' ? "Échec de l'inscription." : 'Registration failed.'));
         else {
           setMode('login');
@@ -505,12 +507,38 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       transition={{ duration: 0.22, ease: 'easeInOut' }}
                       className="overflow-hidden"
                     >
-                      <Input label={t('fullName')} placeholder={language === 'fr' ? 'Votre nom complet' : 'Enter your full name'} value={form.fullName} onChange={set('fullName')} icon={<User className="w-4 h-4" />} autoComplete="off" maxLength={120} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                      <div className="grid grid-cols-2 gap-3">
+                        <Input
+                          label={language === 'fr' ? 'Prénom' : 'First name'}
+                          labelClassName="text-white/90 font-semibold"
+                          placeholder={language === 'fr' ? 'Votre prénom' : 'First name'}
+                          value={form.firstName}
+                          onChange={set('firstName')}
+                          icon={<User className="w-4 h-4" />}
+                          autoComplete="given-name"
+                          maxLength={60}
+                          required
+                          style={authInputStyle}
+                          wrapperClassName="input-glow rounded-xl transition-all"
+                        />
+                        <Input
+                          label={language === 'fr' ? 'Nom' : 'Last name'}
+                          labelClassName="text-white/90 font-semibold"
+                          placeholder={language === 'fr' ? 'Votre nom' : 'Last name'}
+                          value={form.lastName}
+                          onChange={set('lastName')}
+                          autoComplete="family-name"
+                          maxLength={60}
+                          required
+                          style={authInputStyle}
+                          wrapperClassName="input-glow rounded-xl transition-all"
+                        />
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
                 <motion.div layout={!isPhoneViewport}>
-                  <Input label={t('email')} labelClassName="text-white/60 font-medium" type="email" placeholder={language === 'fr' ? 'Entrez votre e-mail' : 'Enter email'} value={form.email} onChange={set('email')} icon={<Mail className="w-4 h-4" />} autoComplete="off" readOnly={!emailInputEnabled} onFocus={() => { setEmailInputEnabled(true); setCaptchaVisible(true); }} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                  <Input label={t('email')} labelClassName="text-white/90 font-semibold" type="email" placeholder={language === 'fr' ? 'Entrez votre e-mail' : 'Enter email'} value={form.email} onChange={set('email')} icon={<Mail className="w-4 h-4" />} autoComplete="off" readOnly={!emailInputEnabled} onFocus={() => { setEmailInputEnabled(true); setCaptchaVisible(true); }} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                 </motion.div>
                 <AnimatePresence initial={false}>
                   {mode === 'register' && (
@@ -523,12 +551,12 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       transition={{ duration: 0.22, ease: 'easeInOut' }}
                       className="overflow-hidden"
                     >
-                      <Input label={t('phone')} type="tel" placeholder="+257 68 000 000" value={form.phone} onChange={set('phone')} icon={<Phone className="w-4 h-4" />} autoComplete="tel" maxLength={40} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                      <Input label={t('phone')} labelClassName="text-white/90 font-semibold" type="tel" placeholder="+257 68 000 000" value={form.phone} onChange={set('phone')} icon={<Phone className="w-4 h-4" />} autoComplete="tel" maxLength={40} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                     </motion.div>
                   )}
                 </AnimatePresence>
                 <motion.div layout={!isPhoneViewport} className="relative">
-                  <Input label={t('password')} labelClassName="text-white/60 font-medium" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Votre mot de passe' : 'Enter your password'} value={form.password} onChange={set('password')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!passwordInputEnabled} onFocus={() => { setPasswordInputEnabled(true); setCaptchaVisible(true); }} minLength={mode === 'register' ? 8 : undefined} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                  <Input label={t('password')} labelClassName="text-white/90 font-semibold" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Votre mot de passe' : 'Enter your password'} value={form.password} onChange={set('password')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!passwordInputEnabled} onFocus={() => { setPasswordInputEnabled(true); setCaptchaVisible(true); }} minLength={mode === 'register' ? 8 : undefined} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                   <button
                     type="button"
                     onClick={() => setShowPass(s => !s)}
@@ -536,9 +564,9 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       ? language === 'fr' ? 'Masquer le mot de passe' : 'Hide password'
                       : language === 'fr' ? 'Afficher le mot de passe' : 'Show password'}
                     aria-pressed={showPass}
-                    className="absolute right-1 bottom-0.5 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                    className="absolute right-1 bottom-0.5 z-10 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-slate-100 text-slate-800 shadow-sm transition-colors hover:bg-slate-200 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700"
                   >
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPass ? <EyeOff className="h-5 w-5" strokeWidth={2.5} /> : <Eye className="h-5 w-5" strokeWidth={2.5} />}
                   </button>
                 </motion.div>
                 <AnimatePresence initial={false}>
@@ -552,7 +580,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       transition={{ duration: 0.22, ease: 'easeInOut' }}
                       className="relative overflow-hidden"
                     >
-                    <Input label={t('confirmPassword')} labelClassName="text-white/60 font-medium" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Confirmez votre mot de passe' : 'Confirm your password'} value={form.confirmPassword} onChange={set('confirmPassword')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!confirmPasswordInputEnabled} onFocus={() => setConfirmPasswordInputEnabled(true)} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                    <Input label={t('confirmPassword')} labelClassName="text-white/90 font-semibold" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Confirmez votre mot de passe' : 'Confirm your password'} value={form.confirmPassword} onChange={set('confirmPassword')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!confirmPasswordInputEnabled} onFocus={() => setConfirmPasswordInputEnabled(true)} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                     <button
                       type="button"
                       onClick={() => setShowPass(s => !s)}
@@ -560,9 +588,9 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                         ? language === 'fr' ? 'Masquer le mot de passe' : 'Hide password'
                         : language === 'fr' ? 'Afficher le mot de passe' : 'Show password'}
                       aria-pressed={showPass}
-                      className="absolute right-1 bottom-0.5 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                      className="absolute right-1 bottom-0.5 z-10 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-slate-100 text-slate-800 shadow-sm transition-colors hover:bg-slate-200 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-700"
                     >
-                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPass ? <EyeOff className="h-5 w-5" strokeWidth={2.5} /> : <Eye className="h-5 w-5" strokeWidth={2.5} />}
                     </button>
                     </motion.div>
                   )}
@@ -611,7 +639,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                         setError('');
                         setForgotPasswordOpen(true);
                       }}
-                      className="text-xs text-white/40 hover:text-white/70 transition-colors font-medium"
+                      className="text-xs text-white/40 hover:text-red-500 active:text-red-500 focus-visible:text-red-500 transition-colors font-medium"
                     >
                       {language === 'fr' ? 'Mot de passe oublié ?' : 'Forgot password?'}
                     </button>
@@ -643,8 +671,8 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="liquid-btn w-full mt-1 py-3.5 rounded-xl text-sm font-bold tracking-wide text-black disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ background: '#ffffff', boxShadow: '0 6px 20px rgba(255,255,255,0.06)' }}
+                  className="liquid-btn mx-auto mt-1 block w-3/4 max-w-sm py-3.5 rounded-md text-sm font-bold tracking-wide text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: '#16a34a', boxShadow: '0 6px 20px rgba(22,163,74,0.24)' }}
                 >
                   {loading
                     ? <span className="flex items-center justify-center gap-2">

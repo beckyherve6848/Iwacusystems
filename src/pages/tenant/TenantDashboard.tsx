@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Home, CreditCard, FileText, Wrench, User, Bell, AlertCircle } from 'lucide-react';
+import { Home, CreditCard, FileText, HandCoins, Wrench, User, Bell, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
@@ -205,7 +205,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
       {/* Quick links */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
-          { icon: CreditCard, label: t('tenant-payments'), page: 'tenant-payments', color: '#0ea5e9' },
+          { icon: HandCoins, label: t('tenant-payments'), page: 'tenant-payments', color: '#0ea5e9' },
           { icon: Wrench,     label: t('tenant-maintenance'), page: 'tenant-maintenance', color: '#f59e0b', badge: maintenanceCount },
           { icon: FileText,   label: t('tenant-agreement'), page: 'tenant-agreement', color: '#8b5cf6' },
           { icon: null, label: t('tenant-chat'), page: 'tenant-chat', color: '#10b981' },

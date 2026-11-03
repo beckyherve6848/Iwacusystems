@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Home, Users, Wallet, ClipboardList,
   UserCheck, Bell, Settings, FileText, LogOut, X,
-  Wrench, MessageCircle, UserPlus, UserRound, StickyNote, Building, Activity
+  Wrench, MessageCircle, UserPlus, UserRound, HandCoins, StickyNote, Building, Activity
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -52,7 +52,7 @@ const caretakerNavItems = [
 
 const tenantNavItems = [
   { id: 'tenant-dashboard',   labelKey: 'tenant-dashboard',   icon: LayoutDashboard },
-  { id: 'tenant-payments',    labelKey: 'tenant-payments',    icon: Wallet },
+  { id: 'tenant-payments',    labelKey: 'tenant-payments',    icon: HandCoins },
   { id: 'tenant-invoices',    labelKey: 'tenant-invoices',    icon: StickyNote },
   { id: 'tenant-maintenance', labelKey: 'tenant-maintenance', icon: Wrench },
   { id: 'tenant-agreement',   labelKey: 'tenant-agreement',   icon: FileText },

@@ -4530,8 +4530,36 @@ body.phone-dark,
 }
 
 .phone-dark .app-modal .invoice-share-message:hover:not(:disabled) {
+  border-color: #15803d !important;
+  background: #166534 !important;
+  color: #f0fdf4 !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.16) !important;
+}
+
+.app-modal .invoice-share-whatsapp,
+.app-modal .invoice-share-whatsapp:hover:not([aria-disabled="true"]) {
   border-color: #16a34a !important;
-  background: #15803d !important;
+  background: #16a34a !important;
+  color: #ffffff !important;
+}
+
+.app-modal .invoice-share-whatsapp svg {
+  color: #ffffff !important;
+}
+
+.app-modal .invoice-share-email,
+.app-modal .invoice-share-email:hover:not([aria-disabled="true"]) {
+  border-color: #e2e8f0 !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+.app-modal .invoice-share-message,
+.app-modal .invoice-share-message:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(248, 250, 252, 0.82) !important;
+  color: #334155 !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.05) !important;
 }
 
 .caretaker-profile-card {
