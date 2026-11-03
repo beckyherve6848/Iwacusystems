@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { FileDown, Printer } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import MonthPicker from '@/components/ui/MonthPicker';
 import { useTheme } from '@/contexts/ThemeContext';
 import { printDocument } from '@/lib/print';
 
@@ -340,8 +341,13 @@ export default function ReportsPage() {
       {(activeReport === 'payments') && (
         <div className="flex items-center gap-3">
           <label className="text-sm text-slate-500">{t('filterByMonth')}</label>
-          <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
-            className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+          <MonthPicker
+            value={filterMonth}
+            onChange={setFilterMonth}
+            language={language}
+            label={t('filterByMonth')}
+            className="w-full sm:w-[190px]"
+          />
         </div>
       )}
 

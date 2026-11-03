@@ -123,7 +123,7 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
         transition={{ duration: 0.3 }}
       >
         <DashboardWelcomeHero
-          title={`${t('welcome')}, ${profile?.full_name?.split(' ')[0] ?? t('caretaker')}`}
+          title={t('caretaker')}
           subtitle={profile?.assigned_property_name ?? t('noPropertyAssigned')}
         />
       </motion.div>

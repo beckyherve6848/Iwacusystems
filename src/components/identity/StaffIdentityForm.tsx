@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { UserRound } from 'lucide-react';
 import { supabase, Profile } from '@/lib/supabase';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -276,18 +277,25 @@ export default function StaffIdentityForm({
     <Modal open onClose={onClose} title={title} size="lg">
       <form onSubmit={save} className="space-y-5">
         {!isSavedProfile && (
-          <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800">
+          <p className="identity-form-notice identity-form-card rounded-xl bg-blue-50 p-3 text-sm text-blue-800">
             {text('Supabase will email a secure invitation link. Enter a preferred Staff ID below, or leave it blank to generate one automatically.', 'Supabase enverra un lien d’invitation sécurisé par e-mail. Saisissez un identifiant de personnel ou laissez le champ vide pour en générer un automatiquement.')}
           </p>
         )}
         {(initialProfile?.staff_id || createdStaffId) && (
-          <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-            {text('Staff ID', 'Identifiant du personnel')} : <strong>{initialProfile?.staff_id ?? createdStaffId}</strong>
+          <p className="identity-form-card flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 shadow-md" aria-hidden="true">
+              <UserRound className="h-5 w-5 text-white" />
+            </span>
+            <span>
+              {text('Staff ID', 'Identifiant du personnel')} : <strong>{initialProfile?.staff_id ?? createdStaffId}</strong>
+            </span>
           </p>
         )}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input label={text('Full name', 'Nom complet')} required maxLength={120} value={fullName} onChange={event => setFullName(event.target.value)} />
-          <div>
+        <div className="identity-form-card identity-form-fields grid gap-4 sm:grid-cols-2">
+          <div className="identity-form-field">
+            <Input label={text('Full name', 'Nom complet')} required maxLength={120} value={fullName} onChange={event => setFullName(event.target.value)} />
+          </div>
+          <div className="identity-form-field">
             <Input
               label={text('Preferred Staff ID', 'Identifiant du personnel souhaité')}
               maxLength={40}
@@ -297,17 +305,30 @@ export default function StaffIdentityForm({
             />
             <p className="mt-1 text-xs text-slate-500">{text('Leave blank to use the automatically generated Staff ID.', 'Laissez vide pour utiliser l’identifiant généré automatiquement.')}</p>
           </div>
-          <Input label={text('National ID / Passport number', 'Numéro de carte nationale / passeport')} required maxLength={80} value={nationalId} onChange={event => setNationalId(event.target.value)} />
-          <Input label={text('Telephone', 'Téléphone')} required type="tel" maxLength={40} value={phone} onChange={event => setPhone(event.target.value)} />
-          <Input label={text('Email address', 'Adresse e-mail')} required type="email" maxLength={254} value={email} onChange={event => setEmail(event.target.value)} disabled={isSavedProfile} />
-          <Input label={text('Residential address', 'Adresse du domicile')} required maxLength={300} value={address} onChange={event => setAddress(event.target.value)} />
+          <div className="identity-form-field">
+            <Input label={text('National ID / Passport number', 'Numéro de carte nationale / passeport')} required maxLength={80} value={nationalId} onChange={event => setNationalId(event.target.value)} />
+          </div>
+          <div className="identity-form-field">
+            <Input label={text('Telephone', 'Téléphone')} required type="tel" maxLength={40} value={phone} onChange={event => setPhone(event.target.value)} />
+          </div>
+          <div className="identity-form-field">
+            <Input label={text('Email address', 'Adresse e-mail')} required type="email" maxLength={254} value={email} onChange={event => setEmail(event.target.value)} disabled={isSavedProfile} />
+          </div>
+          <div className="identity-form-field">
+            <Input label={text('Residential address', 'Adresse du domicile')} required maxLength={300} value={address} onChange={event => setAddress(event.target.value)} />
+          </div>
         </div>
 
-        <fieldset className="space-y-2">
-          <legend className="mb-2 text-sm font-medium text-slate-700">
+        <section className="identity-assignment-section">
+          <h3 className="identity-assignment-title">
             {role === 'caretaker' ? text('Property managed by this caretaker', 'Bien immobilier géré par ce concierge') : text('Houses assigned to this manager', 'Maisons attribuées à ce gestionnaire')}
-          </legend>
-          {role === 'caretaker' ? (
+          </h3>
+          <div
+            className="identity-assignment-options space-y-2"
+            role="group"
+            aria-label={role === 'caretaker' ? text('Property managed by this caretaker', 'Bien immobilier géré par ce concierge') : text('Houses assigned to this manager', 'Maisons attribuées à ce gestionnaire')}
+          >
+            {role === 'caretaker' ? (
             properties.length === 0 || !properties.some(property => houses.some(house => house.property_id === property.id)) ? (
               <p className="text-sm text-amber-700">{text('Create a property and assign houses to it before adding a caretaker.', 'Créez un bien immobilier et attribuez-lui des maisons avant d’ajouter un concierge.')}</p>
             ) : (
@@ -315,7 +336,7 @@ export default function StaffIdentityForm({
                 {properties.map(property => {
                   const propertyHouses = houses.filter(house => house.property_id === property.id);
                   return (
-                    <label key={property.id} className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700">
+                    <label key={property.id} className={`identity-assignment-option flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700 ${selectedPropertyId === property.id ? 'is-selected' : ''}`}>
                       <input
                         type="radio"
                         name="staff-property"
@@ -326,7 +347,7 @@ export default function StaffIdentityForm({
                       <span>
                         <strong className="block">{property.name}</strong>
                         <span className="block text-xs text-slate-500">
-                          {propertyHouses.length} {propertyHouses.length === 1 ? text('house', 'maison') : text('houses', 'maisons')} : {propertyHouses.map(house => house.house_number).join(', ') || text('No houses assigned', 'Aucune maison attribuée')}
+                          {propertyHouses.length} {propertyHouses.length === 1 ? text('house', 'maison') : text('houses', 'maisons')}
                         </span>
                       </span>
                     </label>
@@ -339,7 +360,7 @@ export default function StaffIdentityForm({
           ) : houses.map(house => {
             const unavailable = unavailableHouseIds.includes(house.id) && !selectedHouses.includes(house.id);
             return (
-            <label key={house.id} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700">
+            <label key={house.id} className={`identity-assignment-option flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700 ${selectedHouses.includes(house.id) ? 'is-selected' : ''} ${unavailable ? 'is-disabled' : ''}`}>
               <input
                 type="checkbox"
                 name="staff-property"
@@ -357,35 +378,39 @@ export default function StaffIdentityForm({
             </label>
           );
           })}
-        </fieldset>
+          </div>
+        </section>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-1.5 text-sm font-medium text-slate-700">
-            {text('Profile photo (PNG/JPG/JPEG, max 5 MB)', 'Photo de profil (PNG/JPG/JPEG, 5 Mo max.)')}
-            <input type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onChange={event => chooseFile(event.target.files?.[0], 'photo')} className="block w-full text-sm" />
+        <div className="identity-file-grid grid gap-4 sm:grid-cols-2">
+          <label className="identity-file-field">
+            <span className="identity-file-title">{text('Profile photo', 'Photo de profil')}</span>
+            <span className="identity-file-help">{text('PNG or JPG/JPEG · Maximum 5 MB', 'PNG ou JPG/JPEG · 5 Mo maximum')}</span>
+            <input type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onChange={event => chooseFile(event.target.files?.[0], 'photo')} className="identity-file-input" />
             {currentPhotoPath && <PrivateDocumentLink path={currentPhotoPath} label={text('current profile photo', 'photo de profil actuelle')} />}
-            {photo && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionné :')} {photo.name}</span>}
+            {photo && <span className="identity-file-selected">{text('Selected:', 'Sélectionné :')} {photo.name}</span>}
           </label>
-          <label className="space-y-1.5 text-sm font-medium text-slate-700">
-            {text('ID card / Passport (PDF or 500 × 500 PNG/JPG, max 10 MB)', 'Carte d’identité / Passeport (PDF ou PNG/JPG de 500 × 500, 10 Mo max.)')}
-            <input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={event => { void chooseFile(event.target.files?.[0], 'document'); }} className="block w-full text-sm" />
+          <label className="identity-file-field">
+            <span className="identity-file-title">{text('ID card / Passport', 'Carte d’identité / Passeport')}</span>
+            <span className="identity-file-help">{text('PDF or 500 × 500 PNG/JPG · Maximum 10 MB', 'PDF ou PNG/JPG de 500 × 500 · 10 Mo maximum')}</span>
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={event => { void chooseFile(event.target.files?.[0], 'document'); }} className="identity-file-input" />
             {currentDocumentPath && <PrivateDocumentLink path={currentDocumentPath} label={text('current ID / Passport', 'carte d’identité / passeport actuel')} />}
-            {document && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionné :')} {document.name}</span>}
+            {document && <span className="identity-file-selected">{text('Selected:', 'Sélectionné :')} {document.name}</span>}
           </label>
-          <label className="space-y-1.5 text-sm font-medium text-slate-700">
-            {text('Signature image', 'Image de signature')}
-            <span className="block text-xs font-normal text-slate-500">{text('SVG or transparent PNG recommended; at least 300 × 100 px; maximum 1 MB.', 'Format SVG ou PNG transparent recommandé ; au moins 300 × 100 px ; 1 Mo maximum.')}</span>
-            <input type="file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" onChange={event => { void chooseFile(event.target.files?.[0], 'signature'); }} className="block w-full text-sm" />
+          <label className="identity-file-field">
+            <span className="identity-file-title">{text('Signature image', 'Image de signature')}</span>
+            <span className="identity-file-help">{text('SVG or transparent PNG · At least 300 × 100 px · Maximum 1 MB', 'SVG ou PNG transparent · Au moins 300 × 100 px · 1 Mo maximum')}</span>
+            <input type="file" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" onChange={event => { void chooseFile(event.target.files?.[0], 'signature'); }} className="identity-file-input" />
             {currentSignaturePath && <PrivateDocumentLink path={currentSignaturePath} label={text('current signature', 'signature actuelle')} />}
-            {signature && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionné :')} {signature.name}</span>}
+            {signature && <span className="identity-file-selected">{text('Selected:', 'Sélectionné :')} {signature.name}</span>}
           </label>
         </div>
 
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-          <Button type="button" variant="ghost" onClick={onClose}>{text('Cancel', 'Annuler')}</Button>
+          <Button type="button" className="payment-form-cancel-button" variant="ghost" onClick={onClose}>{text('Cancel', 'Annuler')}</Button>
           <Button
             type="submit"
+            className="page-action-button"
             loading={saving}
             disabled={role === 'caretaker'
               ? !properties.some(property => houses.some(house => house.property_id === property.id))

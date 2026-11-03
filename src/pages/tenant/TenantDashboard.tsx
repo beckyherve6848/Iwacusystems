@@ -21,7 +21,7 @@ type InvoiceNotification = {
 };
 
 export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string) => void }) {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { t, fmt, language } = useTheme();
   const [tenant, setTenant] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
@@ -152,7 +152,6 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
 
       <DashboardWelcomeHero
         title={t('myDashboard')}
-        subtitle={`${t('welcomeBack')}, ${profile?.full_name ?? ''}`}
       />
 
       {invoiceNotifications.map(notification => (

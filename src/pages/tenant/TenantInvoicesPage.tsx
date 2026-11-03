@@ -161,8 +161,9 @@ export default function TenantInvoicesPage() {
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title={t('invoice')} size="lg">
         {selected && <InvoiceDocument invoice={selected} />}
-        <div className="mt-4 flex justify-end">
-          <Button icon={<Printer className="h-4 w-4" />} onClick={() => printDocument('invoice', 'invoice-print-document')}>
+        <div className="mt-4 flex justify-end gap-3">
+          <Button className="document-close-button" variant="ghost" onClick={() => setSelected(null)}>{t('closeButton')}</Button>
+          <Button className="document-print-button" icon={<Printer className="h-4 w-4" />} onClick={() => printDocument('invoice', 'invoice-print-document')}>
             {t('printSavePdf')}
           </Button>
         </div>

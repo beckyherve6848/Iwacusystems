@@ -207,8 +207,8 @@ export default function TenantPaymentsPage() {
             invoiceTotalBalance={receiptInvoiceSummary?.totalBalance}
           />
           <div className="flex justify-end gap-3 mt-4 no-print">
-            <Button variant="ghost" onClick={() => { setReceipt(null); setReceiptInvoiceSummary(null); }}>{t('closeButton')}</Button>
-            <Button icon={<Printer className="w-4 h-4" />} onClick={() => printDocument('receipt', 'receipt-content')}>{t('printSavePdf')}</Button>
+            <Button className="document-close-button" variant="ghost" onClick={() => { setReceipt(null); setReceiptInvoiceSummary(null); }}>{t('closeButton')}</Button>
+            <Button className="document-print-button" icon={<Printer className="w-4 h-4" />} onClick={() => printDocument('receipt', 'receipt-content')}>{t('printSavePdf')}</Button>
           </div>
         </Modal>
       )}

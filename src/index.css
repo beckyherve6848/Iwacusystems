@@ -854,6 +854,10 @@
     color: #dbe4ef !important;
   }
 
+  .phone-dark .tenant-list-avatar .tenant-list-avatar-icon {
+    color: #dbe4ef !important;
+  }
+
   .phone-dark .tenant-list-status[class~="bg-emerald-50"] {
     background: rgba(16, 185, 129, 0.14) !important;
     border-color: rgba(52, 211, 153, 0.35) !important;
@@ -2684,6 +2688,15 @@
     font-size: 8pt !important;
   }
 
+  body.printing-receipt #receipt-content .receipt-pos-breakdown,
+  body.printing-receipt #receipt-content .receipt-pos-amount {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  }
+
+  body.printing-invoice #invoice-print-document .invoice-pos-breakdown {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  }
+
   body.printing-receipt #receipt-content > header,
   body.printing-receipt #receipt-content > section,
   body.printing-receipt #receipt-content > footer,
@@ -3164,6 +3177,27 @@
   background-color: #303133 !important;
 }
 
+.phone-dark .app-shell main .payments-table .payment-table-row button:hover,
+.phone-dark .app-shell main .payments-table .payment-table-row button:active,
+.phone-dark .app-shell main .payments-table .payment-table-row button:focus-visible {
+  background-color: transparent !important;
+}
+
+.phone-dark .app-shell main .payments-table .payment-table-row button:first-child:hover,
+.phone-dark .app-shell main .payments-table .payment-table-row button:first-child:active {
+  color: #6ee7b7 !important;
+}
+
+.phone-dark .app-shell main .payments-table .payment-table-row button:nth-child(2):hover,
+.phone-dark .app-shell main .payments-table .payment-table-row button:nth-child(2):active {
+  color: #93c5fd !important;
+}
+
+.phone-dark .app-shell main .payments-table .payment-table-row button:nth-child(3):hover,
+.phone-dark .app-shell main .payments-table .payment-table-row button:nth-child(3):active {
+  color: #f87171 !important;
+}
+
 .phone-dark .app-shell main .payments-table .payment-status-paid {
   color: #6ee7b7 !important;
   background-color: rgba(16, 185, 129, 0.2) !important;
@@ -3328,11 +3362,79 @@
 }
 
 .dashboard-content .phone-dashboard-outstanding {
-  color: #dc2626 !important;
+  color: #ff0000 !important;
 }
 
 .phone-dark .dashboard-content .phone-dashboard-outstanding {
-  color: #f87171 !important;
+  color: #ff0000 !important;
+}
+
+.dashboard-content .phone-stat-icon-outstanding {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #ff0000 !important;
+}
+
+.phone-dark .app-shell main .dashboard-activity-header {
+  border-color: #3e4042;
+}
+
+.phone-dark .app-shell main .dashboard-activity-link {
+  color: #6ee7b7;
+}
+
+.phone-dark .app-shell main .dashboard-activity-link:hover {
+  color: #a7f3d0;
+}
+
+.phone-dark .app-shell main .dashboard-activity-row {
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+.phone-dark .app-shell main .dashboard-activity-icon {
+  border-color: #3e4348;
+  background-color: #2b2e32;
+}
+
+.phone-dark .app-shell main .dashboard-activity-icon[class~="border-red-200"] {
+  border-color: rgba(248, 113, 113, 0.25);
+  background-color: rgba(127, 29, 29, 0.18);
+}
+
+.phone-dark .app-shell main .dashboard-activity-icon[class~="border-amber-200"] {
+  border-color: rgba(251, 191, 36, 0.24);
+  background-color: rgba(120, 53, 15, 0.18);
+}
+
+.phone-dark .app-shell main .dashboard-activity-row [class~="border-emerald-200"] {
+  border-color: rgba(52, 211, 153, 0.28);
+  background-color: rgba(6, 78, 59, 0.26);
+  color: #6ee7b7;
+}
+
+.phone-dark .app-shell main .dashboard-activity-row [class~="border-blue-200"] {
+  border-color: rgba(96, 165, 250, 0.28);
+  background-color: rgba(30, 58, 138, 0.26);
+  color: #93c5fd;
+}
+
+.phone-dark .app-shell main .dashboard-activity-row [class~="border-red-200"] {
+  border-color: rgba(248, 113, 113, 0.28);
+  background-color: rgba(127, 29, 29, 0.24);
+  color: #fca5a5;
+}
+
+.phone-dark .app-shell main .dashboard-activity-row [class~="border-amber-200"] {
+  border-color: rgba(251, 191, 36, 0.28);
+  background-color: rgba(120, 53, 15, 0.24);
+  color: #fcd34d;
+}
+
+.phone-dark .app-shell main .dashboard-activity-row [class~="border-slate-200"] {
+  border-color: rgba(148, 163, 184, 0.2);
+  background-color: rgba(71, 85, 105, 0.2);
+  color: #cbd5e1;
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
@@ -3903,20 +4005,747 @@ body.phone-dark,
 
 .phone-dark .app-shell main .payment-status-glass {
   border-color: rgba(148, 163, 184, 0.24);
-  background:
-    radial-gradient(ellipse at 90% 0%, rgba(16, 185, 129, 0.1), transparent 45%),
-    linear-gradient(135deg, rgba(30, 41, 59, 0.94), rgba(15, 23, 42, 0.9));
-  box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: #242424;
+  box-shadow: none;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-.payment-status-unpaid-glow {
-  background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.045) 58%, transparent 100%);
+.payment-status-month-trigger {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.72);
+  color: #334155;
 }
 
-.phone-dark .app-shell main .payment-status-unpaid-glow {
-  background: radial-gradient(ellipse at center, rgba(248, 113, 113, 0.18) 0%, rgba(248, 113, 113, 0.07) 58%, transparent 100%);
+.payment-status-month-trigger:hover,
+.payment-status-month-nav:hover,
+.payment-status-month-option:not(.is-selected):hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.payment-status-month-popover {
+  border-color: #e2e8f0;
+  background: #ffffff;
+  color: #1e293b;
+  max-height: min(360px, calc(100dvh - 120px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.payment-status-month-nav,
+.payment-status-month-option {
+  color: #475569;
+}
+
+.payment-status-month-option.is-selected {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.payment-status-this-month {
+  color: #b91c1c;
+}
+
+.phone-dark .app-shell main .payment-status-glass .payment-status-month-trigger {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: #303030;
+  color: #e2e8f0;
+}
+
+.phone-dark .app-shell main .payment-status-month-popover {
+  border-color: #475569;
+  background: #242424;
+  color: #f8fafc;
+}
+
+.phone-dark .app-shell main .payment-status-month-nav,
+.phone-dark .app-shell main .payment-status-month-option {
+  color: #f1f5f9;
+}
+
+.phone-dark .app-shell main .payment-status-month-trigger:hover,
+.phone-dark .app-shell main .payment-status-month-nav:hover,
+.phone-dark .app-shell main .payment-status-month-option:not(.is-selected):hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.phone-dark .app-shell main .payment-status-month-option.is-selected {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.phone-dark .app-shell main .payment-status-this-month {
+  color: #cbd5e1;
+}
+
+.month-picker-trigger {
+  min-height: 42px;
+}
+
+.month-picker-option {
+  color: #475569;
+}
+
+.month-picker-option:hover,
+.month-picker-nav:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.month-picker-option.is-selected {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.month-picker-option.is-current:not(.is-selected) {
+  box-shadow: inset 0 0 0 1px #93c5fd;
+  color: #1d4ed8;
+}
+
+.phone-dark .app-shell main .month-picker-trigger,
+.phone-dark .app-shell main .month-picker-popover {
+  border-color: #475569;
+  background: #242424;
+  color: #f8fafc;
+}
+
+.phone-dark .app-shell main .month-picker-option,
+.phone-dark .app-shell main .month-picker-nav {
+  color: #e2e8f0;
+}
+
+.phone-dark .app-shell main .month-picker-option:hover,
+.phone-dark .app-shell main .month-picker-nav:hover,
+.phone-dark .app-shell main .month-picker-current:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.phone-dark .app-shell main .month-picker-option.is-selected {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.phone-dark .app-shell main .month-picker-option.is-current:not(.is-selected) {
+  box-shadow: inset 0 0 0 1px #60a5fa;
+  color: #93c5fd;
+}
+
+.phone-dark .app-shell main .month-picker-current {
+  color: #93c5fd;
+}
+
+.identity-file-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  background: #ffffff;
+  padding: 1rem;
+  color: #334155;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16), 0 5px 12px rgba(15, 23, 42, 0.08);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.identity-file-field:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 22px 42px rgba(15, 23, 42, 0.22), 0 7px 16px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
+}
+
+.identity-file-field:focus-within {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1), 0 20px 38px rgba(15, 23, 42, 0.2);
+}
+
+.identity-file-title {
+  color: #1e293b;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.identity-file-help,
+.identity-file-selected {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.identity-file-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.2rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.65rem;
+  background: rgba(248, 250, 252, 0.85);
+  padding: 0.5rem;
+  color: #475569;
+  font-size: 0.75rem;
+}
+
+.identity-file-input::file-selector-button {
+  margin-right: 0.65rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  padding: 0.5rem 0.75rem;
+  color: #334155;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.identity-file-input::file-selector-button:hover {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.identity-file-selected {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  background: #f1f5f9;
+  padding: 0.35rem 0.55rem;
+}
+
+.identity-assignment-option {
+  border-color: #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14), 0 4px 10px rgba(15, 23, 42, 0.07);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.identity-assignment-option input[type="checkbox"],
+.identity-assignment-option input[type="radio"] {
+  position: relative;
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.125rem 0 0;
+  appearance: none;
+  border: 2px solid #94a3b8;
+  background: #ffffff;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.identity-assignment-option input[type="checkbox"] {
+  border-radius: 0.375rem;
+}
+
+.identity-assignment-option input[type="radio"] {
+  border-radius: 50%;
+}
+
+.identity-assignment-option input[type="checkbox"]:checked {
+  border-color: #2563eb;
+  background: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.identity-assignment-option input[type="checkbox"]:checked::after {
+  position: absolute;
+  top: 0.08rem;
+  left: 0.31rem;
+  width: 0.34rem;
+  height: 0.6rem;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  border-radius: 1px;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.identity-assignment-option input[type="radio"]:checked {
+  border-color: #2563eb;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.identity-assignment-option input[type="radio"]:checked::after {
+  position: absolute;
+  inset: 0.25rem;
+  border-radius: 50%;
+  background: #ffffff;
+  content: "";
+}
+
+.identity-assignment-option input[type="checkbox"]:focus-visible,
+.identity-assignment-option input[type="radio"]:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 3px;
+}
+
+.identity-assignment-option input[type="checkbox"]:disabled,
+.identity-assignment-option input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+
+.identity-form-card {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16), 0 5px 12px rgba(15, 23, 42, 0.08);
+}
+
+.identity-form-notice {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.identity-form-fields,
+.identity-assignment-options {
+  border-radius: 1rem;
+  padding: 1.1rem;
+}
+
+.identity-assignment-section {
+  min-width: 0;
+}
+
+.identity-assignment-title {
+  margin-bottom: 0.75rem;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.identity-assignment-options {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16), 0 5px 12px rgba(15, 23, 42, 0.08);
+}
+
+.identity-assignment-options .identity-assignment-option {
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+.identity-form-fields {
+  border-radius: 1rem;
+  padding: 1.1rem;
+}
+
+.identity-form-field {
+  min-width: 0;
+}
+
+.identity-form-field label {
+  margin-bottom: 0.375rem;
+}
+
+.identity-form-field input {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.phone-dark .identity-form-card {
+  border-color: #475569;
+  background: #242526;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.62), 0 5px 12px rgba(0, 0, 0, 0.34);
+}
+
+.phone-dark .identity-form-notice {
+  border-color: rgba(96, 165, 250, 0.32);
+  background: rgba(30, 58, 95, 0.45);
+}
+
+.phone-dark .identity-assignment-title {
+  color: #e2e8f0;
+}
+
+.phone-dark .identity-assignment-options {
+  border-color: #475569;
+  background: #242526;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.62), 0 5px 12px rgba(0, 0, 0, 0.34);
+}
+
+.phone-dark .identity-assignment-options .identity-assignment-option {
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.44), 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+.phone-dark .identity-form-fields .identity-form-field label {
+  color: #e2e8f0;
+}
+
+.phone-dark .identity-form-fields .identity-form-field input {
+  background: #303133 !important;
+  border-color: #4b5563 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.32);
+}
+
+.phone-dark .identity-form-fields .identity-form-field input:focus {
+  border-color: #f87171 !important;
+}
+
+.phone-dark .identity-form-fields .identity-form-field p {
+  color: #aebccd;
+}
+
+.identity-assignment-option:hover:not(.is-disabled) {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+  box-shadow: 0 20px 38px rgba(15, 23, 42, 0.2), 0 7px 14px rgba(15, 23, 42, 0.1);
+}
+
+.identity-assignment-option.is-selected {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(100, 116, 139, 0.08), 0 8px 18px rgba(15, 23, 42, 0.09);
+}
+
+.identity-assignment-option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.phone-dark .identity-assignment-option {
+  border-color: #475569;
+  background: #242526;
+  color: #e2e8f0;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.58), 0 5px 12px rgba(0, 0, 0, 0.32);
+}
+
+.phone-dark .identity-assignment-option:hover:not(.is-disabled) {
+  border-color: #64748b;
+  box-shadow: 0 22px 42px rgba(0, 0, 0, 0.72), 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.phone-dark .identity-assignment-option.is-selected {
+  border-color: #64748b;
+  background: #303133;
+  color: #e2e8f0;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.08), 0 8px 18px rgba(0, 0, 0, 0.34);
+}
+
+.phone-dark .identity-assignment-option.is-selected .text-slate-500,
+.phone-dark .identity-assignment-option.is-selected [class*="text-xs"] {
+  color: #b0b3b8 !important;
+}
+
+.invoice-share-action {
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(248, 250, 252, 0.72);
+  color: #334155;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.invoice-share-action:hover:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.16), 0 3px 8px rgba(15, 23, 42, 0.07);
+}
+
+.phone-dark .invoice-share-action {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(48, 49, 51, 0.72);
+  color: #e2e8f0;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.16);
+}
+
+.phone-dark .invoice-share-action:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: rgba(58, 60, 63, 0.9);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4), 0 3px 8px rgba(0, 0, 0, 0.22);
+}
+
+.invoice-share-whatsapp,
+.phone-dark .invoice-share-whatsapp {
+  border-color: #16a34a;
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.invoice-share-whatsapp:hover:not([aria-disabled="true"]),
+.phone-dark .invoice-share-whatsapp:hover:not([aria-disabled="true"]) {
+  border-color: #15803d;
+  background: #15803d;
+  color: #ffffff;
+}
+
+.invoice-share-email,
+.phone-dark .invoice-share-email {
+  border-color: #e2e8f0;
+  background: #ffffff;
+  color: #334155 !important;
+}
+
+.invoice-share-email:hover:not([aria-disabled="true"]),
+.phone-dark .invoice-share-email:hover:not([aria-disabled="true"]) {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b !important;
+}
+
+.invoice-share-message,
+.phone-dark .invoice-share-message {
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #166534 !important;
+}
+
+.invoice-share-message:hover:not(:disabled),
+.phone-dark .invoice-share-message:hover:not(:disabled) {
+  border-color: #4ade80;
+  background: #bbf7d0;
+  color: #14532d !important;
+}
+
+.phone-dark .app-modal .invoice-share-whatsapp,
+.phone-dark .app-modal .invoice-share-whatsapp:hover:not([aria-disabled="true"]) {
+  border-color: #16a34a !important;
+  background: #16a34a !important;
+  color: #ffffff !important;
+}
+
+.phone-dark .app-modal .invoice-share-email,
+.phone-dark .app-modal .invoice-share-email:hover:not([aria-disabled="true"]) {
+  border-color: #64748b !important;
+  background: #303133 !important;
+  color: #f1f5f9 !important;
+}
+
+.phone-dark .app-modal .invoice-share-email:hover:not([aria-disabled="true"]) {
+  border-color: #94a3b8 !important;
+  background: #3a3b3c !important;
+}
+
+.phone-dark .app-modal .invoice-share-message,
+.phone-dark .app-modal .invoice-share-message:hover:not(:disabled) {
+  border-color: #15803d !important;
+  background: #166534 !important;
+  color: #f0fdf4 !important;
+}
+
+.phone-dark .app-modal .invoice-share-message:hover:not(:disabled) {
+  border-color: #16a34a !important;
+  background: #15803d !important;
+}
+
+.caretaker-profile-card {
+  border-color: #e2e8f0;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.05);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.caretaker-profile-card:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.15), 0 4px 10px rgba(15, 23, 42, 0.07);
+}
+
+.caretaker-profile-avatar {
+  border: 1px solid #334155;
+  background: #1e293b;
+  box-shadow: 0 7px 16px rgba(15, 23, 42, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+}
+
+.phone-dark .app-shell main .caretaker-profile-card {
+  border-color: #3f4a58;
+  background: linear-gradient(145deg, #30343a 0%, #242526 100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.phone-dark .app-shell main .caretaker-profile-card:hover {
+  border-color: #586575;
+  box-shadow: 0 15px 32px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.phone-dark .app-shell main .caretaker-profile-avatar {
+  border-color: #475569;
+  background: #111827;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+.tenant-edit-modal .identity-file-field {
+  width: 100%;
+}
+
+.tenant-edit-modal .identity-file-input {
+  min-height: 0 !important;
+  padding: 0.5rem !important;
+  font-size: 0.75rem !important;
+}
+
+.phone-dark .identity-file-field {
+  border-color: #475569;
+  background: #242526;
+  color: #e2e8f0;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.62), 0 5px 12px rgba(0, 0, 0, 0.34);
+}
+
+.phone-dark .identity-file-field:hover {
+  border-color: #64748b;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.76), 0 8px 18px rgba(0, 0, 0, 0.42);
+}
+
+.phone-dark .identity-file-field:focus-within {
+  border-color: #f87171;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.12), 0 22px 42px rgba(0, 0, 0, 0.7);
+}
+
+.phone-dark .identity-file-title {
+  color: #f1f5f9;
+}
+
+.phone-dark .identity-file-help,
+.phone-dark .identity-file-selected {
+  color: #aebccd;
+}
+
+.phone-dark .identity-file-input {
+  border-color: #525c6a;
+  background: rgba(15, 23, 42, 0.32);
+  color: #cbd5e1;
+}
+
+.phone-dark .identity-file-input::file-selector-button {
+  border-color: #475569;
+  background: #303133;
+  color: #e2e8f0;
+}
+
+.phone-dark .identity-file-input::file-selector-button:hover {
+  border-color: #f87171;
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+}
+
+.phone-dark .identity-file-selected {
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.receipt-pos-breakdown {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.receipt-pos-amount {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.invoice-pos-breakdown {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.document-print-button {
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.document-print-button:hover {
+  box-shadow: 0 7px 16px rgba(15, 23, 42, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.document-print-button:active {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.28) !important;
+}
+
+.document-close-button:hover,
+.document-close-button:active,
+.document-close-button:focus-visible {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+}
+
+.document-close-button:focus-visible {
+  outline: 2px solid #ef4444;
+  outline-offset: 2px;
+}
+
+.phone-dark .app-shell main .document-close-button {
+  color: #e2e8f0 !important;
+}
+
+.phone-dark .app-shell main .document-close-button:hover,
+.phone-dark .app-shell main .document-close-button:active,
+.phone-dark .app-shell main .document-close-button:focus-visible {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #f87171 !important;
+}
+
+.phone-dark .app-shell main .document-print-button {
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.phone-dark .app-shell main .document-print-button:hover {
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+}
+
+.phone-dark .app-shell main .document-print-button:active {
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.52) !important;
+}
+
+.payment-status-track-paid {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.payment-status-fill-paid {
+  background: #10b981;
+}
+
+.payment-status-track-unpaid {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.payment-status-fill-unpaid {
+  background: #ef4444;
+}
+
+.payment-status-track-partial {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.payment-status-fill-partial {
+  background: #111827;
+}
+
+.payment-status-track-notDue {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.payment-status-fill-notDue {
+  background: #64748b;
+}
+
+.phone-dark .app-shell main .payment-status-fill-paid {
+  background: #34d399;
+}
+
+.phone-dark .app-shell main .payment-status-fill-unpaid {
+  background: #f87171;
+}
+
+.phone-dark .app-shell main [class*="payment-status-track-"] {
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.phone-dark .app-shell main .payment-status-fill-partial {
+  background: #cbd5e1;
+}
+
+.phone-dark .app-shell main .payment-status-fill-notDue {
+  background: #94a3b8;
+}
+
+@media (max-width: 480px) {
+  .payment-status-month-popover {
+    width: min(240px, calc(100vw - 40px));
+    max-height: calc(100dvh - 110px);
+  }
 }
 
 .phone-dark .app-shell main .dashboard-content .pending-registration-card,
@@ -4053,14 +4882,49 @@ body.phone-dark,
   transition: transform 180ms ease, box-shadow 180ms ease, opacity 150ms ease !important;
 }
 
+.phone-dark .app-shell main .page-action-button {
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
 .page-action-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.36) !important;
 }
 
+.phone-dark .app-shell main .page-action-button:hover {
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.16) !important;
+}
+
 .page-action-button:active {
   transform: translateY(0);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.24) !important;
+}
+
+.phone-dark .app-shell main .page-action-button:active {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.68), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+.payment-form-cancel-button:hover,
+.payment-form-cancel-button:active,
+.payment-form-cancel-button:focus-visible {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+}
+
+.payment-form-cancel-button:focus-visible {
+  outline: 2px solid #ef4444;
+  outline-offset: 2px;
+}
+
+.phone-dark .app-shell main .payment-form-cancel-button {
+  color: #cbd5e1 !important;
+}
+
+.phone-dark .app-shell main .payment-form-cancel-button:hover,
+.phone-dark .app-shell main .payment-form-cancel-button:active,
+.phone-dark .app-shell main .payment-form-cancel-button:focus-visible {
+  background: rgba(239, 68, 68, 0.16) !important;
+  color: #f87171 !important;
 }
 
 .page-action-button:focus-visible {

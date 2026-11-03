@@ -3,6 +3,7 @@ import { Plus, Search, Eye, Printer, Pencil, Trash2 } from 'lucide-react';
 import { supabase, Payment } from '@/lib/supabase';
 import Button from '@/components/ui/Button';
 import Input, { Select, Textarea } from '@/components/ui/Input';
+import MonthPicker from '@/components/ui/MonthPicker';
 import Modal from '@/components/ui/Modal';
 import Pagination from '@/components/ui/Pagination';
 import Receipt from '@/components/Receipt';
@@ -191,8 +192,7 @@ export default function PaymentsPage() {
     await loadInvoiceCharges(tenantId, form.rent_month);
   };
 
-  const handleRentMonthChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rentMonth = e.target.value;
+  const handleRentMonthChange = async (rentMonth: string) => {
     setForm(current => ({ ...current, rent_month: rentMonth }));
     await loadInvoiceCharges(form.tenant_id, rentMonth);
   };
@@ -344,8 +344,8 @@ export default function PaymentsPage() {
             invoiceTotalBalance={receiptInvoiceSummary?.totalBalance}
           />
           <div className="flex justify-end gap-3 mt-4 no-print">
-            <Button variant="ghost" onClick={() => { setReceiptPayment(null); setReceiptInvoiceSummary(null); }}>{t('closeButton')}</Button>
-            <Button icon={<Printer className="w-4 h-4" />} onClick={() => printDocument('receipt', 'receipt-content')}>{t('printSavePdf')}</Button>
+            <Button className="document-close-button" variant="ghost" onClick={() => { setReceiptPayment(null); setReceiptInvoiceSummary(null); }}>{t('closeButton')}</Button>
+            <Button className="document-print-button" icon={<Printer className="w-4 h-4" />} onClick={() => printDocument('receipt', 'receipt-content')}>{t('printSavePdf')}</Button>
           </div>
         </Modal>
       )}
@@ -355,7 +355,7 @@ export default function PaymentsPage() {
           <h1 className="text-2xl font-bold text-slate-900">{t('rentPaymentsTitle')}</h1>
           <p className="text-slate-500 text-sm mt-0.5">{t('trackRentTransactions')}</p>
         </div>
-        <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>
+        <Button className="page-action-button" icon={<Plus className="w-4 h-4" />} onClick={openAdd}>
           {t('recordPayment')}
         </Button>
       </div>
@@ -378,8 +378,13 @@ export default function PaymentsPage() {
           <option value="partial">{t('partial')}</option>
           <option value="overdue">{t('overdue')}</option>
         </Select>
-        <input type="month" value={filterMonth} onChange={e => { setFilterMonth(e.target.value); setPage(1); }}
-          className="bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+        <MonthPicker
+          value={filterMonth}
+          onChange={month => { setFilterMonth(month); setPage(1); }}
+          language={language}
+          label={t('filterByMonth')}
+          className="w-full sm:w-[190px]"
+        />
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden no-print">
@@ -472,7 +477,13 @@ export default function PaymentsPage() {
             <option value="">{t('selectHouse')}</option>
             {houses.map(h => <option key={h.id} value={h.id}>{h.house_number}</option>)}
           </Select>
-          <Input label={t('rentMonth')} type="month" value={form.rent_month} onChange={handleRentMonthChange} />
+          <MonthPicker
+            value={form.rent_month}
+            onChange={handleRentMonthChange}
+            language={language}
+            label={t('rentMonth')}
+            showLabel
+          />
           <Input label={t('paymentDateLabel')} type="date" value={form.payment_date} onChange={set('payment_date')} />
           <Input label={t('rentDue')} type="number" min="0" step="0.01" value={form.amount_due} onChange={set('amount_due')} />
           <Input label={t('rentPaid')} type="number" min="0" step="0.01" value={form.rent_paid_amount} onChange={set('rent_paid_amount')} />
@@ -505,8 +516,8 @@ export default function PaymentsPage() {
           <Textarea label={t('notesLabel')} value={form.notes} onChange={set('notes')} rows={2} />
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
-          <Button loading={saving} onClick={handleSave}>{editingId ? t('update') : t('save')}</Button>
+          <Button className="payment-form-cancel-button" variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
+          <Button className="page-action-button" loading={saving} onClick={handleSave}>{editingId ? t('update') : t('save')}</Button>
         </div>
       </Modal>
 

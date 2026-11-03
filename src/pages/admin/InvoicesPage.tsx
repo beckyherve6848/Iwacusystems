@@ -4,14 +4,16 @@ import { supabase, Tenant, UtilityInvoice } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import Button from '@/components/ui/Button';
 import Input, { Select, Textarea } from '@/components/ui/Input';
+import MonthPicker from '@/components/ui/MonthPicker';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { useTheme } from '@/contexts/ThemeContext';
 import { printDocument } from '@/lib/print';
 import InvoiceDocument from '@/components/InvoiceDocument';
+import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
-import { getTenantsDueForInvoice, localDateString } from '@/lib/invoiceDue';
+import { getTenantsDueForInvoice } from '@/lib/invoiceDue';
 
 type InvoiceForm = {
   tenant_id: string;
@@ -33,7 +35,31 @@ const emptyForm: InvoiceForm = {
   notes: '',
 };
 
-const invoiceSelect = '*, tenants(id, full_name, tenant_code, user_id, houses(house_number)), houses(house_number)';
+const invoiceSelect = '*, tenants(id, full_name, tenant_code, user_id, phone, email, houses(house_number)), houses(house_number)';
+
+function GmailIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none">
+      <path d="M3.5 7.2v10.3c0 .8.6 1.4 1.4 1.4h2.4V9.3L3.5 6.5v.7Z" fill="#4285F4" />
+      <path d="M16.7 18.9h2.4c.8 0 1.4-.6 1.4-1.4V7.2l-3.8 2.1v9.6Z" fill="#34A853" />
+      <path d="M3.5 7.2 12 13.4l8.5-6.2v-.7c0-1.2-1.4-1.9-2.4-1.2L12 10.1 5.9 5.3c-1-.7-2.4 0-2.4 1.2v.7Z" fill="#EA4335" />
+      <path d="M3.5 7.2v.1l3.8 2.8V5.9L5.9 5.3c-1-.7-2.4 0-2.4 1.2v.7Z" fill="#C5221F" />
+      <path d="m16.7 5.9 1.4-.6c1-.7 2.4 0 2.4 1.2v.7l-3.8 2.8V5.9Z" fill="#FBBC04" />
+    </svg>
+  );
+}
+
+function AndroidMessagesIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24">
+      <rect width="24" height="24" rx="6" fill="#43A047" />
+      <path d="M5 6.5h14a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-7.2L7 21v-3.5H5A1.5 1.5 0 0 1 3.5 16V8A1.5 1.5 0 0 1 5 6.5Z" fill="#fff" />
+      <circle cx="8" cy="12" r="1" fill="#43A047" />
+      <circle cx="12" cy="12" r="1" fill="#43A047" />
+      <circle cx="16" cy="12" r="1" fill="#43A047" />
+    </svg>
+  );
+}
 
 type ActiveLease = {
   tenant_id: string;
@@ -43,7 +69,7 @@ type ActiveLease = {
 };
 
 export default function InvoicesPage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { fmt, t, language } = useTheme();
   const canManageInvoices = profile?.role === 'admin' || profile?.role === 'property_manager';
   const { toasts, addToast, removeToast } = useToast();
@@ -55,6 +81,9 @@ export default function InvoicesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<UtilityInvoice | null>(null);
   const [viewing, setViewing] = useState<UtilityInvoice | null>(null);
+  const [messageInvoice, setMessageInvoice] = useState<UtilityInvoice | null>(null);
+  const [messageBody, setMessageBody] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [deleting, setDeleting] = useState<UtilityInvoice | null>(null);
   const [form, setForm] = useState<InvoiceForm>({ ...emptyForm });
 
@@ -148,6 +177,126 @@ export default function InvoicesPage() {
       tenant_id: event.target.value,
       rent_amount: String(lease?.monthly_rent ?? tenant?.monthly_rent ?? ''),
     }));
+  };
+
+  const createInvoiceMessage = (invoice: UtilityInvoice) => {
+    const locale = language === 'fr' ? 'fr-FR' : 'en-GB';
+    const dueDate = new Date(`${invoice.due_date}T00:00:00`).toLocaleDateString(locale, {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const invoiceMonth = new Date(`${invoice.rent_month.slice(0, 7)}-01`).toLocaleDateString(locale, {
+      month: 'long',
+      year: 'numeric',
+    });
+    const rentAmount = Number(invoice.rent_amount);
+    const waterAmount = Number(invoice.water_amount);
+    const electricityAmount = Number(invoice.electricity_amount);
+    const rentBalance = Math.max(0, Number(invoice.rent_balance));
+    const waterBalance = Math.max(0, Number(invoice.water_balance ?? waterAmount));
+    const electricityBalance = Math.max(0, Number(invoice.electricity_balance ?? electricityAmount));
+    const appliedRent = Math.max(0, rentAmount - rentBalance);
+    const appliedWater = Math.max(0, waterAmount - waterBalance);
+    const appliedElectricity = Math.max(0, electricityAmount - electricityBalance);
+    const balanceDue = invoice.status === 'paid'
+      ? 0
+      : Math.max(0, Number(invoice.total_balance_due ?? rentBalance + waterBalance + electricityBalance));
+
+    if (language === 'fr') {
+      return [
+        `Bonjour ${invoice.tenants?.full_name ?? ''},`,
+        '',
+        `Veuillez trouver le récapitulatif de votre facture ${invoice.invoice_number} pour ${invoiceMonth}.`,
+        '',
+        'DÉTAIL DES FRAIS',
+        `Loyer : ${fmt(rentAmount)}`,
+        `Eau : ${fmt(waterAmount)}`,
+        `Électricité : ${fmt(electricityAmount)}`,
+        `Total de la facture : ${fmt(Number(invoice.total_amount))}`,
+        '',
+        'PAIEMENTS APPLIQUÉS',
+        `Loyer : ${fmt(appliedRent)}`,
+        `Eau : ${fmt(appliedWater)}`,
+        `Électricité : ${fmt(appliedElectricity)}`,
+        `Solde restant : ${fmt(balanceDue)}`,
+        `Date limite de paiement : ${dueDate}`,
+        '',
+        'Pour toute question concernant cette facture, veuillez nous contacter.',
+        'Cordialement,',
+        'L’équipe de gestion',
+      ].join('\n');
+    }
+
+    return [
+      `Hello ${invoice.tenants?.full_name ?? ''},`,
+      '',
+      `Please find the summary of your invoice ${invoice.invoice_number} for ${invoiceMonth}.`,
+      '',
+      'CHARGE BREAKDOWN',
+      `Rent: ${fmt(rentAmount)}`,
+      `Water: ${fmt(waterAmount)}`,
+      `Electricity: ${fmt(electricityAmount)}`,
+      `Invoice total: ${fmt(Number(invoice.total_amount))}`,
+      '',
+      'PAYMENTS APPLIED',
+      `Rent: ${fmt(appliedRent)}`,
+      `Water: ${fmt(appliedWater)}`,
+      `Electricity: ${fmt(appliedElectricity)}`,
+      `Outstanding balance: ${fmt(balanceDue)}`,
+      `Payment due date: ${dueDate}`,
+      '',
+      'Please contact us if you have any questions about this invoice.',
+      'Kind regards,',
+      'Property Management',
+    ].join('\n');
+  };
+
+  const openInvoiceMessage = (invoice: UtilityInvoice) => {
+    setMessageBody(createInvoiceMessage(invoice));
+    setMessageInvoice(invoice);
+  };
+
+  const sendInvoiceMessage = async () => {
+    const body = messageBody.trim();
+    const tenantId = messageInvoice?.tenants?.id ?? messageInvoice?.tenant_id;
+    if (!user || !tenantId || !body || sendingMessage) return;
+    setSendingMessage(true);
+    try {
+      const conversationType = profile?.role === 'admin' ? 'tenant_admin' : 'manager_tenant';
+      let lookup = supabase.from('chat_conversations')
+        .select('id')
+        .eq('conversation_type', conversationType)
+        .eq('tenant_id', tenantId);
+      if (conversationType === 'manager_tenant') lookup = lookup.eq('manager_id', user.id);
+      const { data: existing, error: lookupError } = await lookup.maybeSingle();
+      if (lookupError) throw lookupError;
+      let conversationId = existing?.id;
+      if (!conversationId) {
+        const { data, error } = await supabase.from('chat_conversations')
+          .insert({
+            conversation_type: conversationType,
+            tenant_id: tenantId,
+            manager_id: conversationType === 'manager_tenant' ? user.id : null,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        conversationId = data.id;
+      }
+      const { error } = await supabase.from('chat_messages').insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        body,
+      });
+      if (error) throw error;
+      addToast(language === 'fr' ? 'Message envoyé au locataire.' : 'Message sent to tenant.', 'success');
+      setMessageInvoice(null);
+    } catch (caught) {
+      addToast(caught instanceof Error ? caught.message : (language === 'fr' ? 'Échec de l’envoi du message.' : 'Unable to send the message.'), 'error');
+    } finally {
+      setSendingMessage(false);
+    }
   };
 
   const saveInvoice = async () => {
@@ -281,12 +430,10 @@ export default function InvoicesPage() {
 
   const printInvoice = (invoice: UtilityInvoice) => {
     setViewing(invoice);
-    window.setTimeout(() => printDocument('invoice', 'invoice-print-document'), 100);
   };
 
   const today = new Date();
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  const todayString = localDateString(today);
   const pendingInvoices = invoices.filter(invoice => invoice.status === 'unpaid' || invoice.status === 'partial');
   const rentDueTenants = getTenantsDueForInvoice(tenants, invoices, activeLeases, today);
 
@@ -413,7 +560,14 @@ export default function InvoicesPage() {
               </option>
             ))}
           </Select>
-          <Input label={t('invoiceMonth')} type="month" value={form.rent_month} onChange={setField('rent_month')} />
+          <MonthPicker
+            id="invoice-month"
+            value={form.rent_month}
+            onChange={month => setForm(current => ({ ...current, rent_month: month }))}
+            language={language}
+            label={t('invoiceMonth')}
+            showLabel
+          />
           <Input label={t('rent')} type="number" min="0" step="0.01" value={form.rent_amount} onChange={setField('rent_amount')} />
           <Input label={`${t('additionalCharges')} — ${t('water')}`} type="number" min="0" step="0.01" value={form.water_amount} onChange={setField('water_amount')} />
           <Input label={`${t('additionalCharges')} — ${t('electricity')}`} type="number" min="0" step="0.01" value={form.electricity_amount} onChange={setField('electricity_amount')} />
@@ -436,9 +590,110 @@ export default function InvoicesPage() {
 
       <Modal open={!!viewing} onClose={() => setViewing(null)} title={t('invoice')} size="lg">
         {viewing && <InvoiceDocument invoice={viewing} />}
-        <div className="mt-4 flex justify-end">
-          <Button icon={<Printer className="h-4 w-4" />} onClick={() => printDocument('invoice', 'invoice-print-document')}>{t('printSavePdf')}</Button>
+        {viewing && canManageInvoices && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {(() => {
+              const phone = viewing.tenants?.phone?.replace(/\D/g, '');
+              const message = createInvoiceMessage(viewing);
+              const disabledLinkClasses = 'pointer-events-none opacity-50';
+              const linkClasses = 'invoice-share-action inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold';
+              return (
+                <>
+                  <a
+                    href={phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-disabled={!phone}
+                    title={phone ? 'WhatsApp' : (language === 'fr' ? 'Numéro de téléphone indisponible' : 'Phone number unavailable')}
+                    className={`${linkClasses} invoice-share-whatsapp ${phone ? '' : disabledLinkClasses}`}
+                  >
+                    <WhatsAppIcon className="h-4 w-4 text-white" />
+                    WhatsApp
+                  </a>
+                  <a
+                    href={viewing.tenants?.email
+                      ? `mailto:${viewing.tenants.email}?subject=${encodeURIComponent(`${t('invoice')} ${viewing.invoice_number}`)}&body=${encodeURIComponent(message)}`
+                      : undefined}
+                    aria-disabled={!viewing.tenants?.email}
+                    title={viewing.tenants?.email ? viewing.tenants.email : (language === 'fr' ? 'Adresse e-mail indisponible' : 'Email address unavailable')}
+                    className={`${linkClasses} invoice-share-email ${viewing.tenants?.email ? '' : disabledLinkClasses}`}
+                  >
+                    <GmailIcon className="h-5 w-5" />
+                    Email
+                  </a>
+                  <Button
+                    variant="outline"
+                    className="invoice-share-action invoice-share-message rounded-xl px-4 py-2.5"
+                    icon={<AndroidMessagesIcon className="h-5 w-5" />}
+                    onClick={() => openInvoiceMessage(viewing)}
+                  >
+                    {language === 'fr' ? 'Message' : 'Message'}
+                  </Button>
+                </>
+              );
+            })()}
+          </div>
+        )}
+        <div className="mt-4 flex justify-end gap-3">
+          <Button className="document-close-button" variant="ghost" onClick={() => setViewing(null)}>{t('closeButton')}</Button>
+          <Button className="document-print-button" icon={<Printer className="h-4 w-4" />} onClick={() => printDocument('invoice', 'invoice-print-document')}>{t('printSavePdf')}</Button>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!messageInvoice}
+        onClose={() => setMessageInvoice(null)}
+        title={language === 'fr' ? 'Envoyer le récapitulatif de facture' : 'Send invoice summary'}
+        size="lg"
+      >
+        {messageInvoice && (
+          <>
+            <div className="mb-4 grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-4">
+              <div>
+                <p className="text-xs font-medium text-slate-500">{t('tenant')}</p>
+                <p className="mt-1 truncate font-semibold text-slate-800">{messageInvoice.tenants?.full_name ?? '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500">{t('invoice')}</p>
+                <p className="mt-1 font-semibold text-slate-800">{messageInvoice.invoice_number}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500">{t('totalDue')}</p>
+                <p className="mt-1 font-semibold text-slate-800">{fmt(Number(messageInvoice.total_amount))}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500">{t('totalBalanceDue')}</p>
+                <p className="mt-1 font-semibold text-red-700">
+                  {fmt(messageInvoice.status === 'paid' ? 0 : Number(messageInvoice.total_balance_due ?? messageInvoice.rent_balance))}
+                </p>
+              </div>
+            </div>
+            <p className="mb-2 text-sm text-slate-600">
+              {language === 'fr'
+                ? 'Le message comprend le détail des frais, les paiements appliqués et le solde restant. Vous pouvez le modifier avant l’envoi.'
+                : 'The message includes itemized charges, payments applied, and the remaining balance. Review or edit it before sending.'}
+            </p>
+            <Textarea
+              label={language === 'fr' ? 'Message au locataire' : 'Message to tenant'}
+              value={messageBody}
+              onChange={event => setMessageBody(event.target.value)}
+              rows={14}
+              maxLength={4000}
+              className="text-sm leading-6"
+            />
+            <div className="mt-5 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setMessageInvoice(null)}>{t('cancel')}</Button>
+              <Button
+                loading={sendingMessage}
+                disabled={!messageBody.trim()}
+                icon={<AndroidMessagesIcon className="h-5 w-5" />}
+                onClick={sendInvoiceMessage}
+              >
+                {language === 'fr' ? 'Envoyer le message' : 'Send message'}
+              </Button>
+            </div>
+          </>
+        )}
       </Modal>
 
       {canManageInvoices && <Modal open={!!deleting} onClose={() => setDeleting(null)} title={t('delete')} size="sm">

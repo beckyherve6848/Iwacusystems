@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Home, Users, TrendingUp, AlertCircle, Wallet,
+  Home, Users, TrendingUp, AlertCircle, Wallet, CalendarDays, ChevronLeft, ChevronRight,
   UserCheck, Wrench, ArrowUpRight, CheckCircle2,
   Building2, StickyNote
 } from 'lucide-react';
@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
 import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
-import { getTenantsDueForInvoice } from '@/lib/invoiceDue';
+import { getTenantsDueForInvoice, getTenantsNotDueForInvoice } from '@/lib/invoiceDue';
 
 interface Stats {
   totalHouses: number;
@@ -41,11 +41,12 @@ const EMPTY_STATS: Stats = {
 
 const dashboardStatsCache = new Map<string, Stats>();
 
-function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, moneyAmount, amountTone }: {
+function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, moneyAmount, amountTone, iconOnly = false }: {
   icon: any; title: string; label: string; value: string | number; sub?: string; onClick?: () => void;
   iconStyle: string;
   moneyAmount?: number;
   amountTone?: 'expected' | 'collected' | 'outstanding';
+  iconOnly?: boolean;
 }) {
   const isMoney = moneyAmount !== undefined;
   const moneySizeClass = moneyAmount !== undefined && moneyAmount >= 1_000_000_000
@@ -54,22 +55,39 @@ function StatCard({ icon: Icon, title, label, value, sub, onClick, iconStyle, mo
       ? 'phone-dashboard-money-hundred-million'
       : '';
   const moneyColorClass = `phone-dashboard-${amountTone ?? 'expected'}`;
+  const formattedMoney = isMoney && typeof value === 'string'
+    ? value.match(/^(.+?)\s+([0-9][0-9,]*(?:\.[0-9]+)?)$/)
+    : null;
+  const fittedAmountFontSize = formattedMoney
+    ? `${Math.max(12, Math.min(24, 240 / formattedMoney[2].length))}px`
+    : undefined;
 
   return (
     <div
       onClick={onClick}
       className={`min-w-0 bg-white border border-[#eaeaea] rounded-2xl p-3 sm:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all group ${onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''}`}
     >
-      <div className="flex items-center justify-between mb-3 sm:mb-4">
+      <div className="flex h-9 items-center justify-between mb-3 sm:h-10 sm:mb-4">
         <div className="flex min-w-0 items-center gap-2">
-          <div className={`phone-stat-icon w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center ${iconStyle}`}>
-            <Icon className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.75} />
+          <div className={`phone-stat-icon flex items-center justify-center ${
+            amountTone === 'outstanding' || iconOnly
+              ? 'phone-stat-icon-outstanding h-9 w-9 shrink-0 rounded-full bg-transparent p-0 sm:h-10 sm:w-10'
+              : `h-9 w-9 shrink-0 rounded-full sm:h-10 sm:w-10 ${iconStyle}`
+          }`}>
+            <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${amountTone === 'outstanding' || iconOnly ? 'text-[#ff0000]' : ''}`} strokeWidth={1.75} />
           </div>
           <span className="phone-stat-title block truncate text-xs font-semibold text-slate-500 md:hidden">{title}</span>
         </div>
         {onClick && <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-slate-700 transition-colors" />}
       </div>
-      <p className={`min-w-0 text-lg sm:text-2xl font-bold mb-1 leading-tight ${isMoney ? `phone-dashboard-money ${moneyColorClass} ${moneySizeClass}` : 'text-slate-900'}`}>{value}</p>
+      <p className={`min-w-0 text-lg sm:text-2xl font-bold mb-1 leading-tight ${isMoney ? `phone-dashboard-money ${moneyColorClass} ${moneySizeClass}` : 'text-slate-900'}`}>
+        {formattedMoney ? (
+          <>
+            <span className="mb-1 block font-mono text-base font-semibold leading-tight sm:text-lg">{formattedMoney[1]}</span>
+            <span className="block tabular-nums" style={{ fontSize: fittedAmountFontSize }}>{formattedMoney[2]}</span>
+          </>
+        ) : value}
+      </p>
       <p className="phone-stat-description min-w-0 border-l border-[#ff0000] pl-2 text-xs italic leading-5 text-slate-500 md:hidden">
         <span className="block">{label}</span>
         {sub && <span className="block text-slate-400">{sub}</span>}
@@ -375,6 +393,7 @@ const statusColors: Record<string, string> = {
   paid: 'bg-emerald-500',
   unpaid: 'bg-red-500',
   partial: 'bg-slate-950',
+  notDue: 'bg-slate-500',
   pending: 'bg-red-500',
   overdue: 'bg-red-500',
   outstanding: 'bg-red-500',
@@ -397,6 +416,39 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
   const [paymentStatusLoading, setPaymentStatusLoading] = useState(true);
   const [paymentStatusError, setPaymentStatusError] = useState<string | null>(null);
   const [paymentStatusRefresh, setPaymentStatusRefresh] = useState(0);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const monthPickerRef = useRef<HTMLDivElement>(null);
+  const paymentStatusMonthDate = new Date(
+    Number(paymentStatusMonth.slice(0, 4)),
+    Number(paymentStatusMonth.slice(5, 7)) - 1,
+    1,
+  );
+  const paymentStatusYear = paymentStatusMonthDate.getFullYear();
+  const monthNames = Array.from({ length: 12 }, (_, month) =>
+    new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-US', { month: 'short' })
+      .format(new Date(paymentStatusYear, month, 1))
+      .replace('.', ''),
+  );
+  const paymentStatusMonthLabel = new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(paymentStatusMonthDate);
+
+  useEffect(() => {
+    if (!monthPickerOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!monthPickerRef.current?.contains(event.target as Node)) setMonthPickerOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMonthPickerOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [monthPickerOpen]);
 
   useEffect(() => {
     if (!profileId) return;
@@ -415,7 +467,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         supabase.from('houses').select('id, status, monthly_rent'),
         supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('tenant_family').select('id', { count: 'exact', head: true }),
-        supabase.from('payments').select('id, status, tenants(full_name), houses(house_number), receipt_number').order('created_at', { ascending: false }).limit(5),
+        supabase.from('payments').select('id, status, amount_paid, tenants(full_name), houses(house_number), receipt_number').order('created_at', { ascending: false }).limit(5),
         supabase.from('visitors').select('id, visitor_name, purpose, time_in, status, houses(house_number)').order('time_in', { ascending: false }).limit(5),
         supabase.from('maintenance_requests').select('id, title, priority, status, tenants(full_name), houses(house_number), created_at').order('created_at', { ascending: false }).limit(5),
         supabase.from('maintenance_requests').select('id', { count: 'exact', head: true }).neq('status', 'completed').neq('status', 'rejected'),
@@ -563,23 +615,29 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
     setStats(previous => ({ ...previous, paymentStatusCounts: [] }));
 
     async function loadPaymentStatus() {
-      const [payments, invoices, utilityPayments] = await Promise.all([
+      const [payments, invoices, utilityPayments, activeTenants, activeLeases] = await Promise.all([
         supabase.from('payments')
-          .select('id, tenant_id, rent_month, status')
+          .select('id, tenant_id, rent_month, due_date, status')
           .gte('rent_month', startDate)
           .lt('rent_month', nextMonthDate),
         supabase.from('utility_invoices')
-          .select('id, tenant_id, rent_month, rent_balance, water_amount, electricity_amount')
+          .select('id, tenant_id, rent_month, due_date, rent_balance, water_amount, electricity_amount')
           .gte('rent_month', startDate)
           .lt('rent_month', nextMonthDate),
         supabase.from('payments')
           .select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount')
           .gte('rent_month', startDate)
           .lt('rent_month', nextMonthDate),
+        supabase.from('tenants')
+          .select('id, house_id, move_in_date, move_out_date')
+          .eq('status', 'active'),
+        supabase.from('rental_agreements')
+          .select('tenant_id, lease_start_date, lease_end_date')
+          .eq('status', 'active'),
       ]);
 
       if (cancelled) return;
-      const failedResult = [payments, invoices, utilityPayments].find(result => result.error);
+      const failedResult = [payments, invoices, utilityPayments, activeTenants, activeLeases].find(result => result.error);
       if (failedResult?.error) {
         console.error('Unable to load monthly payment status counts:', failedResult.error.message);
         setPaymentStatusError(failedResult.error.message);
@@ -588,19 +646,55 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       }
 
       const outstandingByInvoice = calculateInvoiceChargeBalances(invoices.data ?? [], utilityPayments.data ?? []);
+      const localToday = new Date();
+      const todayDate = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, '0')}-${String(localToday.getDate()).padStart(2, '0')}`;
+      const periodKey = (tenantId: string, rentMonth: string) => `${tenantId}:${rentMonth.slice(0, 7)}`;
+      const partialBillingPeriods = new Set(
+        (payments.data ?? [])
+          .filter(payment => payment.status === 'partial')
+          .map(payment => periodKey(payment.tenant_id, payment.rent_month)),
+      );
+      const notDueBillingPeriods = new Set(
+        (invoices.data ?? [])
+          .filter(invoice => (outstandingByInvoice.get(invoice.id)?.total_balance_due ?? 0) > 0
+            && invoice.due_date > todayDate
+            && !partialBillingPeriods.has(periodKey(invoice.tenant_id, invoice.rent_month)))
+          .map(invoice => periodKey(invoice.tenant_id, invoice.rent_month)),
+      );
+      const recordedBillingPeriods = [
+        ...(invoices.data ?? []),
+        ...(payments.data ?? []).filter(payment => payment.rent_month),
+      ];
+      getTenantsNotDueForInvoice(
+        activeTenants.data ?? [],
+        recordedBillingPeriods,
+        activeLeases.data ?? [],
+        localToday,
+        paymentStatusMonth,
+      ).forEach(({ tenant }) => {
+        notDueBillingPeriods.add(periodKey(tenant.id, startDate));
+      });
+      (payments.data ?? [])
+        .filter(payment => payment.status === 'pending' && payment.due_date > todayDate)
+        .forEach(payment => {
+          const key = periodKey(payment.tenant_id, payment.rent_month);
+          if (!partialBillingPeriods.has(key)) notDueBillingPeriods.add(key);
+        });
       const unpaidBillingPeriods = new Set(
         (invoices.data ?? [])
           .filter(invoice => (outstandingByInvoice.get(invoice.id)?.total_balance_due ?? 0) > 0)
-          .map(invoice => `${invoice.tenant_id}:${invoice.rent_month.slice(0, 7)}`),
+          .map(invoice => periodKey(invoice.tenant_id, invoice.rent_month)),
       );
       (payments.data ?? [])
         .filter(payment => payment.status === 'pending' || payment.status === 'overdue')
-        .forEach(payment => unpaidBillingPeriods.add(`${payment.tenant_id}:${payment.rent_month.slice(0, 7)}`));
+        .forEach(payment => unpaidBillingPeriods.add(periodKey(payment.tenant_id, payment.rent_month)));
+      notDueBillingPeriods.forEach(key => unpaidBillingPeriods.delete(key));
 
       const paymentStatusCounts = [
         { status: 'paid', count: (payments.data ?? []).filter(payment => payment.status === 'paid').length },
         { status: 'unpaid', count: unpaidBillingPeriods.size },
         { status: 'partial', count: (payments.data ?? []).filter(payment => payment.status === 'partial').length },
+        { status: 'notDue', count: notDueBillingPeriods.size },
       ];
       setStats(previous => {
         const next = { ...previous, paymentStatusCounts };
@@ -670,7 +764,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
 
   return (
     <div className="dashboard-content flex flex-col gap-4 sm:gap-6">
-      <DashboardWelcomeHero title={t('dashboard')} subtitle={t('welcomeBackMsg')} />
+      <DashboardWelcomeHero title={t('dashboard')} />
 
       <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
       {pendingRegistrationError && (
@@ -727,7 +821,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         <StatCard icon={Building2} title={t('houses')} label={t('totalHouses')} value={stats.totalHouses} iconStyle="bg-blue-50 text-blue-700" onClick={() => onNavigate('houses')} />
         <StatCard icon={CheckCircle2} title={t('houses')} label={t('occupied')} value={stats.occupiedHouses} iconStyle="bg-emerald-50 text-emerald-700" onClick={() => onNavigate('houses')} />
         <StatCard icon={Home} title={t('houses')} label={t('vacant')} value={stats.vacantHouses} iconStyle="bg-amber-50 text-amber-700" onClick={() => onNavigate('houses')} />
-        <StatCard icon={Wrench} title={t('maintenance')} label={t('maintenanceHouses')} value={stats.maintenanceHouses} iconStyle="bg-red-50 text-red-700" onClick={() => onNavigate('maintenance')} />
+        <StatCard icon={Wrench} title={t('maintenance')} label={t('maintenanceHouses')} value={stats.maintenanceHouses} iconStyle="bg-red-50 text-red-700" iconOnly onClick={() => onNavigate('maintenance')} />
         <StatCard icon={Users} title={t('tenants')} label={t('activeTenants')} value={stats.totalTenants} sub={`${stats.totalFamilyMembers} ${t('familyMembers')}`} iconStyle="bg-violet-50 text-violet-700" onClick={() => onNavigate('tenants')} />
         <StatCard icon={Wallet} title={t('payments')} label={t('expectedRent')} value={fmt(stats.monthlyExpectedRent)} moneyAmount={stats.monthlyExpectedRent} amountTone="expected" iconStyle="bg-sky-50 text-sky-700" onClick={() => onNavigate('payments')} />
         <StatCard icon={TrendingUp} title={t('payments')} label={t('collected')} value={fmt(stats.monthlyCollected)} moneyAmount={stats.monthlyCollected} amountTone="collected" iconStyle="bg-green-50 text-green-700" onClick={() => onNavigate('payments')} />
@@ -763,22 +857,83 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           <LineChart data={stats.monthlyIncome} noDataLabel={t('noDataYet')} fmtCurrency={fmt} />
         </div>
 
-        <div className="payment-status-glass relative overflow-hidden rounded-2xl border p-3 sm:p-5">
+        <div className="payment-status-glass relative rounded-2xl border p-3 sm:p-5">
           <div className="relative z-10">
             <div className="flex items-start justify-between gap-3 mb-1">
               <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('paymentStatus')}</h3>
-              <label className="shrink-0">
-                <span className="sr-only">{t('filterByMonth')}</span>
-                <input
-                  type="month"
-                  value={paymentStatusMonth}
-                  onChange={event => {
-                    if (event.target.value) setPaymentStatusMonth(event.target.value);
-                  }}
+              <div className="payment-status-month-picker relative shrink-0" ref={monthPickerRef}>
+                <button
+                  type="button"
                   aria-label={t('filterByMonth')}
-                  className="w-[132px] rounded-lg border border-slate-200 bg-white/70 px-2 py-1 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                />
-              </label>
+                  aria-haspopup="dialog"
+                  aria-expanded={monthPickerOpen}
+                  onClick={() => setMonthPickerOpen(open => !open)}
+                  className="payment-status-month-trigger inline-flex max-w-[158px] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium"
+                >
+                  <span className="truncate">{paymentStatusMonthLabel}</span>
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                </button>
+                {monthPickerOpen && (
+                  <div
+                    className="payment-status-month-popover absolute right-0 top-full z-30 mt-2 w-[240px] rounded-xl border p-3 shadow-xl"
+                    role="dialog"
+                    aria-label={t('filterByMonth')}
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <button
+                        type="button"
+                        aria-label={language === 'fr' ? 'Année précédente' : 'Previous year'}
+                        onClick={() => setPaymentStatusMonth(`${paymentStatusYear - 1}-${paymentStatusMonth.slice(5, 7)}`)}
+                        className="payment-status-month-nav rounded-lg p-1.5"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <span className="text-sm font-semibold tabular-nums">{paymentStatusYear}</span>
+                      <button
+                        type="button"
+                        aria-label={language === 'fr' ? 'Année suivante' : 'Next year'}
+                        onClick={() => setPaymentStatusMonth(`${paymentStatusYear + 1}-${paymentStatusMonth.slice(5, 7)}`)}
+                        className="payment-status-month-nav rounded-lg p-1.5"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {monthNames.map((name, month) => {
+                        const value = `${paymentStatusYear}-${String(month + 1).padStart(2, '0')}`;
+                        const isSelected = value === paymentStatusMonth;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-pressed={isSelected}
+                            onClick={() => {
+                              setPaymentStatusMonth(value);
+                              setMonthPickerOpen(false);
+                            }}
+                            className={`payment-status-month-option rounded-lg px-2 py-2 text-xs font-medium capitalize ${isSelected ? 'is-selected' : ''}`}
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 border-t pt-2.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const now = new Date();
+                          setPaymentStatusMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                          setMonthPickerOpen(false);
+                        }}
+                        className="payment-status-this-month text-xs font-medium"
+                      >
+                        {t('thisMonth')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <p className="text-slate-400 text-xs mb-4">{t('currentBreakdown')}</p>
             {paymentStatusError ? (
@@ -793,16 +948,16 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
                   const total = stats.paymentStatusCounts.reduce((s, x) => s + x.count, 0);
                   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
                   return (
-                    <div key={status} className={status === 'unpaid' ? 'payment-status-unpaid-glow rounded-xl px-2 py-1 -mx-2' : undefined}>
+                    <div key={status}>
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
-                          <div className={`h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm ${statusColors[status] ?? 'bg-slate-400'} ${status === 'unpaid' ? 'shadow-red-500/40' : ''}`} />
+                          <div className={`h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm ${statusColors[status] ?? 'bg-slate-400'}`} />
                           <span className="text-sm capitalize text-slate-700">{status === 'unpaid' ? t('unpaid') : t(status)}</span>
                         </div>
                         <span className="text-sm font-semibold text-slate-900">{count}</span>
                       </div>
-                      <div className={`h-1.5 rounded-full overflow-hidden ${status === 'unpaid' ? 'bg-red-100/70' : 'bg-slate-100'}`}>
-                        <div className={`h-full rounded-full ${statusColors[status] ?? 'bg-slate-400'} ${status === 'unpaid' ? 'shadow-[0_0_10px_rgba(239,68,68,0.65)]' : ''}`} style={{ width: `${pct}%` }} />
+                      <div className={`payment-status-track payment-status-track-${status} h-1.5 rounded-full overflow-hidden`}>
+                        <div className={`payment-status-fill payment-status-fill-${status} h-full rounded-full`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
@@ -816,82 +971,95 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       {/* Recent Activity Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
         {/* Recent Payments */}
-        <div className={`p-3 sm:p-5 ${panelClass}`}>
-          <div className="flex items-center justify-between mb-4">
+        <div className={`dashboard-activity-card p-3 sm:p-5 ${panelClass}`}>
+          <div className="dashboard-activity-header flex items-center justify-between mb-3 pb-3">
             <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('recentPayments')}</h3>
-            <button onClick={() => onNavigate('payments')} className="text-xs font-medium text-slate-900 hover:underline">{t('viewAll')}</button>
+            <button onClick={() => onNavigate('payments')} className="dashboard-activity-link inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-emerald-700 hover:text-emerald-800">
+              {t('viewAll')} <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+            </button>
           </div>
-          <div className="space-y-3">
+          <div>
             {stats.recentPayments.length === 0 && <p className="text-slate-400 text-sm">{t('noPaymentsYet')}</p>}
             {stats.recentPayments.map(p => (
-              <div key={p.id} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-slate-100">
-                  <Wallet className="w-4 h-4 text-slate-500" />
+              <div key={p.id} className="dashboard-activity-row flex items-center gap-3 border-t border-slate-100 py-2.5 first:border-t-0 first:pt-0 last:pb-0">
+                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 shrink-0">
+                  <Wallet className="h-4 w-4 text-red-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-900 truncate">{(p.tenants as any)?.full_name ?? 'Unknown'}</p>
-                  <p className="text-xs text-slate-400">{(p.houses as any)?.house_number} · {p.receipt_number}</p>
+                  <p className="truncate text-sm font-medium text-slate-900">{(p.tenants as any)?.full_name ?? 'Unknown'}</p>
+                  <p className="truncate text-xs text-slate-500">{(p.houses as any)?.house_number} <span className="px-0.5 text-slate-300">·</span> {p.receipt_number}</p>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
-                  p.status === 'paid' ? 'bg-emerald-50 text-emerald-700' :
-                  p.status === 'partial' ? 'bg-blue-50 text-blue-700' :
-                  p.status === 'overdue' ? 'bg-red-50 text-red-700' :
-                  'bg-amber-50 text-amber-700'
-                }`}>{p.status}</span>
+                <div className="shrink-0 text-right">
+                  <p className="text-xs font-semibold tabular-nums text-slate-800">{fmt(Number(p.amount_paid ?? 0))}</p>
+                  <span className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${
+                    p.status === 'paid' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
+                    p.status === 'partial' ? 'border-blue-200 bg-blue-50 text-blue-700' :
+                    p.status === 'overdue' ? 'border-red-200 bg-red-50 text-red-700' :
+                    'border-amber-200 bg-amber-50 text-amber-700'
+                  }`}>
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+                    {t(p.status)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
         {/* Recent Visitors */}
-        <div className={`p-3 sm:p-5 ${panelClass}`}>
-          <div className="flex items-center justify-between mb-4">
+        <div className={`dashboard-activity-card p-3 sm:p-5 ${panelClass}`}>
+          <div className="dashboard-activity-header flex items-center justify-between mb-3 pb-3">
             <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('recentVisitors')}</h3>
-            <button onClick={() => onNavigate('visitors')} className="text-xs font-medium text-slate-900 hover:underline">{t('viewAll')}</button>
+            <button onClick={() => onNavigate('visitors')} className="dashboard-activity-link inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-emerald-700 hover:text-emerald-800">
+              {t('viewAll')} <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+            </button>
           </div>
-          <div className="space-y-3">
+          <div>
             {stats.recentVisitors.length === 0 && <p className="text-slate-400 text-sm">{t('noVisitorsYet')}</p>}
             {stats.recentVisitors.map(v => (
-              <div key={v.id} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-slate-100">
-                  <UserCheck className="w-4 h-4 text-slate-500" />
+              <div key={v.id} className="dashboard-activity-row flex items-center gap-3 border-t border-slate-100 py-2.5 first:border-t-0 first:pt-0 last:pb-0">
+                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 shrink-0">
+                  <UserCheck className="h-4 w-4 text-red-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-900 truncate">{v.visitor_name}</p>
-                  <p className="text-xs text-slate-400 truncate">{(v.houses as any)?.house_number} · {v.purpose}</p>
+                  <p className="truncate text-sm font-medium text-slate-900">{v.visitor_name}</p>
+                  <p className="truncate text-xs text-slate-500">{(v.houses as any)?.house_number} <span className="px-0.5 text-slate-300">·</span> {v.purpose}</p>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  v.status === 'inside' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                }`}>{v.status}</span>
+                <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                  v.status === 'inside' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'
+                }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${v.status === 'inside' ? 'bg-emerald-500' : 'bg-red-500'}`} aria-hidden="true" />
+                  {t(v.status)}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Recent Maintenance */}
-        <div className={`p-3 sm:p-5 ${panelClass}`}>
-          <div className="flex items-center justify-between mb-4">
+        <div className={`dashboard-activity-card p-3 sm:p-5 ${panelClass}`}>
+          <div className="dashboard-activity-header flex items-center justify-between mb-3 pb-3">
             <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('maintenanceRequests')}</h3>
-            <button onClick={() => onNavigate('maintenance')} className="text-xs font-medium text-slate-900 hover:underline">{t('viewAll')}</button>
+            <button onClick={() => onNavigate('maintenance')} className="dashboard-activity-link inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-emerald-700 hover:text-emerald-800">
+              {t('viewAll')} <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+            </button>
           </div>
-          <div className="space-y-3">
+          <div>
             {stats.recentMaintenance.length === 0 && <p className="text-slate-400 text-sm">{t('noRequestsYet')}</p>}
             {stats.recentMaintenance.map(m => (
-              <div key={m.id} className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                  m.priority === 'high' ? 'bg-red-50' : m.priority === 'medium' ? 'bg-amber-50' : 'bg-slate-100'
-                }`}>
-                  <Wrench className="w-4 h-4 text-slate-500" />
+              <div key={m.id} className="dashboard-activity-row flex items-center gap-3 border-t border-slate-100 py-2.5 first:border-t-0 first:pt-0 last:pb-0">
+                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 shrink-0">
+                  <Wrench className="h-4 w-4 text-red-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-900 truncate">{m.title}</p>
-                  <p className="text-xs text-slate-400 truncate">{(m.tenants as any)?.full_name} · {(m.houses as any)?.house_number}</p>
+                  <p className="truncate text-sm font-medium text-slate-900">{m.title}</p>
+                  <p className="truncate text-xs text-slate-500">{(m.tenants as any)?.full_name} <span className="px-0.5 text-slate-300">·</span> {(m.houses as any)?.house_number}</p>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  m.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
-                  m.status === 'pending' ? 'bg-amber-50 text-amber-700' :
-                  'bg-blue-50 text-blue-700'
-                }`}>{m.status}</span>
+                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${
+                  m.status === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
+                  m.status === 'pending' ? 'border-amber-200 bg-amber-50 text-amber-700' :
+                  'border-blue-200 bg-blue-50 text-blue-700'
+                }`}>{m.status.replace(/_/g, ' ')}</span>
               </div>
             ))}
           </div>

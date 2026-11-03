@@ -1,24 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { Building2, CalendarDays, Clock3 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface DashboardWelcomeHeroProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   action?: React.ReactNode;
 }
 
 export default function DashboardWelcomeHero({ title, subtitle, action }: DashboardWelcomeHeroProps) {
   const { appName, language, loginFamilyImageUrl } = useTheme();
+  const { profile, user } = useAuth();
   const [imageSrc, setImageSrc] = useState(loginFamilyImageUrl || '/Bck.png');
   const [imageVisible, setImageVisible] = useState(true);
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     setImageSrc(loginFamilyImageUrl || '/Bck.png');
     setImageVisible(true);
   }, [loginFamilyImageUrl]);
 
-  const subtitleParts = subtitle.split(' — ');
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const hour = now.getHours();
+  const greeting = language === 'fr'
+    ? hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir'
+    : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const fullName = profile?.full_name?.trim() || String(user?.user_metadata?.full_name ?? '').trim();
+  const greetingText = fullName ? `${greeting}, ${fullName}` : greeting;
   return (
     <section className="relative isolate -mx-2 -mt-2 min-h-[160px] overflow-hidden rounded-3xl bg-slate-950 shadow-[0_8px_20px_rgba(15,23,42,0.22)] sm:mx-0 sm:mt-0 sm:min-h-[220px] sm:shadow-[0_12px_32px_rgba(15,23,42,0.14)]">
       {imageVisible && (
@@ -42,21 +55,15 @@ export default function DashboardWelcomeHero({ title, subtitle, action }: Dashbo
             <span>{appName}</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white sm:text-4xl">{title}</h1>
-          <p className="mt-1 max-w-xl text-sm leading-5 text-white/75 sm:mt-2 sm:text-base sm:leading-6">
-            {subtitleParts.length > 1 ? (
-              <>
-                {subtitleParts[0]}
-                <span className="hidden md:inline"> — </span>
-                <span className="md:hidden">, </span>
-                {subtitleParts.slice(1).join(' — ')}
-              </>
-            ) : subtitle}
+          <p className="mt-1 max-w-xl text-sm leading-5 text-white/90 sm:mt-2 sm:text-base sm:leading-6">
+            {greetingText}
           </p>
+          {subtitle && <p className="mt-1 max-w-xl text-xs leading-5 text-white/70 sm:text-sm">{subtitle}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {action}
           <div className="inline-flex w-fit flex-col gap-1 rounded-lg border border-white/15 bg-black/25 px-2 py-1.5 text-[10px] font-medium text-white/90 shadow-lg backdrop-blur-md sm:mb-1 sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-2.5 sm:text-xs">
-            <DashboardDateTime language={language} />
+            <DashboardDateTime language={language} now={now} />
           </div>
         </div>
       </div>
@@ -64,14 +71,7 @@ export default function DashboardWelcomeHero({ title, subtitle, action }: Dashbo
   );
 }
 
-function DashboardDateTime({ language }: { language: string }) {
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
+function DashboardDateTime({ language, now }: { language: string; now: Date }) {
   const locale = language === 'fr' ? 'fr-BI' : 'en-GB';
   const date = new Intl.DateTimeFormat(locale, {
     weekday: 'long',

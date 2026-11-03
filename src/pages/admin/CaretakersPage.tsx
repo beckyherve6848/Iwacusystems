@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Eye, Pencil, Plus, UserX, UserCheck } from 'lucide-react';
+import { Eye, Pencil, Plus, UserRound, UserX, UserCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -117,11 +117,11 @@ export default function CaretakersPage() {
       ) : (
         <div className="space-y-3">
           {caretakers.map(caretaker => (
-            <section key={caretaker.id} className="rounded-2xl border border-slate-200 bg-white p-5">
+            <section key={caretaker.id} className="caretaker-profile-card rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-                    <span className="text-lg font-bold uppercase">{caretaker.full_name.trim().charAt(0) || '?'}</span>
+                  <div className="caretaker-profile-avatar flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                    <UserRound className="h-5 w-5" aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <h2 className="truncate font-semibold text-slate-900">{caretaker.full_name}</h2>

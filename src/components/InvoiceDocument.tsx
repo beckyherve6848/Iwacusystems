@@ -78,7 +78,7 @@ export default function InvoiceDocument({
           {t('rent')} + {t('additionalCharges')}
         </h2>
         <p className="mb-3 text-xs text-slate-500">{t('rentBalanceCreditNote')}</p>
-        <table className="invoice-items w-full border-collapse text-sm">
+        <table className="invoice-items invoice-pos-breakdown w-full border-collapse text-sm">
           <thead>
             <tr className="border-y border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600">
               <th className="px-4 py-3 font-semibold">{t('description')}</th>

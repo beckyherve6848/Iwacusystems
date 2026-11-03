@@ -128,7 +128,7 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
     <div className="dashboard-content flex flex-col gap-4 sm:gap-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <DashboardWelcomeHero
-        title={`${labels.title}${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
+        title={labels.title}
         subtitle={labels.subtitle}
       />
       {stats.unpaidInvoices > 0 && (

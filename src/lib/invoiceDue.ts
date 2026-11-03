@@ -56,3 +56,32 @@ export function getTenantsDueForInvoice<T extends InvoiceDueTenant>(
     return [{ tenant, dueDate }];
   });
 }
+
+export function getTenantsNotDueForInvoice<T extends InvoiceDueTenant>(
+  tenants: T[],
+  billingPeriods: IssuedInvoiceMonth[],
+  activeLeases: InvoiceDueLease[],
+  today: Date,
+  targetMonth: string,
+) {
+  const [year, month] = targetMonth.split('-').map(Number);
+  const todayString = localDateString(today);
+  const billedTenantIds = new Set(
+    billingPeriods
+      .filter(period => period.rent_month.slice(0, 7) === targetMonth)
+      .map(period => period.tenant_id),
+  );
+
+  return tenants.flatMap(tenant => {
+    if (!tenant.house_id || billedTenantIds.has(tenant.id)) return [];
+    const lease = activeLeases
+      .filter(item => item.tenant_id === tenant.id)
+      .sort((a, b) => b.lease_start_date.localeCompare(a.lease_start_date))[0];
+    const startDate = tenant.move_in_date ?? lease?.lease_start_date;
+    if (!startDate || startDate.slice(0, 7) > targetMonth) return [];
+    const dueDate = monthlyAnniversary(startDate, year, month - 1);
+    const endDate = lease?.lease_end_date ?? tenant.move_out_date;
+    if (dueDate <= todayString || (endDate && endDate < dueDate)) return [];
+    return [{ tenant, dueDate }];
+  });
+}

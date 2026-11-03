@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 import { UserCheck, Users, LogIn } from 'lucide-react';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
 
 export default function GatekeeperDashboard({ onNavigate }: { onNavigate: (p: string) => void }) {
-  const { profile } = useAuth();
   const [stats, setStats] = useState({ todayVisitors: 0, insideNow: 0, total: 0 });
   const [recentVisitors, setRecentVisitors] = useState<any[]>([]);
 
@@ -29,7 +27,6 @@ export default function GatekeeperDashboard({ onNavigate }: { onNavigate: (p: st
     <div className="dashboard-content space-y-6">
       <DashboardWelcomeHero
         title="Gatekeeper Dashboard"
-        subtitle={`Welcome, ${profile?.full_name ?? ''}`}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

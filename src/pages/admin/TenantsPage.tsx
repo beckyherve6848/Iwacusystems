@@ -480,7 +480,7 @@ export default function TenantsPage() {
           <h1 className="text-2xl font-bold text-slate-900">{t('tenants')}</h1>
           <p className="text-slate-500 text-sm mt-0.5">{t('manageTenants')}</p>
         </div>
-        <Button icon={<Plus className="w-4 h-4" />} onClick={openAdd}>{t('addTenant')}</Button>
+        <Button className="page-action-button" icon={<Plus className="w-4 h-4" />} onClick={openAdd}>{t('addTenant')}</Button>
       </div>
 
       {/* Pending Registrations */}
@@ -605,7 +605,7 @@ export default function TenantsPage() {
                       <div className="tenant-list-avatar w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
                         {tenantPhotoUrls[t.id]
                           ? <img src={tenantPhotoUrls[t.id]} alt="" className="w-full h-full object-cover" />
-                          : <span className="text-sm font-semibold text-slate-700">{t.full_name.charAt(0)}</span>
+                          : <UserRound className="tenant-list-avatar-icon h-4 w-4 text-slate-500" aria-hidden="true" />
                         }
                       </div>
                       <div className="tenant-list-name-text min-w-0">
@@ -699,8 +699,9 @@ export default function TenantsPage() {
                 <option value="Other">{text('Other', 'Autre')}</option>
               </Select>
               <Input label={text('National ID / Passport', 'Carte nationale / Passeport')} placeholder={text('ID or passport number', 'Numéro de carte ou de passeport')} value={form.national_id} onChange={set('national_id')} />
-              <label className="tenant-edit-file-label space-y-1.5 text-sm font-medium text-slate-700">
-                {text('Tenant photo (500 × 500 PNG/JPG, max 10 MB)', 'Photo du locataire (PNG/JPG de 500 × 500, 10 Mo max.)')}
+              <label className="identity-file-field tenant-edit-file-label">
+                <span className="identity-file-title">{text('Tenant photo', 'Photo du locataire')}</span>
+                <span className="identity-file-help">{text('500 × 500 PNG/JPG · Maximum 10 MB', 'PNG/JPG de 500 × 500 · 10 Mo maximum')}</span>
                 <input
                   type="file"
                   accept=".png,.jpg,.jpeg,image/png,image/jpeg"
@@ -725,9 +726,9 @@ export default function TenantsPage() {
                       input.value = '';
                     });
                   }}
-                  className="tenant-edit-file-input block w-full text-sm"
+                  className="identity-file-input tenant-edit-file-input"
                 />
-                {tenantPhoto && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionnée :')} {tenantPhoto.name}</span>}
+                {tenantPhoto && <span className="identity-file-selected">{text('Selected:', 'Sélectionnée :')} {tenantPhoto.name}</span>}
               </label>
               {editingId && tenantPhotoUrls[editingId] && !tenantPhoto && (
                 <div className="flex items-center gap-3">
@@ -735,8 +736,9 @@ export default function TenantsPage() {
                   <span className="text-xs text-slate-500">{text('Current tenant photo', 'Photo actuelle du locataire')}</span>
                 </div>
               )}
-              <label className="tenant-edit-file-label space-y-1.5 text-sm font-medium text-slate-700 sm:col-span-2">
-                {text('ID card / Passport (PDF or 500 × 500 PNG/JPG, max 10 MB)', 'Carte d’identité / Passeport (PDF ou PNG/JPG de 500 × 500, 10 Mo max.)')}
+              <label className="identity-file-field tenant-edit-file-label sm:col-span-2">
+                <span className="identity-file-title">{text('ID card / Passport', 'Carte d’identité / Passeport')}</span>
+                <span className="identity-file-help">{text('PDF or 500 × 500 PNG/JPG · Maximum 10 MB', 'PDF ou PNG/JPG de 500 × 500 · 10 Mo maximum')}</span>
                 <input
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
@@ -767,9 +769,9 @@ export default function TenantsPage() {
                     };
                     void validateAndSelect();
                   }}
-                  className="tenant-edit-file-input block w-full text-sm"
+                  className="identity-file-input tenant-edit-file-input"
                 />
-                {identityDocument && <span className="block text-xs text-slate-500">{text('Selected:', 'Sélectionné :')} {identityDocument.name}</span>}
+                {identityDocument && <span className="identity-file-selected">{text('Selected:', 'Sélectionné :')} {identityDocument.name}</span>}
               </label>
               {editingId && tenants.find(tenant => tenant.id === editingId)?.national_id_document_path && (
                 <div className="sm:col-span-2">

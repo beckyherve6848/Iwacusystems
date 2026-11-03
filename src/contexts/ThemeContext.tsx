@@ -174,7 +174,7 @@ const translations: Record<Language, Record<string, string>> = {
     editTenantProfile: 'Edit Tenant',
     completeTenantProfile: 'Complete Tenant Profile',
     addTenantProfile: 'Add Tenant',
-    paid: 'Paid', partial: 'Partial', overdue: 'Overdue', pending: 'Pending',
+    paid: 'Paid', partial: 'Partial', overdue: 'Overdue', pending: 'Pending', notDue: 'Not due yet',
     specificRecipient: 'Specific recipient',
     // Notifications
     notificationsTitle: 'Notifications', allCaughtUp: 'All caught up',
@@ -743,7 +743,7 @@ const translations: Record<Language, Record<string, string>> = {
     editTenantProfile: 'Modifier le locataire',
     completeTenantProfile: 'Compléter le profil du locataire',
     addTenantProfile: 'Ajouter un locataire',
-    paid: 'Payé', partial: 'Partiel', overdue: 'En retard', pending: 'En attente',
+    paid: 'Payé', partial: 'Partiel', overdue: 'En retard', pending: 'En attente', notDue: 'Pas encore à échéance',
     specificRecipient: 'Destinataire spécifique',
     // Notifications
     notificationsTitle: 'Notifications', allCaughtUp: 'Tout est à jour',

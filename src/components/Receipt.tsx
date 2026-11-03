@@ -134,7 +134,7 @@ export default function Receipt({
             <span className="text-xs font-medium capitalize text-slate-500">{rentMonth}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="receipt-breakdown w-full min-w-[500px] table-fixed border-collapse text-xs">
+            <table className="receipt-breakdown receipt-pos-breakdown w-full min-w-[500px] table-fixed border-collapse text-xs">
               <colgroup>
                 <col className="w-[22%]" />
                 <col className="w-[26%]" />
@@ -164,21 +164,21 @@ export default function Receipt({
         </div>
 
         <div className="receipt-summary mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-xl bg-emerald-50 px-4 py-3">
+          <div className="rounded-xl bg-white px-4 py-3">
             <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t('totalPaymentReceived')}</p>
-            <p className="mt-1 text-lg font-extrabold tabular-nums text-emerald-800">{fmt(Number(payment.amount_paid))}</p>
+            <p className="receipt-pos-amount mt-1 text-lg font-extrabold tabular-nums text-emerald-800">{fmt(Number(payment.amount_paid))}</p>
           </div>
           <div className={`rounded-xl px-4 py-3 ${invoiceTotalBalance === undefined ? 'bg-slate-50' : invoiceTotalBalance > 0 ? 'bg-red-50' : 'bg-slate-50'}`}>
             <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{t('totalBalanceDue')}</p>
-            <p className={`mt-1 text-lg font-extrabold tabular-nums ${invoiceTotalBalance === undefined ? 'text-slate-400' : invoiceTotalBalance > 0 ? 'text-red-700' : 'text-slate-900'}`}>
+            <p className={`receipt-pos-amount mt-1 text-lg font-extrabold tabular-nums ${invoiceTotalBalance === undefined ? 'text-slate-400' : invoiceTotalBalance > 0 ? 'text-red-700' : 'text-slate-900'}`}>
               {fmt(invoiceTotalBalance ?? 0)}
             </p>
           </div>
         </div>
-        {rentCredit > 0 && <p className="mt-2 text-right text-xs font-medium text-emerald-700">{t('rentCredit')}: {fmt(rentCredit)}</p>}
+        {rentCredit > 0 && <p className="mt-2 text-right text-xs font-medium text-emerald-700">{t('rentCredit')}: <span className="receipt-pos-amount">{fmt(rentCredit)}</span></p>}
         {(Number(payment.late_fee) > 0 || payment.notes) && (
           <div className="mt-3 flex flex-wrap justify-between gap-x-5 gap-y-1 text-xs text-slate-600">
-            {Number(payment.late_fee) > 0 && <p>{t('lateFee')}: <span className="font-semibold">{fmt(Number(payment.late_fee))}</span></p>}
+            {Number(payment.late_fee) > 0 && <p>{t('lateFee')}: <span className="receipt-pos-amount font-semibold">{fmt(Number(payment.late_fee))}</span></p>}
             {payment.notes && <p className="max-w-full whitespace-pre-wrap">{t('notes')}: {payment.notes}</p>}
           </div>
         )}

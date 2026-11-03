@@ -151,6 +151,8 @@ export interface UtilityInvoice {
     full_name: string;
     tenant_code: string;
     user_id?: string | null;
+    phone?: string | null;
+    email?: string | null;
     houses?: { house_number: string } | null;
   };
   houses?: { house_number: string };

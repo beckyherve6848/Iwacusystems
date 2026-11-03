@@ -255,7 +255,7 @@ export default function HousesPage({ managerMode = false }: { managerMode?: bool
                     {categoryName((h.house_categories as any)?.name ?? '—')}
                   </td>
                   <td className="hidden break-words px-3 py-3.5 text-sm text-slate-500 lg:table-cell">
-                    {h.floor ? `${text('Floor', 'Étage')} ${h.floor}` : '—'}
+                    {h.floor || '—'}
                   </td>
                   <td className="house-rent-column overflow-hidden px-1 py-2 text-right sm:px-2 sm:py-3 lg:px-5 lg:py-3.5">
                     <p className="truncate text-[10px] font-semibold text-slate-900 sm:text-sm"><span className="money-value">{fmt(Number(h.monthly_rent))}</span></p>
