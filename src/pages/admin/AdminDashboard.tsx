@@ -393,6 +393,13 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
   const [pendingRegistrationError, setPendingRegistrationError] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats>(() => dashboardStatsCache.get(profileId) ?? EMPTY_STATS);
   const [loading, setLoading] = useState(() => !dashboardStatsCache.has(profileId));
+  const [paymentStatusMonth, setPaymentStatusMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [paymentStatusLoading, setPaymentStatusLoading] = useState(true);
+  const [paymentStatusError, setPaymentStatusError] = useState<string | null>(null);
+  const [paymentStatusRefresh, setPaymentStatusRefresh] = useState(0);
 
   useEffect(() => {
     if (!profileId) return;
@@ -513,10 +520,6 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           amount: v,
         }));
 
-      const statusMap: Record<string, number> = {};
-      paymentData.forEach(p => { statusMap[p.status] = (statusMap[p.status] ?? 0) + 1; });
-      const paymentStatusCounts = Object.entries(statusMap).map(([status, count]) => ({ status, count }));
-
       setStats(previous => {
         const next = {
           ...previous,
@@ -526,7 +529,6 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           unpaidInvoices: unpaidInvoiceCount,
           recentPayments: paymentData.slice(0, 5),
           monthlyIncome,
-          paymentStatusCounts,
         };
         dashboardStatsCache.set(profileId, next);
         return next;
@@ -535,7 +537,10 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
     void load();
     const scheduleLoad = () => {
       window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => { void load(); }, 250);
+      refreshTimer = window.setTimeout(() => {
+        void load();
+        setPaymentStatusRefresh(version => version + 1);
+      }, 250);
     };
     const channel = supabase
       .channel('admin-dashboard-invoice-status')
@@ -549,6 +554,58 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       void supabase.removeChannel(channel);
     };
   }, [language, profileId]);
+
+  useEffect(() => {
+    if (!profileId) return;
+    let cancelled = false;
+    const [year, month] = paymentStatusMonth.split('-').map(Number);
+    const startDate = `${paymentStatusMonth}-01`;
+    const nextMonthDate = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+    const statuses = ['paid', 'pending', 'partial', 'overdue'] as const;
+
+    setPaymentStatusLoading(true);
+    setPaymentStatusError(null);
+    setStats(previous => ({ ...previous, paymentStatusCounts: [] }));
+
+    async function loadPaymentStatus() {
+      const results = await Promise.all(statuses.map(status =>
+        supabase.from('payments')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', status)
+          .gte('rent_month', startDate)
+          .lt('rent_month', nextMonthDate)
+      ));
+
+      if (cancelled) return;
+      const failedResult = results.find(result => result.error);
+      if (failedResult?.error) {
+        console.error('Unable to load monthly payment status counts:', failedResult.error.message);
+        setPaymentStatusError(failedResult.error.message);
+        setPaymentStatusLoading(false);
+        return;
+      }
+
+      const paymentStatusCounts = statuses
+        .map((status, index) => ({ status, count: results[index].count ?? 0 }))
+        .filter(item => item.count > 0);
+      setStats(previous => {
+        const next = { ...previous, paymentStatusCounts };
+        dashboardStatsCache.set(profileId, next);
+        return next;
+      });
+      setPaymentStatusLoading(false);
+    }
+
+    void loadPaymentStatus().catch(error => {
+      if (cancelled) return;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Unable to load monthly payment status counts:', message);
+      setPaymentStatusError(message);
+      setPaymentStatusLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [paymentStatusMonth, paymentStatusRefresh, profileId]);
 
   const loadPendingRegistrations = useCallback(async () => {
     const [{ data: profiles, error: profileError }, { data: tenants, error: tenantError }] = await Promise.all([
@@ -692,33 +749,53 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           <LineChart data={stats.monthlyIncome} noDataLabel={t('noDataYet')} fmtCurrency={fmt} />
         </div>
 
-        <div className={`p-3 sm:p-5 ${panelClass}`}>
-          <h3 className="text-slate-900 font-semibold text-sm sm:text-base mb-1">{t('paymentStatus')}</h3>
-          <p className="text-slate-400 text-xs mb-4">{t('currentBreakdown')}</p>
-          {stats.paymentStatusCounts.length === 0 ? (
-            <p className="text-slate-400 text-sm text-center py-4">{t('noPaymentsYet')}</p>
-          ) : (
-            <div className="space-y-3">
-              {stats.paymentStatusCounts.map(({ status, count }) => {
-                const total = stats.paymentStatusCounts.reduce((s, x) => s + x.count, 0);
-                const pct = Math.round((count / total) * 100);
-                return (
-                  <div key={status}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm ${statusColors[status] ?? 'bg-slate-400'}`} />
-                        <span className="text-sm capitalize text-slate-700">{t(status)}</span>
-                      </div>
-                      <span className="text-sm font-semibold text-slate-900">{count}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden bg-slate-100">
-                      <div className={`h-full rounded-full ${statusColors[status] ?? 'bg-slate-400'}`} style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
+        <div className="payment-status-glass relative overflow-hidden rounded-2xl border p-3 sm:p-5">
+          <div className="relative z-10">
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('paymentStatus')}</h3>
+              <label className="shrink-0">
+                <span className="sr-only">{t('filterByMonth')}</span>
+                <input
+                  type="month"
+                  value={paymentStatusMonth}
+                  onChange={event => {
+                    if (event.target.value) setPaymentStatusMonth(event.target.value);
+                  }}
+                  aria-label={t('filterByMonth')}
+                  className="w-[132px] rounded-lg border border-slate-200 bg-white/70 px-2 py-1 text-xs text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </label>
             </div>
-          )}
+            <p className="text-slate-400 text-xs mb-4">{t('currentBreakdown')}</p>
+            {paymentStatusError ? (
+              <p role="alert" className="text-red-600 text-sm text-center py-4">{t('paymentStatusLoadError')}</p>
+            ) : paymentStatusLoading ? (
+              <p className="text-slate-400 text-sm text-center py-4">{t('loading')}</p>
+            ) : stats.paymentStatusCounts.length === 0 ? (
+              <p className="text-slate-400 text-sm text-center py-4">{t('noPaymentsYet')}</p>
+            ) : (
+              <div className="space-y-3">
+                {stats.paymentStatusCounts.map(({ status, count }) => {
+                  const total = stats.paymentStatusCounts.reduce((s, x) => s + x.count, 0);
+                  const pct = Math.round((count / total) * 100);
+                  return (
+                    <div key={status}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <div className={`h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm ${statusColors[status] ?? 'bg-slate-400'}`} />
+                          <span className="text-sm capitalize text-slate-700">{t(status)}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-900">{count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden bg-slate-100">
+                        <div className={`h-full rounded-full ${statusColors[status] ?? 'bg-slate-400'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
