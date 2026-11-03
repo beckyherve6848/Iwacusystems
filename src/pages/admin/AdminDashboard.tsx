@@ -129,6 +129,34 @@ function AdminOverviewDiagram({
   const lastPointerAngleRef = useRef<number | null>(null);
   const draggingRef = useRef(false);
   const draggedRef = useRef(false);
+  const lastCenterTapRef = useRef(0);
+  const spinAnimationRef = useRef<Animation | null>(null);
+
+  const spinRingOnce = () => {
+    if (!ringRef.current || spinAnimationRef.current) return;
+    const startRotation = rotationRef.current;
+    const endRotation = startRotation + 360;
+    const ring = ringRef.current;
+    ring.style.transformBox = 'view-box';
+    ring.style.transformOrigin = '50% 50%';
+    ring.style.transform = `rotate(${startRotation}deg)`;
+    const animation = ring.animate(
+      [
+        { transform: `rotate(${startRotation}deg)` },
+        { transform: `rotate(${endRotation}deg)` },
+      ],
+      { duration: 900, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    );
+    spinAnimationRef.current = animation;
+    animation.onfinish = () => {
+      rotationRef.current = endRotation;
+      ring.style.transform = `rotate(${endRotation}deg)`;
+      spinAnimationRef.current = null;
+    };
+    animation.oncancel = () => {
+      spinAnimationRef.current = null;
+    };
+  };
 
   const getPointerAngle = (event: React.PointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -139,6 +167,18 @@ function AdminOverviewDiagram({
 
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
+    if (event.target instanceof Element && event.target.closest('[data-spin-center]')) {
+      event.preventDefault();
+      event.stopPropagation();
+      const now = performance.now();
+      if (now - lastCenterTapRef.current <= 350) {
+        lastCenterTapRef.current = 0;
+        spinRingOnce();
+      } else {
+        lastCenterTapRef.current = now;
+      }
+      return;
+    }
     event.preventDefault();
     draggedRef.current = false;
     draggingRef.current = true;
@@ -148,6 +188,7 @@ function AdminOverviewDiagram({
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!draggingRef.current || lastPointerAngleRef.current === null) return;
+    if (spinAnimationRef.current) return;
     const angle = getPointerAngle(event);
     let delta = angle - lastPointerAngleRef.current;
     if (delta > 180) delta -= 360;
@@ -155,7 +196,11 @@ function AdminOverviewDiagram({
     if (Math.abs(delta) > 1) draggedRef.current = true;
     rotationRef.current += delta;
     lastPointerAngleRef.current = angle;
-    ringRef.current?.setAttribute('transform', `rotate(${rotationRef.current} 200 200)`);
+    if (ringRef.current) {
+      ringRef.current.style.transformBox = 'view-box';
+      ringRef.current.style.transformOrigin = '50% 50%';
+      ringRef.current.style.transform = `rotate(${rotationRef.current}deg)`;
+    }
   };
 
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -239,13 +284,27 @@ function AdminOverviewDiagram({
             );
           })}
           </g>
-          <circle cx="200" cy="200" r="74" fill="#111827" />
-          <text x="200" y="195" textAnchor="middle" className="fill-white text-xs font-bold">
-            {language === 'fr' ? 'Gestion' : 'Property'}
-          </text>
-          <text x="200" y="216" textAnchor="middle" className="fill-slate-300 text-xs">
-            {language === 'fr' ? 'immobilière' : 'Management'}
-          </text>
+          <g
+            data-spin-center
+            role="button"
+            tabIndex={0}
+            aria-label={language === 'fr' ? 'Appuyez deux fois ou appuyez sur Entrée pour faire tourner la roue' : 'Double-tap or press Enter to spin the wheel once'}
+            className="cursor-pointer"
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                spinRingOnce();
+              }
+            }}
+          >
+            <circle cx="200" cy="200" r="74" fill="#111827" />
+            <text x="200" y="195" textAnchor="middle" className="pointer-events-none fill-white text-xs font-bold">
+              {language === 'fr' ? 'Gestion' : 'Property'}
+            </text>
+            <text x="200" y="216" textAnchor="middle" className="pointer-events-none fill-slate-300 text-xs">
+              {language === 'fr' ? 'immobilière' : 'Management'}
+            </text>
+          </g>
         </svg>
       </div>
     </section>
