@@ -3972,18 +3972,19 @@ body.phone-dark,
 }
 
 .invoice-cancel-button {
-  transition: color 160ms ease, box-shadow 160ms ease, transform 160ms ease !important;
+  transition: color 160ms ease, outline-color 160ms ease, transform 160ms ease !important;
 }
 
 .invoice-cancel-button:hover,
 .invoice-cancel-button:active {
   background: transparent !important;
   color: #b91c1c !important;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+  outline: 1px solid #ef4444;
+  outline-offset: 0;
 }
 
 .invoice-cancel-button:active {
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.26) !important;
+  outline-width: 2px;
   transform: scale(0.97);
 }
 
