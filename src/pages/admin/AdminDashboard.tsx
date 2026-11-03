@@ -167,6 +167,19 @@ function AdminOverviewDiagram({
 
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
+    if (event.pointerType === 'touch') {
+      if (event.target instanceof Element && event.target.closest('[data-spin-center]')) {
+        event.stopPropagation();
+        const now = performance.now();
+        if (now - lastCenterTapRef.current <= 350) {
+          lastCenterTapRef.current = 0;
+          spinRingOnce();
+        } else {
+          lastCenterTapRef.current = now;
+        }
+      }
+      return;
+    }
     if (event.target instanceof Element && event.target.closest('[data-spin-center]')) {
       event.preventDefault();
       event.stopPropagation();
@@ -229,7 +242,7 @@ function AdminOverviewDiagram({
           role="group"
           aria-label={centerLabel}
           className="h-auto w-full overflow-visible cursor-grab active:cursor-grabbing"
-          style={{ touchAction: 'none' }}
+          style={{ touchAction: 'pan-y' }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
