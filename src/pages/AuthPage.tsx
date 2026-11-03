@@ -34,6 +34,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const [emailInputEnabled, setEmailInputEnabled] = useState(false);
   const [passwordInputEnabled, setPasswordInputEnabled] = useState(false);
   const [confirmPasswordInputEnabled, setConfirmPasswordInputEnabled] = useState(false);
+  const [captchaVisible, setCaptchaVisible] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [isPhoneViewport, setIsPhoneViewport] = useState(() => window.matchMedia('(max-width: 767px)').matches);
@@ -86,6 +87,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
       return;
     }
     if (captchaRequired && !captchaToken) {
+      setCaptchaVisible(true);
       setError(language === 'fr'
         ? 'Veuillez terminer le contrôle de sécurité.'
         : 'Please complete the security check.');
@@ -508,7 +510,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   )}
                 </AnimatePresence>
                 <motion.div layout={!isPhoneViewport}>
-                  <Input label={t('email')} labelClassName="text-white/60 font-medium" type="email" placeholder={language === 'fr' ? 'Entrez votre e-mail' : 'Enter email'} value={form.email} onChange={set('email')} icon={<Mail className="w-4 h-4" />} autoComplete="off" readOnly={!emailInputEnabled} onFocus={() => setEmailInputEnabled(true)} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                  <Input label={t('email')} labelClassName="text-white/60 font-medium" type="email" placeholder={language === 'fr' ? 'Entrez votre e-mail' : 'Enter email'} value={form.email} onChange={set('email')} icon={<Mail className="w-4 h-4" />} autoComplete="off" readOnly={!emailInputEnabled} onFocus={() => { setEmailInputEnabled(true); setCaptchaVisible(true); }} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                 </motion.div>
                 <AnimatePresence initial={false}>
                   {mode === 'register' && (
@@ -526,7 +528,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   )}
                 </AnimatePresence>
                 <motion.div layout={!isPhoneViewport} className="relative">
-                  <Input label={t('password')} labelClassName="text-white/60 font-medium" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Votre mot de passe' : 'Enter your password'} value={form.password} onChange={set('password')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!passwordInputEnabled} onFocus={() => setPasswordInputEnabled(true)} minLength={mode === 'register' ? 8 : undefined} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
+                  <Input label={t('password')} labelClassName="text-white/60 font-medium" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Votre mot de passe' : 'Enter your password'} value={form.password} onChange={set('password')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!passwordInputEnabled} onFocus={() => { setPasswordInputEnabled(true); setCaptchaVisible(true); }} minLength={mode === 'register' ? 8 : undefined} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                   <button
                     type="button"
                     onClick={() => setShowPass(s => !s)}
@@ -616,7 +618,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   </div>
                 )}
 
-                {captchaSiteKey ? (
+                {captchaSiteKey && captchaVisible ? (
                   <TurnstileCaptcha
                     key={captchaResetKey}
                     siteKey={captchaSiteKey}
@@ -640,7 +642,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                 {/* Submit button */}
                 <button
                   type="submit"
-                  disabled={loading || (captchaRequired && !captchaToken)}
+                  disabled={loading}
                   className="liquid-btn w-full mt-1 py-3.5 rounded-xl text-sm font-bold tracking-wide text-black disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: '#ffffff', boxShadow: '0 6px 20px rgba(255,255,255,0.06)' }}
                 >

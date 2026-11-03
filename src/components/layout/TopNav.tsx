@@ -143,6 +143,14 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const currencyRatesRequestStarted = useRef(false);
+
+  useEffect(() => {
+    if (!currencyRatesRequestStarted.current && !currencyRatesAvailable && !currencyRatesLoading && !currencyRatesError) {
+      currencyRatesRequestStarted.current = true;
+      refreshCurrencyRates();
+    }
+  }, [currencyRatesAvailable, currencyRatesError, currencyRatesLoading, refreshCurrencyRates]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
@@ -632,7 +640,14 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
         {profile?.role !== 'caretaker' && (
           <div className="relative">
             <button
-              onClick={() => { setCurrencyOpen(o => !o); setLangOpen(false); }}
+              onClick={() => {
+                const opening = !currencyOpen;
+                setCurrencyOpen(opening);
+                setLangOpen(false);
+                if (opening && !currencyRatesAvailable && !currencyRatesLoading && !currencyRatesError) {
+                  refreshCurrencyRates();
+                }
+              }}
               className="phone-navbar-control flex shrink-0 items-center gap-0 px-1.5 py-2 text-[10px] font-bold tracking-wide text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 sm:gap-1.5 sm:rounded-xl sm:px-3 sm:text-xs sm:tracking-widest"
               style={{ border: '1px solid #e5e7eb' }}
               title={t('currency')}

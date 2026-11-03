@@ -1200,7 +1200,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     (localStorage.getItem('currency') as Currency) ?? 'BIF'
   );
   const [currencyRates, setCurrencyRates] = useState<LiveCurrencyRates | null>(null);
-  const [currencyRatesLoading, setCurrencyRatesLoading] = useState(true);
+  const [currencyRatesLoading, setCurrencyRatesLoading] = useState(false);
   const [currencyRatesError, setCurrencyRatesError] = useState(false);
   const [currencyRatesAttempt, setCurrencyRatesAttempt] = useState(0);
   const [appName, setAppName] = useState('Iwacusystem');
@@ -1253,6 +1253,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    if (currencyRates !== null || currencyRatesAttempt === 0) return;
+
     let cancelled = false;
     const loadRates = async () => {
       setCurrencyRatesLoading(true);
@@ -1294,7 +1296,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     };
     void loadRates();
     return () => { cancelled = true; };
-  }, [currencyRatesAttempt]);
+  }, [currencyRates, currencyRatesAttempt]);
+
+  const refreshCurrencyRates = useCallback(() => {
+    setCurrencyRatesLoading(true);
+    setCurrencyRatesError(false);
+    setCurrencyRatesAttempt(attempt => attempt + 1);
+  }, []);
 
   const updateBranding: ThemeContextValue['updateBranding'] = branding => {
     if (branding.appName !== undefined) setAppName(branding.appName);
@@ -1333,7 +1341,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       currencyRatesAvailable: currencyRates !== null,
       currencyRatesLoading,
       currencyRatesError,
-      refreshCurrencyRates: () => setCurrencyRatesAttempt(attempt => attempt + 1),
+      refreshCurrencyRates,
       fmt,
       appName, appLogoUrl, propertyPhone, propertyAddress, staffCardFooter, staffCardFooterFr, loginBackgroundUrl, loginFamilyImageUrl, updateBranding,
     }}>
