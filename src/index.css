@@ -4172,20 +4172,12 @@ body.phone-dark,
 }
 
 .phone-dark .app-shell main .invoice-rent-due-panel {
-  border-color: #3e4042 !important;
+  border-color: rgba(239, 68, 68, 0.65) !important;
   background: #242526 !important;
 }
 
-.phone-dark .app-shell main .invoice-rent-due-panel.invoice-rent-due-panel-empty {
-  border-color: #ef4444 !important;
-}
-
 .phone-dark .app-shell main .invoice-rent-due-header {
-  border-color: #3e4042 !important;
-}
-
-.phone-dark .app-shell main .invoice-rent-due-panel-empty .invoice-rent-due-header {
-  border-color: rgba(239, 68, 68, 0.45) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
 }
 
 .phone-dark .app-shell main .invoice-rent-due-title,
@@ -4200,20 +4192,17 @@ body.phone-dark,
 }
 
 .phone-dark .app-shell main .invoice-rent-due-count {
-  border: 1px solid rgba(251, 146, 60, 0.45);
+  border: 1px solid rgba(239, 68, 68, 0.75) !important;
   background: #18191a !important;
-  color: #fdba74 !important;
-}
-
-.phone-dark .app-shell main .invoice-rent-due-panel-empty .invoice-rent-due-count {
-  border-color: #ef4444 !important;
-  background: transparent !important;
   color: #f87171 !important;
 }
 
-.phone-dark .app-shell main .invoice-rent-due-list {
-  --tw-divide-opacity: 1;
-  border-color: #3e4042 !important;
+.phone-dark .app-shell main .invoice-rent-due-amount {
+  color: #f87171 !important;
+}
+
+.phone-dark .app-shell main .invoice-rent-due-list > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(239, 68, 68, 0.28) !important;
 }
 
 .phone-dark .app-shell main .house-report-status-filter {

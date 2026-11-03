@@ -304,31 +304,21 @@ export default function InvoicesPage() {
       </div>
 
       {canManageInvoices && (
-        <section className={`invoice-rent-due-panel overflow-hidden rounded-2xl border ${
-          rentDueTenants.length === 0
-            ? 'invoice-rent-due-panel-empty border-red-500 bg-red-50/70'
-            : 'border-amber-200 bg-amber-50/70'
-        }`}>
-          <div className={`invoice-rent-due-header flex items-center gap-3 border-b px-5 py-4 ${
-            rentDueTenants.length === 0 ? 'border-red-200' : 'border-amber-100'
-          }`}>
+        <section className="invoice-rent-due-panel overflow-hidden rounded-2xl border border-red-200 bg-red-50/50">
+          <div className="invoice-rent-due-header flex items-center gap-3 border-b border-red-200 px-5 py-4">
             <CalendarDays className="h-5 w-5 text-amber-700" />
             <div>
               <h2 className="invoice-rent-due-title font-semibold text-slate-900">{t('rentDueThisMonth')}</h2>
               <p className="invoice-rent-due-description mt-0.5 text-sm text-slate-600">{t('rentDueThisMonthDescription')}</p>
             </div>
-            <span className={`invoice-rent-due-count ml-auto rounded-full border px-3 py-1 text-sm font-semibold ${
-              rentDueTenants.length === 0
-                ? 'border-red-500 bg-transparent text-red-600'
-                : 'border-amber-200 bg-white text-amber-800'
-            }`}>
+            <span className="invoice-rent-due-count ml-auto rounded-full border border-red-300 bg-red-50 px-3 py-1 text-sm font-semibold text-red-700">
               {rentDueTenants.length}
             </span>
           </div>
           {rentDueTenants.length === 0 ? (
             <p className="invoice-rent-due-empty px-5 py-4 text-sm text-slate-600">{t('noRentDue')}</p>
           ) : (
-            <div className="invoice-rent-due-list divide-y divide-amber-100">
+            <div className="invoice-rent-due-list divide-y divide-red-100">
               {rentDueTenants.map(({ tenant, dueDate }) => (
                 <div key={tenant.id} className="invoice-rent-due-row flex flex-wrap items-center justify-between gap-3 px-5 py-3">
                   <div>
@@ -338,7 +328,7 @@ export default function InvoicesPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-slate-800 money-value">
+                    <span className="invoice-rent-due-amount money-value text-sm font-semibold text-red-700">
                       {fmt(Number(activeLeases.find(item => item.tenant_id === tenant.id)?.monthly_rent ?? tenant.monthly_rent ?? 0))}
                     </span>
                     <Button
