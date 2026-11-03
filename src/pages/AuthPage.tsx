@@ -1,10 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import Input from '@/components/ui/Input';
-import Modal from '@/components/ui/Modal';
 import TurnstileCaptcha from '@/components/auth/TurnstileCaptcha';
 
 const authInputStyle: React.CSSProperties = {
@@ -140,6 +139,50 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
     { icon: Users, label: language === 'fr' ? 'Locataires actifs' : 'Active Tenants', value: '500+' },
     { icon: TrendingUp, label: language === 'fr' ? 'Paiements suivis' : 'Payments Tracked', value: '10K+' },
   ];
+
+  if (forgotPasswordOpen) {
+    return (
+      <main className="flex min-h-screen min-h-[100dvh] items-center justify-center bg-[#08090c] px-4 py-8 text-white">
+        <section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl sm:p-8">
+          <div className="mb-6 flex items-center gap-3">
+            <img src={appLogoUrl} alt="" className="h-11 w-11 object-contain" />
+            <div>
+              <p className="font-bold tracking-tight">{appName}</p>
+              <p className="text-xs text-white/50">{t('propertyPlatform')}</p>
+            </div>
+          </div>
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-300">
+            <Mail className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {language === 'fr' ? 'Aide pour le mot de passe' : 'Password help'}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-white/70" role="status">
+            {language === 'fr'
+              ? 'Pour récupérer ou réinitialiser votre mot de passe, veuillez contacter l’administrateur de votre propriété. Il pourra vérifier votre compte et vous aider.'
+              : 'To retrieve or reset your password, please contact your property administrator. They can verify your account and help you regain access.'}
+          </p>
+          {form.email.trim() && (
+            <div className="mt-5 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+              <p className="text-xs text-white/45">{language === 'fr' ? 'E-mail du compte' : 'Account email'}</p>
+              <p className="mt-1 break-all text-sm font-medium text-white/90">{form.email.trim()}</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setForgotPasswordOpen(false);
+              setError('');
+            }}
+            className="mt-7 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {language === 'fr' ? 'Retour à la connexion' : 'Back to sign in'}
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <>
@@ -619,25 +662,6 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
           </a>
         </div>
       </div>
-      <Modal
-        open={forgotPasswordOpen}
-        onClose={() => setForgotPasswordOpen(false)}
-        title={language === 'fr' ? 'Mot de passe oublié ?' : 'Forgot your password?'}
-        size="sm"
-      >
-        <p className="text-sm leading-relaxed text-slate-600" role="status">
-          {language === 'fr'
-            ? 'Locataire ? Veuillez contacter votre administrateur pour obtenir de l’aide afin de récupérer ou réinitialiser votre mot de passe.'
-            : 'Are you a tenant? Please contact your property administrator for help recovering or resetting your password.'}
-        </p>
-        <button
-          type="button"
-          onClick={() => setForgotPasswordOpen(false)}
-          className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-        >
-          {language === 'fr' ? 'Compris' : 'Got it'}
-        </button>
-      </Modal>
     </>
   );
 }
