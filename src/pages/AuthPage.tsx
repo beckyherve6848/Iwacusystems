@@ -24,6 +24,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
   const [registrationMessage, setRegistrationMessage] = useState('');
   const [langOpen, setLangOpen] = useState(false);
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -61,6 +62,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setForgotPasswordMessage('');
     setRegistrationMessage('');
     if (
       !form.email.trim() ||
@@ -548,10 +550,24 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                         {language === 'fr' ? 'Se souvenir de moi' : 'Remember me'}
                       </span>
                     </label>
-                    <button type="button" className="text-xs text-white/40 hover:text-white/70 transition-colors font-medium">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError('');
+                        setForgotPasswordMessage(language === 'fr'
+                          ? 'Locataire ? Contactez votre administrateur pour obtenir de l’aide afin de réinitialiser votre mot de passe.'
+                          : 'Tenant? Please contact your administrator for help resetting your password.');
+                      }}
+                      className="text-xs text-white/40 hover:text-white/70 transition-colors font-medium"
+                    >
                       {language === 'fr' ? 'Mot de passe oublié ?' : 'Forgot password?'}
                     </button>
                   </div>
+                )}
+                {forgotPasswordMessage && mode === 'login' && (
+                  <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs leading-relaxed text-white/75" role="status">
+                    {forgotPasswordMessage}
+                  </p>
                 )}
 
                 {captchaSiteKey ? (
