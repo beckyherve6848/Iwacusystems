@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, Bell, Search, Menu, DollarSign, UserRound, X, Moon, Sun } from 'lucide-react';
+import { ArrowRight, Search, Menu, DollarSign, UserRound, X, Moon, Sun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme, CURRENCY_SYMBOLS, Currency } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -745,12 +745,28 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
           )}
         </div>
 
-        {/* Notifications bell */}
+        {/* Notifications */}
         <button
           onClick={() => { onNavigate('notifications'); closePanels(); }}
           className="phone-notification-toggle relative shrink-0 rounded-xl p-2 text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 sm:p-2.5"
         >
-          <Bell className="w-5 h-5" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#007a37"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M11 5L6 9H3v6h3l5 4V5z" />
+            <path d="M6 15v3a1 1 0 0 0 1 1h1" />
+            <path d="M15.5 8.5a4 4 0 0 1 0 7" />
+            <path d="M18.5 6a7.5 7.5 0 0 1 0 12" />
+            <path d="M21.5 3.5a11 11 0 0 1 0 17" />
+          </svg>
           {unreadCount > 0 && (
             <span
               className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 text-white text-[9px] font-bold rounded-full flex items-center justify-center"
