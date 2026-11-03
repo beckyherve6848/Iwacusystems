@@ -433,14 +433,14 @@ export default function InvoicesPage() {
           </div>
           <div className="sm:col-span-2 flex items-center justify-between rounded-xl bg-slate-50 p-4">
             <span className="font-semibold text-slate-700">{t('totalDue')}</span>
-            <span className="text-lg font-bold text-slate-900 money-value">
+            <span className="text-lg font-bold text-emerald-700 money-value">
               {fmt((Number(form.rent_amount) || 0) + (Number(form.water_amount) || 0) + (Number(form.electricity_amount) || 0))}
             </span>
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
-          <Button loading={saving} onClick={saveInvoice}>{t('saveInvoice')}</Button>
+          <Button className="page-action-button" loading={saving} onClick={saveInvoice}>{t('saveInvoice')}</Button>
         </div>
       </Modal>}
 
