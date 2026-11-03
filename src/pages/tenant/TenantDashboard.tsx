@@ -16,6 +16,8 @@ type InvoiceNotification = {
   message: string;
   created_at: string;
   is_read: boolean;
+  invoice_number: string;
+  rent_month: string;
 };
 
 export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string) => void }) {
@@ -34,7 +36,7 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
     const [invoiceResult, notificationResult] = await Promise.all([
       supabase
         .from('utility_invoices')
-        .select('id')
+        .select('id, invoice_number, rent_month')
         .eq('tenant_id', tenantId)
         .in('status', ['unpaid', 'partial']),
       supabase
@@ -50,12 +52,14 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
       setUnpaidInvoiceCount(0);
       setInvoiceNotifications([]);
     } else {
-      const unpaidInvoiceIds = new Set((invoiceResult.data ?? []).map(invoice => invoice.id));
+      const invoicesById = new Map((invoiceResult.data ?? []).map(invoice => [invoice.id, invoice]));
+      const unpaidInvoiceIds = new Set(invoicesById.keys());
       setUnpaidInvoiceCount(unpaidInvoiceIds.size);
       if (!notificationResult.error) {
-        setInvoiceNotifications((notificationResult.data ?? []).filter(
-          notification => notification.invoice_id && unpaidInvoiceIds.has(notification.invoice_id),
-        ));
+        setInvoiceNotifications((notificationResult.data ?? []).flatMap(notification => {
+          const invoice = notification.invoice_id ? invoicesById.get(notification.invoice_id) : undefined;
+          return invoice ? [{ ...notification, invoice_number: invoice.invoice_number, rent_month: invoice.rent_month }] : [];
+        }));
       }
     }
     if (notificationResult.error) {
@@ -160,8 +164,14 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
         >
           <AlertCircle className="mt-0.5 h-6 w-6 shrink-0 text-red-600" />
           <span className="flex-1">
-            <span className="block font-semibold">{notification.title}</span>
-            <span className="mt-0.5 block text-sm">{notification.message}</span>
+            <span className="block font-semibold">
+              {language === 'fr' ? 'Nouvelle facture disponible' : 'New invoice available'}
+            </span>
+            <span className="mt-0.5 block text-sm">
+              {language === 'fr'
+                ? `Votre facture ${notification.invoice_number} pour ${new Date(`${notification.rent_month.slice(0, 7)}-01`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })} est prête. Connectez-vous et ouvrez Factures pour la consulter ou l’enregistrer en PDF.`
+                : `Your invoice ${notification.invoice_number} for ${new Date(`${notification.rent_month.slice(0, 7)}-01`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })} is ready. Sign in and open Invoices to view it or save it as a PDF.`}
+            </span>
           </span>
           <span className="shrink-0 text-sm font-semibold underline">
             {language === 'fr' ? 'Voir la facture' : 'View invoice'}
