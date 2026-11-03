@@ -28,6 +28,11 @@ export function getThemeModeForCurrentDevice(): PhoneThemeMode {
 export function saveThemeModeForDevice(device: ThemeDevice, mode: PhoneThemeMode) {
   const key = device === 'phone' ? PHONE_THEME_MODE_KEY : DESKTOP_THEME_MODE_KEY;
   window.localStorage.setItem(key, mode);
+  const isPhone = isPhoneViewport();
+  const activeMode = isPhone ? getPhoneThemeMode() : getDesktopThemeMode();
+  document.documentElement.classList.toggle('phone-dark', activeMode === 'dark');
+  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute('content', activeMode === 'dark' ? '#242526' : '#e2e8f0');
   window.dispatchEvent(new CustomEvent<{ device: ThemeDevice; mode: PhoneThemeMode }>(PHONE_THEME_MODE_EVENT, {
     detail: { device, mode },
   }));

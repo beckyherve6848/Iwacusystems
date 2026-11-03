@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { WifiOff } from 'lucide-react';
 import Sidebar from './Sidebar';
 import TopNav from './TopNav';
@@ -77,7 +77,7 @@ export default function AppLayout({ currentPage, onNavigate, onPrefetch, childre
     return () => viewport.removeEventListener('change', updateViewport);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const activeMode = isPhoneViewport ? phoneThemeMode : desktopThemeMode;
     document.documentElement.classList.toggle('phone-dark', activeMode === 'dark');
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
