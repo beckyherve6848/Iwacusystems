@@ -381,7 +381,7 @@ export default function InvoicesPage() {
                     )}
                   </td>
                   <td className="px-5 py-3 text-center">
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : invoice.status === 'partial' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                    <span className={`invoice-status-badge rounded-full px-3 py-1 text-xs font-semibold ${invoice.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : invoice.status === 'partial' ? 'bg-blue-50 text-blue-700' : 'invoice-status-unpaid'}`}>
                       {invoice.status === 'partial' ? t('partiallyUnpaid') : t(invoice.status)}
                     </span>
                   </td>

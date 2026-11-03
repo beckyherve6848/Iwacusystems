@@ -3971,6 +3971,18 @@ body.phone-dark,
   outline-offset: 3px;
 }
 
+.invoice-status-unpaid {
+  border: 1px solid #ef4444;
+  background: transparent !important;
+  color: #b91c1c !important;
+}
+
+.phone-dark .app-shell main .invoice-status-unpaid {
+  border-color: #ef4444 !important;
+  background: transparent !important;
+  color: #f87171 !important;
+}
+
 .invoice-cancel-button {
   transition: color 160ms ease, outline-color 160ms ease, transform 160ms ease !important;
 }
