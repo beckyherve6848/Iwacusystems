@@ -286,7 +286,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #000;
+    background: #f7f8fa;
   }
 
   .loading-orbit {
@@ -3244,6 +3244,14 @@ body.phone-dark,
 .phone-dark .app-shell {
   background-color: #18191a !important;
   color: #e4e6eb;
+}
+
+.phone-dark .app-loading-screen {
+  background: #18191a !important;
+}
+
+.phone-dark .phone-loading-text {
+  color: #cbd5e1 !important;
 }
 
 .phone-dark .app-shell main {

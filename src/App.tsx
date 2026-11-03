@@ -243,7 +243,7 @@ function AppContent() {
             </div>
             <img className="loading-logo" src={appLogoUrl} alt="" />
           </div>
-          <p className="text-sm tracking-wide text-white/65">Loading...</p>
+          <p className="phone-loading-text text-sm tracking-wide text-slate-500">Loading...</p>
         </div>
       </div>
     );
