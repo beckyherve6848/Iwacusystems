@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp, ChevronDown } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import 'flag-icons/css/flag-icons.min.css';
@@ -9,6 +8,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import Input from '@/components/ui/Input';
 import TurnstileCaptcha from '@/components/auth/TurnstileCaptcha';
 import { getPhoneCountryOptions, getPhoneNumberPlaceholder, normalizePhoneNumberForCountry } from '@/lib/phone';
+import { getThemeModeForCurrentDevice } from '@/lib/phoneThemeMode';
 
 const authInputStyle: React.CSSProperties = {
   background: '#ffffff',
@@ -44,16 +44,15 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [callingCode, setCallingCode] = useState('+257');
   const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCode>('BI');
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [countryCodeOpen, setCountryCodeOpen] = useState(false);
   const [countryCodeSearch, setCountryCodeSearch] = useState('');
   const [countryMenuPosition, setCountryMenuPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 256 });
   const [isPhoneViewport, setIsPhoneViewport] = useState(() => window.matchMedia('(max-width: 767px)').matches);
-  const formRef = useRef<HTMLDivElement>(null);
   const callingCodePickerRef = useRef<HTMLDivElement>(null);
   const countryMenuRef = useRef<HTMLDivElement>(null);
   const phoneCountryOptions = useMemo(() => getPhoneCountryOptions(language), [language]);
   const selectedPhoneCountry = phoneCountryOptions.find(option => option.countryCode === selectedCountryCode);
-  const phoneNumberPlaceholder = getPhoneNumberPlaceholder(selectedCountryCode);
   const filteredPhoneCountryOptions = useMemo(() => {
     const query = countryCodeSearch.replace(/\D/g, '');
     return query
@@ -64,9 +63,28 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '',
   });
+  const phoneNumberPlaceholder = getPhoneNumberPlaceholder(selectedCountryCode);
+  const normalizedPhone = normalizePhoneNumberForCountry(form.phone.trim(), selectedCountryCode);
+  const phoneInvalid = (phoneTouched || form.phone.length > 0) && !normalizedPhone;
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    root.classList.add('auth-screen');
+    document.body.style.backgroundColor = '#000000';
+    if (isPhoneViewport) themeColor?.setAttribute('content', '#000000');
+    return () => {
+      root.classList.remove('auth-screen');
+      document.body.style.backgroundColor = '';
+      themeColor?.setAttribute(
+        'content',
+        getThemeModeForCurrentDevice() === 'dark' ? '#242526' : '#e2e8f0',
+      );
+    };
+  }, [isPhoneViewport]);
 
   const updateCountryMenuPosition = useCallback(() => {
     const trigger = callingCodePickerRef.current?.querySelector('button');
@@ -142,21 +160,21 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
     e.preventDefault();
     setError('');
     setRegistrationMessage('');
+    if (mode === 'register') {
+      setPhoneTouched(true);
+      if (!normalizedPhone) {
+        setError(language === 'fr'
+          ? 'Saisissez un numéro complet et valide pour le pays sélectionné.'
+          : 'Enter a complete, valid phone number for the selected country.');
+        return;
+      }
+    }
     if (
       !form.email.trim() ||
       !form.password ||
       (mode === 'register' && (!form.firstName.trim() || !form.lastName.trim() || !form.phone.trim() || !form.confirmPassword))
     ) {
       setError(language === 'fr' ? 'Veuillez remplir tous les champs obligatoires.' : 'Please fill in all required fields.');
-      return;
-    }
-    const normalizedPhone = mode === 'register'
-      ? normalizePhoneNumberForCountry(form.phone.trim(), selectedCountryCode) ?? ''
-      : '';
-    if (mode === 'register' && !normalizedPhone) {
-      setError(language === 'fr'
-        ? 'Saisissez un numéro complet et valide pour le pays sélectionné.'
-        : 'Enter a complete, valid phone number for the selected country.');
       return;
     }
     if (import.meta.env.PROD && !captchaSiteKey) {
@@ -205,6 +223,14 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
       }
       try {
         const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`;
+        if (!normalizedPhone) {
+          setPhoneTouched(true);
+          setError(language === 'fr'
+            ? 'Saisissez un numéro complet et valide pour le pays sélectionné.'
+            : 'Enter a complete, valid phone number for the selected country.');
+          setLoading(false);
+          return;
+        }
         const { error } = await signUp(form.email, form.password, fullName, normalizedPhone, captchaToken ?? undefined);
         if (error) setError(getAuthErrorMessage(error.message) || (language === 'fr' ? "Échec de l'inscription." : 'Registration failed.'));
         else {
@@ -497,12 +523,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               </div>
             </div>
 
-            <motion.div
-              ref={formRef}
-              layout={isPhoneViewport ? false : 'size'}
-              transition={{ layout: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
-              className="auth-form-card relative z-10 flex-1 flex flex-col p-3 min-[400px]:p-5 sm:p-6 xl:p-10 pt-5 min-[400px]:pt-6 sm:pt-9 lg:pt-16"
-            >
+            <div className="auth-form-card relative z-10 flex-1 flex flex-col p-3 min-[400px]:p-5 sm:p-6 xl:p-10 pt-5 min-[400px]:pt-6 sm:pt-9 lg:pt-16">
 
               {/* Mobile logo */}
               <div className="flex items-center gap-3 mb-4 lg:hidden">
@@ -520,22 +541,14 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   {mode === 'login' ? (language === 'fr' ? 'Accès Sécurisé' : 'Secure Access') : (language === 'fr' ? 'Nouveau Compte' : 'New Account')}
                 </span>
               </div>
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={mode}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <h2 className="text-3xl font-normal text-white mb-1.5 tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                    {mode === 'login' ? t('welcomeBack') : t('createAccount')}
-                  </h2>
-                  <p className="text-white/40 text-sm mb-5 sm:mb-7">
-                    {mode === 'login' ? t('signInSubtitle') : t('registerSubtitle')}
-                  </p>
-                </motion.div>
-              </AnimatePresence>
+              <div>
+                <h2 className="text-3xl font-normal text-white mb-1.5 tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  {mode === 'login' ? t('welcomeBack') : t('createAccount')}
+                </h2>
+                <p className="text-white/40 text-sm mb-5 sm:mb-7">
+                  {mode === 'login' ? t('signInSubtitle') : t('registerSubtitle')}
+                </p>
+              </div>
 
               {/* Segmented control */}
               <div className="flex rounded-xl p-1 mb-4 sm:mb-6 relative"
@@ -553,7 +566,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       setCaptchaToken(null);
                       setCaptchaResetKey(key => key + 1);
                     }}
-                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-300 ${
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-colors duration-100 ${
                       mode === m ? 'text-black' : 'text-white/40 hover:text-white/70'
                     }`}
                     style={mode === m ? {
@@ -567,24 +580,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               </div>
 
               {/* Form */}
-              <motion.form
-                layout={isPhoneViewport ? false : 'size'}
-                transition={{ layout: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } }}
+              <form
                 onSubmit={handleSubmit}
                 autoComplete="off"
                 className="flex flex-col gap-3.5 max-[639px]:gap-3"
               >
-                <AnimatePresence initial={false}>
-                  {mode === 'register' && (
-                    <motion.div
-                      key="full-name"
-                      layout={!isPhoneViewport}
-                      initial={{ opacity: 0, height: 0, y: -6 }}
-                      animate={{ opacity: 1, height: 'auto', y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: -6 }}
-                      transition={{ duration: 0.22, ease: 'easeInOut' }}
-                      className="overflow-hidden"
-                    >
+                {mode === 'register' && (
+                    <div>
                       <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
                         <Input
                           label={language === 'fr' ? 'Prénom' : 'First name'}
@@ -612,23 +614,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                           wrapperClassName="input-glow rounded-xl transition-all"
                         />
                       </div>
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
-                <motion.div layout={!isPhoneViewport}>
+                <div>
                   <Input label={t('email')} labelClassName="text-white/90 font-semibold" type="email" placeholder={language === 'fr' ? 'Entrez votre e-mail' : 'Enter email'} value={form.email} onChange={set('email')} icon={<Mail className="w-4 h-4" />} autoComplete="off" readOnly={!emailInputEnabled} onFocus={() => { setEmailInputEnabled(true); setCaptchaVisible(true); }} required style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
-                </motion.div>
-                <AnimatePresence initial={false}>
-                  {mode === 'register' && (
-                    <motion.div
-                      key="phone"
-                      layout={!isPhoneViewport}
-                      initial={{ opacity: 0, height: 0, y: -6 }}
-                      animate={{ opacity: 1, height: 'auto', y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: -6 }}
-                      transition={{ duration: 0.22, ease: 'easeInOut' }}
-                      className="overflow-hidden"
-                    >
+                </div>
+                {mode === 'register' && (
+                    <div>
                       <div className="space-y-1.5">
                         <label htmlFor="registration-phone" className="block text-sm font-semibold text-white/90">
                           {t('phone')}
@@ -714,7 +706,11 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                               document.body,
                             )}
                           </div>
-                          <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 focus-within:border-green-600 focus-within:ring-2 focus-within:ring-green-600/20 sm:gap-3 sm:px-3">
+                          <div className={`flex h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-white px-2.5 focus-within:ring-2 sm:gap-3 sm:px-3 ${
+                            phoneInvalid
+                              ? 'border-red-500 focus-within:border-red-600 focus-within:ring-red-600/20'
+                              : 'border-slate-300 focus-within:border-green-600 focus-within:ring-green-600/20'
+                          }`}>
                             <label htmlFor="registration-phone" className="sr-only">
                               {language === 'fr' ? 'Numéro de téléphone' : 'Phone number'}
                             </label>
@@ -726,23 +722,35 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                               autoComplete="tel-national"
                               placeholder={phoneNumberPlaceholder}
                               value={form.phone}
-                              onChange={event => setForm(current => ({ ...current, phone: event.target.value }))}
+                              onChange={event => {
+                                setForm(current => ({ ...current, phone: event.target.value }));
+                                if (event.target.value) setPhoneTouched(true);
+                              }}
+                              onBlur={() => setPhoneTouched(true)}
                               maxLength={24}
+                              aria-invalid={phoneInvalid}
+                              aria-describedby={phoneInvalid ? 'registration-phone-error' : undefined}
                               required
-                              className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                              className={`h-full min-w-0 flex-1 border-0 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none ${phoneInvalid ? 'text-red-700' : ''}`}
                             />
                           </div>
                         </div>
+                        {phoneInvalid && (
+                          <p id="registration-phone-error" role="alert" className="text-xs font-medium text-red-400">
+                            {language === 'fr'
+                              ? 'Entrez un numéro complet et valide pour le pays sélectionné.'
+                              : 'Enter a complete, valid number for the selected country.'}
+                          </p>
+                        )}
                         <p className="text-xs text-white/70">
                           {language === 'fr'
                             ? 'Sélectionnez votre pays pour ajouter automatiquement son indicatif.'
                             : 'Select your country to add its calling code automatically.'}
                         </p>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
-                <motion.div layout={!isPhoneViewport} className="relative">
+                <div className="relative">
                   <Input label={t('password')} labelClassName="text-white/90 font-semibold" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Votre mot de passe' : 'Enter your password'} value={form.password} onChange={set('password')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!passwordInputEnabled} onFocus={() => { setPasswordInputEnabled(true); setCaptchaVisible(true); }} minLength={mode === 'register' ? 8 : undefined} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                   <button
                     type="button"
@@ -755,18 +763,9 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   >
                     {showPass ? <EyeOff className="h-5 w-5" strokeWidth={2.5} /> : <Eye className="h-5 w-5" strokeWidth={2.5} />}
                   </button>
-                </motion.div>
-                <AnimatePresence initial={false}>
-                  {mode === 'register' && (
-                    <motion.div
-                      key="confirm-password"
-                      layout={!isPhoneViewport}
-                      initial={{ opacity: 0, height: 0, y: -6 }}
-                      animate={{ opacity: 1, height: 'auto', y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: -6 }}
-                      transition={{ duration: 0.22, ease: 'easeInOut' }}
-                      className="relative overflow-hidden"
-                    >
+                </div>
+                {mode === 'register' && (
+                    <div className="relative">
                     <Input label={t('confirmPassword')} labelClassName="text-white/90 font-semibold" type={showPass ? 'text' : 'password'} placeholder={language === 'fr' ? 'Confirmez votre mot de passe' : 'Confirm your password'} value={form.confirmPassword} onChange={set('confirmPassword')} icon={<Lock className="w-4 h-4" />} autoComplete="off" readOnly={!confirmPasswordInputEnabled} onFocus={() => setConfirmPasswordInputEnabled(true)} required className="pr-12" style={authInputStyle} wrapperClassName="input-glow rounded-xl transition-all" />
                     <button
                       type="button"
@@ -779,9 +778,8 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                     >
                       {showPass ? <EyeOff className="h-5 w-5" strokeWidth={2.5} /> : <Eye className="h-5 w-5" strokeWidth={2.5} />}
                     </button>
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
 
                 {error && (
                   <div className="mt-1 text-sm text-red-400" role="alert">
@@ -873,7 +871,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                     : (mode === 'login' ? t('signIn') : t('createAccount'))
                   }
                 </button>
-              </motion.form>
+              </form>
 
               {/* Footer */}
               <div className="mt-auto pt-6">
@@ -881,7 +879,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                   &copy; {new Date().getFullYear()} {appName} &mdash; {language === 'fr' ? 'Tous droits réservés' : 'All rights reserved'}
                 </p>
               </div>
-            </motion.div>
+            </div>
           </div>
           <a
             href="https://devburundi.com"

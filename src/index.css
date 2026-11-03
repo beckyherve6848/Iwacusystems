@@ -82,6 +82,11 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  html.auth-screen,
+  html.auth-screen body {
+    background-color: #000000 !important;
+  }
+
   .app-sidebar {
     background: #000000;
   }
