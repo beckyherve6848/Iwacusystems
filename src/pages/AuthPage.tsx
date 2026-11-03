@@ -3,11 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp, ChevronDown } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import 'flag-icons/css/flag-icons.min.css';
+import type { CountryCode } from 'libphonenumber-js';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import Input from '@/components/ui/Input';
 import TurnstileCaptcha from '@/components/auth/TurnstileCaptcha';
-import { getPhoneCountryOptions, normalizePhoneNumber } from '@/lib/phone';
+import { getPhoneCountryOptions, getPhoneNumberPlaceholder, normalizePhoneNumberForCountry } from '@/lib/phone';
 
 const authInputStyle: React.CSSProperties = {
   background: '#ffffff',
@@ -42,8 +43,9 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [callingCode, setCallingCode] = useState('+257');
-  const [selectedCountryCode, setSelectedCountryCode] = useState('BI');
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCode>('BI');
   const [countryCodeOpen, setCountryCodeOpen] = useState(false);
+  const [countryCodeSearch, setCountryCodeSearch] = useState('');
   const [countryMenuPosition, setCountryMenuPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 256 });
   const [isPhoneViewport, setIsPhoneViewport] = useState(() => window.matchMedia('(max-width: 767px)').matches);
   const formRef = useRef<HTMLDivElement>(null);
@@ -51,6 +53,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const countryMenuRef = useRef<HTMLDivElement>(null);
   const phoneCountryOptions = useMemo(() => getPhoneCountryOptions(language), [language]);
   const selectedPhoneCountry = phoneCountryOptions.find(option => option.countryCode === selectedCountryCode);
+  const phoneNumberPlaceholder = getPhoneNumberPlaceholder(selectedCountryCode);
+  const filteredPhoneCountryOptions = useMemo(() => {
+    const query = countryCodeSearch.replace(/\D/g, '');
+    return query
+      ? phoneCountryOptions.filter(option => option.code.startsWith(query))
+      : phoneCountryOptions;
+  }, [countryCodeSearch, phoneCountryOptions]);
 
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '',
@@ -141,18 +150,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
       setError(language === 'fr' ? 'Veuillez remplir tous les champs obligatoires.' : 'Please fill in all required fields.');
       return;
     }
-    const enteredPhone = form.phone.trim();
-    const enteredCallingCode = callingCode.match(/^\s*\+?(\d{1,3})/)?.[1] ?? '';
-    const internationalPhone = enteredPhone.startsWith('+') || enteredPhone.startsWith('00')
-      ? enteredPhone
-      : `+${enteredCallingCode}${enteredPhone.replace(/\D/g, '').replace(/^0+/, '')}`;
-    const normalizedPhone = mode === 'register' && /^\d{1,3}$/.test(enteredCallingCode)
-      ? normalizePhoneNumber(internationalPhone, enteredCallingCode) ?? ''
+    const normalizedPhone = mode === 'register'
+      ? normalizePhoneNumberForCountry(form.phone.trim(), selectedCountryCode) ?? ''
       : '';
     if (mode === 'register' && !normalizedPhone) {
       setError(language === 'fr'
-        ? 'Saisissez un numéro valide avec l’indicatif du pays.'
-        : 'Enter a valid phone number with its country calling code.');
+        ? 'Saisissez un numéro complet et valide pour le pays sélectionné.'
+        : 'Enter a complete, valid phone number for the selected country.');
       return;
     }
     if (import.meta.env.PROD && !captchaSiteKey) {
@@ -640,6 +644,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                                 if (countryCodeOpen) {
                                   setCountryCodeOpen(false);
                                 } else {
+                                  setCountryCodeSearch('');
                                   updateCountryMenuPosition();
                                   setCountryCodeOpen(true);
                                 }
@@ -663,10 +668,22 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                                   maxHeight: countryMenuPosition.maxHeight,
                                   zIndex: 10000,
                                 }}
-                                className="overflow-hidden rounded-xl border border-white/10 bg-[#171717] text-white shadow-xl"
+                                className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#171717] text-white shadow-xl"
                               >
-                                <div role="listbox" aria-label={language === 'fr' ? 'Pays et indicatifs' : 'Countries and calling codes'} className="overflow-y-auto overscroll-contain p-1" style={{ maxHeight: countryMenuPosition.maxHeight }}>
-                                  {phoneCountryOptions.map(option => (
+                                <div className="shrink-0 p-2">
+                                  <input
+                                    type="tel"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    value={countryCodeSearch}
+                                    onChange={event => setCountryCodeSearch(event.target.value.replace(/[^\d+]/g, ''))}
+                                    placeholder="+1"
+                                    aria-label={language === 'fr' ? 'Rechercher par indicatif téléphonique' : 'Search by calling code'}
+                                    className="h-9 w-full rounded-lg border border-white/10 bg-[#242424] px-3 text-sm text-white outline-none placeholder:text-white/45 focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                                  />
+                                </div>
+                                <div role="listbox" aria-label={language === 'fr' ? 'Pays et indicatifs' : 'Countries and calling codes'} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1">
+                                  {filteredPhoneCountryOptions.map(option => (
                                     <button
                                       key={`${option.countryCode}-${option.code}`}
                                       type="button"
@@ -676,6 +693,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                                         setCallingCode(`+${option.code}`);
                                         setSelectedCountryCode(option.countryCode);
                                         setCountryCodeOpen(false);
+                                        setCountryCodeSearch('');
                                       }}
                                       className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
                                     >
@@ -686,6 +704,11 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                                       <span className="font-medium tabular-nums text-white/55">+{option.code}</span>
                                     </button>
                                   ))}
+                                  {filteredPhoneCountryOptions.length === 0 && (
+                                    <p className="px-3 py-4 text-center text-sm text-white/55">
+                                      {language === 'fr' ? 'Aucun indicatif correspondant.' : 'No matching calling code.'}
+                                    </p>
+                                  )}
                                 </div>
                               </div>,
                               document.body,
@@ -701,7 +724,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                               type="tel"
                               inputMode="tel"
                               autoComplete="tel-national"
-                              placeholder="68 000 000"
+                              placeholder={phoneNumberPlaceholder}
                               value={form.phone}
                               onChange={event => setForm(current => ({ ...current, phone: event.target.value }))}
                               maxLength={24}

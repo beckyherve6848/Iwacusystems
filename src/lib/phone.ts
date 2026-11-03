@@ -1,4 +1,5 @@
-import { getCountries, getCountryCallingCode } from 'libphonenumber-js';
+import { getCountries, getCountryCallingCode, getExampleNumber, parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
+import phoneExamples from 'libphonenumber-js/examples.mobile.json';
 
 export function getPhoneCountryOptions(language: string) {
   const countryNames = new Intl.DisplayNames([language], { type: 'region' });
@@ -9,6 +10,15 @@ export function getPhoneCountryOptions(language: string) {
       name: countryNames.of(country) ?? country,
     }))
     .sort((left, right) => left.name.localeCompare(right.name, language));
+}
+
+export function getPhoneNumberPlaceholder(countryCode: CountryCode): string {
+  return getExampleNumber(countryCode, phoneExamples)?.formatNational() ?? '';
+}
+
+export function normalizePhoneNumberForCountry(phone: string, countryCode: CountryCode): string | null {
+  const parsedPhone = parsePhoneNumberFromString(phone, countryCode);
+  return parsedPhone?.isValid() ? parsedPhone.number : null;
 }
 
 export function normalizePhoneNumber(phone: string, defaultCallingCode = '257'): string | null {
