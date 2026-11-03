@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, EyeOff, User, Phone, Globe, Home, Users, TrendingUp } 
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import Input from '@/components/ui/Input';
+import Modal from '@/components/ui/Modal';
 import TurnstileCaptcha from '@/components/auth/TurnstileCaptcha';
 
 const authInputStyle: React.CSSProperties = {
@@ -24,7 +25,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState('');
   const [langOpen, setLangOpen] = useState(false);
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -62,7 +63,6 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setForgotPasswordMessage('');
     setRegistrationMessage('');
     if (
       !form.email.trim() ||
@@ -554,20 +554,13 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
                       type="button"
                       onClick={() => {
                         setError('');
-                        setForgotPasswordMessage(language === 'fr'
-                          ? 'Locataire ? Contactez votre administrateur pour obtenir de l’aide afin de réinitialiser votre mot de passe.'
-                          : 'Tenant? Please contact your administrator for help resetting your password.');
+                        setForgotPasswordOpen(true);
                       }}
                       className="text-xs text-white/40 hover:text-white/70 transition-colors font-medium"
                     >
                       {language === 'fr' ? 'Mot de passe oublié ?' : 'Forgot password?'}
                     </button>
                   </div>
-                )}
-                {forgotPasswordMessage && mode === 'login' && (
-                  <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs leading-relaxed text-white/75" role="status">
-                    {forgotPasswordMessage}
-                  </p>
                 )}
 
                 {captchaSiteKey ? (
@@ -626,6 +619,25 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
           </a>
         </div>
       </div>
+      <Modal
+        open={forgotPasswordOpen}
+        onClose={() => setForgotPasswordOpen(false)}
+        title={language === 'fr' ? 'Mot de passe oublié ?' : 'Forgot your password?'}
+        size="sm"
+      >
+        <p className="text-sm leading-relaxed text-slate-600" role="status">
+          {language === 'fr'
+            ? 'Locataire ? Veuillez contacter votre administrateur pour obtenir de l’aide afin de récupérer ou réinitialiser votre mot de passe.'
+            : 'Are you a tenant? Please contact your property administrator for help recovering or resetting your password.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => setForgotPasswordOpen(false)}
+          className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+        >
+          {language === 'fr' ? 'Compris' : 'Got it'}
+        </button>
+      </Modal>
     </>
   );
 }
