@@ -151,7 +151,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
               <p className="text-xs text-white/50">{t('propertyPlatform')}</p>
             </div>
           </div>
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-300">
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-red-500 bg-amber-400/10 text-amber-300 shadow-[0_0_14px_rgba(239,68,68,0.2)]">
             <Mail className="h-6 w-6" aria-hidden="true" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">
