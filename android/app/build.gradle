@@ -26,8 +26,8 @@ def twaManifest = [
     launchUrl: '/', // The start path for the TWA. Must be relative to the domain.
     name: 'Iwacusystem', // The application name.
     launcherName: 'Iwacusystem', // The name shown on the Android Launcher.
-    themeColor: '#18191a', // The color used for the status bar.
-    themeColorDark: '#18191a', // The color used for the dark status bar.
+    themeColor: '#e2e8f0', // The color used for the status bar.
+    themeColorDark: '#242526', // The color used for the dark status bar.
     navigationColor: '#18191a', // The color used for the navigation bar.
     navigationColorDark: '#18191a', // The color used for the dark navbar.
     navigationDividerColor: '#18191a', // The navbar divider color.

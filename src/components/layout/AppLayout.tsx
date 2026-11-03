@@ -81,7 +81,7 @@ export default function AppLayout({ currentPage, onNavigate, onPrefetch, childre
     const activeMode = isPhoneViewport ? phoneThemeMode : desktopThemeMode;
     document.documentElement.classList.toggle('phone-dark', activeMode === 'dark');
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-      ?.setAttribute('content', activeMode === 'dark' ? '#18191a' : '#f7f8fa');
+      ?.setAttribute('content', activeMode === 'dark' ? '#242526' : '#e2e8f0');
     return () => document.documentElement.classList.remove('phone-dark');
   }, [isPhoneViewport, phoneThemeMode, desktopThemeMode]);
 
