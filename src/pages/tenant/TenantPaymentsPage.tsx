@@ -147,10 +147,10 @@ export default function TenantPaymentsPage() {
         <p className="text-slate-500 text-sm mt-0.5">{t('tenantPaymentHistoryDescription')}</p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden no-print">
+      <div className="tenant-payment-history-panel bg-white border border-slate-200 rounded-2xl overflow-hidden no-print">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
+          <table className="tenant-payment-history-table w-full">
+            <thead className="tenant-payment-history-head">
               <tr className="border-b border-slate-200">
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('paymentReceiptHeader')}</th>
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">{t('invoiceMonth')}</th>
@@ -162,7 +162,7 @@ export default function TenantPaymentsPage() {
             <tbody className="divide-y divide-slate-100">
               {payments.length === 0 && <tr><td colSpan={5} className="text-center py-12 text-slate-500">{t('noPaymentRecords')}</td></tr>}
               {payments.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={p.id} className="tenant-payment-history-row hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3.5">
                     <p className="font-semibold text-slate-900 text-sm">{p.receipt_number}</p>
                     <p className="text-xs text-slate-500">{new Date(p.payment_date).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB')}</p>
@@ -175,7 +175,7 @@ export default function TenantPaymentsPage() {
                     <p className="text-xs text-slate-500">{t('totalBalanceDue')}: <span className={`money-value font-semibold ${p.total_balance_due === undefined ? 'text-slate-400' : p.total_balance_due > 0 ? 'text-red-700' : 'text-slate-900'}`}>{p.total_balance_due === undefined ? '—' : fmt(p.total_balance_due)}</span></p>
                   </td>
                   <td className="px-5 py-3.5 text-center">
-                    <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[p.status]}`}>{t(p.status)}</span>
+                    <span className={`tenant-payment-history-status inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${statusColors[p.status]}`}>{t(p.status)}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <button onClick={() => openReceipt(p)} aria-label={t('viewReceipt')} title={t('viewReceipt')} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">

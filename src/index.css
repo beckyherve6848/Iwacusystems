@@ -3170,6 +3170,57 @@
   border-color: #34d399 !important;
 }
 
+.phone-dark .app-shell main .tenant-payment-history-panel {
+  border-color: #45474a !important;
+  background: #242526 !important;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-head {
+  background: #2b2c2e !important;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-head tr,
+.phone-dark .app-shell main .tenant-payment-history-row {
+  border-color: #3e4042 !important;
+  background: #242526 !important;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-row:hover {
+  background: #303133 !important;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-row td {
+  color: #e4e6eb;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-status[class~="bg-emerald-50"] {
+  border-color: #34d399 !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #6ee7b7 !important;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-status[class~="bg-amber-50"] {
+  border-color: #fbbf24 !important;
+  background: rgba(245, 158, 11, 0.12) !important;
+  color: #fcd34d !important;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-status[class~="bg-blue-50"] {
+  border-color: #60a5fa !important;
+  background: rgba(59, 130, 246, 0.12) !important;
+  color: #93c5fd !important;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-status[class~="bg-red-50"] {
+  border-color: #f87171 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #fca5a5 !important;
+}
+
+.phone-dark .app-shell main .tenant-payment-history-panel > div:last-child {
+  border-color: #3e4042 !important;
+}
+
 .phone-dark .app-shell main {
   background: linear-gradient(180deg, #18191a 0%, #1c1d1f 100%) !important;
 }
