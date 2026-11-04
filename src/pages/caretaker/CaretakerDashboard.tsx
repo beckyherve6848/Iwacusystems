@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
 import StaffIdentityCard from '@/components/identity/StaffIdentityCard';
+import RoleDashboardOverview, { RoleOverviewItem } from '@/components/dashboard/RoleDashboardOverview';
 
 interface DashboardStats {
   visitorsToday: number;
@@ -27,7 +28,7 @@ interface DashboardStats {
 
 export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: string) => void }) {
   const { profile } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
   const [stats, setStats] = useState<DashboardStats>({
     visitorsToday: 0, visitorsInside: 0, visitorsThisMonth: 0, recentVisitors: [],
   });
@@ -106,6 +107,14 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
     { label: t('thisMonth'), value: stats.visitorsThisMonth, icon: TrendingUp, color: 'bg-violet-500' },
   ];
 
+  const overviewItems: RoleOverviewItem[] = [
+    { label: language === 'fr' ? 'Aujourd’hui' : 'Today', value: String(stats.visitorsToday), page: 'caretaker-visitors', color: '#2563eb' },
+    { label: language === 'fr' ? 'Présents' : 'Inside', value: String(stats.visitorsInside), page: 'caretaker-visitors', color: '#059669' },
+    { label: language === 'fr' ? 'Ce mois' : 'This month', value: String(stats.visitorsThisMonth), page: 'caretaker-visitors', color: '#7c3aed' },
+    { label: language === 'fr' ? 'Enregistrer' : 'Register', value: language === 'fr' ? 'Visiteur' : 'Visitor', page: 'caretaker-register-visitor', color: '#d97706' },
+    { label: language === 'fr' ? 'Profil' : 'Profile', value: language === 'fr' ? 'Ouvrir' : 'Open', page: 'caretaker-profile', color: '#0891b2' },
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -130,6 +139,14 @@ export default function CaretakerDashboard({ onNavigate }: { onNavigate: (page: 
       <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
       {profile && <StaffIdentityCard profile={profile} assignedProperties={assignedHouses} showIdentityDocument={false} />}
       {assignmentError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{assignmentError}</p>}
+      <RoleDashboardOverview
+        items={overviewItems}
+        onNavigate={onNavigate}
+        title={language === 'fr' ? 'Votre aperçu' : 'Your Overview'}
+        centerLabel={language === 'fr' ? 'Gardien' : 'Caretaker'}
+        centerSubLabel={language === 'fr' ? 'Accueil' : 'Dashboard'}
+        language={language}
+      />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4">

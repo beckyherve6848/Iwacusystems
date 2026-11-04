@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { Notification } from '@/lib/supabase';
-import { Bell, CheckCheck, Plus, Send, Trash2, Users, User, Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Bell, CheckCheck, Plus, Trash2, Users, User, Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Input, { Select, Textarea } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
@@ -294,7 +294,29 @@ export default function NotificationsPage() {
         <div className="space-y-3">
           {announcements.length === 0 && (
             <div className="notification-empty-state dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
-              <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+              <div style={{ width: '100%', maxWidth: 600, margin: '0 auto', padding: '20px 0', backgroundColor: '#f9f9f9' }}>
+                <hr style={{ border: 0, borderTop: '3px solid #007a37', margin: '0 auto 40px', width: '85%' }} />
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '40px 0' }}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#007a37"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ width: 80, height: 80 }}
+                    aria-hidden="true"
+                  >
+                    <path d="M11 5L6 9H3v6h3l5 4V5z" />
+                    <path d="M6 15v3a1 1 0 0 0 1 1h1" />
+                    <path d="M15.5 8.5a4 4 0 0 1 0 7" />
+                    <path d="M18.5 6a7.5 7.5 0 0 1 0 12" />
+                    <path d="M21.5 3.5a11 11 0 0 1 0 17" />
+                  </svg>
+                </div>
+                <hr style={{ border: 0, borderTop: '3px solid #007a37', margin: '40px auto 0', width: '85%' }} />
+              </div>
               <p className="text-slate-500">
                 {language === 'fr' ? "Aucune notification envoyée pour l'instant" : 'No notifications sent yet'}
               </p>
@@ -427,7 +449,7 @@ export default function NotificationsPage() {
         </div>
         <div className="notification-compose-actions flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
-          <Button className="notification-submit" loading={sending} icon={<Send className="w-4 h-4" />} onClick={handleSend}>{t('send')}</Button>
+          <Button className="notification-submit" loading={sending} icon={<img src="/send.svg" alt="" className="h-4 w-4 object-contain" />} onClick={handleSend}>{t('send')}</Button>
         </div>
       </Modal>
 

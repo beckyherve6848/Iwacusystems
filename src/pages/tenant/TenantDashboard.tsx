@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
+import RoleDashboardOverview, { RoleOverviewItem } from '@/components/dashboard/RoleDashboardOverview';
 import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 
 type InvoiceNotification = {
@@ -21,9 +22,10 @@ type InvoiceNotification = {
 };
 
 export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string) => void }) {
-  const { user } = useAuth();
+  const { user, tenantRecord } = useAuth();
   const { t, fmt, language } = useTheme();
   const [tenant, setTenant] = useState<any>(null);
+  const [profilePhotoFailed, setProfilePhotoFailed] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [customPaymentMethods, setCustomPaymentMethods] = useState<CustomPaymentMethod[]>([]);
@@ -145,6 +147,15 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
   };
 
   const panelClass = 'bg-white border border-slate-200 rounded-2xl p-5';
+  const profilePhotoUrl = tenantRecord?.photo_url
+    ?? (typeof tenant?.photo_url === 'string' && tenant.photo_url.startsWith('http') ? tenant.photo_url : null);
+  const overviewItems: RoleOverviewItem[] = [
+    { label: language === 'fr' ? 'Logement' : 'Home', value: tenant?.houses?.house_number ?? '—', page: 'tenant-agreement', color: '#2563eb' },
+    { label: language === 'fr' ? 'Paiements' : 'Payments', value: language === 'fr' ? 'Ouvrir' : 'Open', page: 'tenant-payments', color: '#059669' },
+    { label: language === 'fr' ? 'Factures' : 'Invoices', value: String(unpaidInvoiceCount), page: 'tenant-invoices', color: '#dc2626' },
+    { label: language === 'fr' ? 'Entretien' : 'Repairs', value: String(maintenanceCount), page: 'tenant-maintenance', color: '#d97706' },
+    { label: language === 'fr' ? 'Discussion' : 'Chat', value: language === 'fr' ? 'Ouvrir' : 'Open', page: 'tenant-chat', color: '#7c3aed' },
+  ];
 
   return (
     <div className="dashboard-content space-y-6">
@@ -233,8 +244,17 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className={panelClass}>
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-100">
-              <User className="w-5 h-5 text-slate-500" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-slate-100 shadow-md ring-1 ring-slate-200">
+              {profilePhotoUrl && !profilePhotoFailed ? (
+                <img
+                  src={profilePhotoUrl}
+                  alt={tenant?.full_name ? `${tenant.full_name} profile` : t('myProfile')}
+                  className="h-full w-full object-cover"
+                  onError={() => setProfilePhotoFailed(true)}
+                />
+              ) : (
+                <User className="h-6 w-6 text-slate-500 drop-shadow-sm" />
+              )}
             </div>
             <h3 className="font-semibold text-slate-900">{t('myProfile')}</h3>
           </div>
@@ -268,6 +288,15 @@ export default function TenantDashboard({ onNavigate }: { onNavigate: (p: string
           ) : <p className="text-slate-400 text-sm">{t('noHouseAssigned')}</p>}
         </div>
       </div>
+
+      <RoleDashboardOverview
+        items={overviewItems}
+        onNavigate={onNavigate}
+        title={language === 'fr' ? 'Votre aperçu' : 'Your Overview'}
+        centerLabel={language === 'fr' ? 'Locataire' : 'Tenant'}
+        centerSubLabel={language === 'fr' ? 'Accueil' : 'Dashboard'}
+        language={language}
+      />
 
       {/* Payment Instructions */}
       {(settings.property_name || settings.bank_name || settings.account_name || settings.account_number ||

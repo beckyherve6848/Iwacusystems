@@ -4,9 +4,17 @@ import Input, { Textarea } from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
-import { Save, Settings, Upload, Image as ImageIcon, Plus, Trash2, Smartphone, Sun, Moon } from 'lucide-react';
+import { Save, Settings, Upload, Image as ImageIcon, Plus, Trash2, Smartphone, Sun, Moon, Eye, Check } from 'lucide-react';
 import { DEFAULT_STAFF_CARD_FOOTER, DEFAULT_STAFF_CARD_FOOTER_FR, useTheme } from '@/contexts/ThemeContext';
 import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
+import {
+  ADMIN_OVERVIEW_QUOTE_COLORS,
+  AdminOverviewPhotoQuote,
+  countAdminOverviewQuoteWords,
+  createEmptyOverviewQuotes,
+  MAX_ADMIN_OVERVIEW_QUOTE_WORDS,
+  parseAdminOverviewPhotoQuotes,
+} from '@/lib/adminOverviewQuotes';
 import {
   getThemeModeForCurrentDevice,
   getThemeModeForDevice,
@@ -14,6 +22,38 @@ import {
   PhoneThemeMode,
   saveThemeModeForDevice,
 } from '@/lib/phoneThemeMode';
+
+const MAX_OVERVIEW_PHOTO_SIZE = 3 * 1024 * 1024;
+const OVERVIEW_PHOTO_COUNT = 5;
+
+function resizeOverviewQuoteField(element: HTMLTextAreaElement | null) {
+  if (!element) return;
+  element.style.height = 'auto';
+  element.style.height = `${element.scrollHeight + 2}px`;
+}
+
+async function prepareOverviewPhoto(blob: Blob): Promise<Blob> {
+  if (blob.size <= MAX_OVERVIEW_PHOTO_SIZE && ['image/jpeg', 'image/png'].includes(blob.type)) return blob;
+
+  const image = await createImageBitmap(blob);
+  try {
+    const scale = Math.min(1, 1500 / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Unable to prepare the current photo for the gallery.');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    for (const quality of [0.86, 0.75, 0.64, 0.52]) {
+      const prepared = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+      if (prepared && prepared.size <= MAX_OVERVIEW_PHOTO_SIZE) return prepared;
+    }
+    throw new Error('The current photo could not be reduced below the 3 MB limit.');
+  } finally {
+    image.close();
+  }
+}
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -23,12 +63,20 @@ export default function SettingsPage() {
   const [uploading, setUploading] = useState(false);
   const [logoPreview, setLogoPreview] = useState('/iwacu-mark-512.png');
   const [familyPreview, setFamilyPreview] = useState('/Bck.png');
+  const [overviewPhotos, setOverviewPhotos] = useState<string[]>([]);
+  const [overviewQuotes, setOverviewQuotes] = useState<AdminOverviewPhotoQuote[]>(createEmptyOverviewQuotes);
+  const [savedOverviewQuotes, setSavedOverviewQuotes] = useState<AdminOverviewPhotoQuote[]>(createEmptyOverviewQuotes);
+  const [savingQuoteIndex, setSavingQuoteIndex] = useState<number | null>(null);
+  const [overviewPhotoPreview, setOverviewPhotoPreview] = useState<string | null>(null);
   const [phoneThemeMode, setPhoneThemeMode] = useState<PhoneThemeMode>(() => getThemeModeForCurrentDevice());
   const [isPhoneDevice, setIsPhoneDevice] = useState(() => isPhoneViewport());
   const logoFileRef = useRef<HTMLInputElement>(null);
   const familyFileRef = useRef<HTMLInputElement>(null);
+  const overviewPhotosFileRef = useRef<HTMLInputElement>(null);
+  const overviewPhotoReplaceRef = useRef<HTMLInputElement>(null);
+  const overviewPhotoReplaceIndex = useRef<number | null>(null);
   const { toasts, addToast, removeToast } = useToast();
-  const { updateBranding, t } = useTheme();
+  const { updateBranding, t, language, loginFamilyImageUrl } = useTheme();
 
   useEffect(() => {
     const viewport = window.matchMedia('(max-width: 767px)');
@@ -57,6 +105,27 @@ export default function SettingsPage() {
       }
       setLogoPreview(map.logo_url || '/iwacu-mark-512.png');
       if (map.login_family_image_url) setFamilyPreview(map.login_family_image_url);
+      let loadedOverviewPhotos: string[] = [];
+      try {
+        const parsedPhotos: unknown = map.admin_overview_photos ? JSON.parse(map.admin_overview_photos) : [];
+        if (!Array.isArray(parsedPhotos) || !parsedPhotos.every(photo => typeof photo === 'string') || parsedPhotos.length > 5) {
+          throw new Error('Overview photo setting must contain up to five image URLs.');
+        }
+        loadedOverviewPhotos = parsedPhotos;
+      } catch (error) {
+        addToast(`Unable to load overview photos: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      }
+      setOverviewPhotos(loadedOverviewPhotos);
+      let loadedOverviewQuotes = createEmptyOverviewQuotes();
+      try {
+        loadedOverviewQuotes = parseAdminOverviewPhotoQuotes(
+          map.admin_overview_photo_quotes ? JSON.parse(map.admin_overview_photo_quotes) : undefined,
+        );
+      } catch (error) {
+        addToast(`Unable to load overview photo quotes: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      }
+      setOverviewQuotes(loadedOverviewQuotes);
+      setSavedOverviewQuotes(loadedOverviewQuotes);
       setSettings({
         ...map,
         app_name: map.app_name || 'Iwacusystem',
@@ -64,6 +133,8 @@ export default function SettingsPage() {
         staff_card_footer: map.staff_card_footer || DEFAULT_STAFF_CARD_FOOTER,
         staff_card_footer_fr: map.staff_card_footer_fr || DEFAULT_STAFF_CARD_FOOTER_FR,
         login_family_image_url: map.login_family_image_url || '',
+        admin_overview_photos: JSON.stringify(loadedOverviewPhotos),
+        admin_overview_photo_quotes: JSON.stringify(loadedOverviewQuotes),
       });
       setLoading(false);
     });
@@ -71,6 +142,48 @@ export default function SettingsPage() {
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setSettings(s => ({ ...s, [key]: e.target.value }));
+
+  const updateOverviewQuote = (index: number, patch: Partial<AdminOverviewPhotoQuote>) => {
+    setOverviewQuotes(current => current.map((quote, quoteIndex) =>
+      quoteIndex === index ? { ...quote, ...patch } : quote,
+    ));
+  };
+
+  const saveOverviewQuote = async (index: number) => {
+    const quote = overviewQuotes[index];
+    if (!quote || countAdminOverviewQuoteWords(quote.text) > MAX_ADMIN_OVERVIEW_QUOTE_WORDS) {
+      addToast(language === 'fr'
+        ? 'La citation doit contenir au maximum 15 mots.'
+        : 'The quote can contain no more than 15 words.', 'error');
+      return;
+    }
+
+    setSavingQuoteIndex(index);
+    try {
+      const quotesToSave = savedOverviewQuotes.map((savedQuote, quoteIndex) =>
+        quoteIndex === index ? quote : savedQuote,
+      );
+      const { error } = await supabase.from('settings').upsert({
+        key: 'admin_overview_photo_quotes',
+        value: JSON.stringify(quotesToSave),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'key' });
+      if (error) {
+        addToast(`${language === 'fr' ? 'Impossible d’enregistrer la citation' : 'Unable to save the quote'}: ${error.message}`, 'error');
+        return;
+      }
+
+      setSavedOverviewQuotes(quotesToSave);
+      setSettings(current => ({
+        ...current,
+        admin_overview_photo_quotes: JSON.stringify(quotesToSave),
+      }));
+      updateBranding({ adminOverviewPhotoQuotes: quotesToSave });
+      addToast(language === 'fr' ? 'Citation enregistrée.' : 'Quote saved.', 'success');
+    } finally {
+      setSavingQuoteIndex(null);
+    }
+  };
 
   const handleFileUpload = async (file: File, asset: 'logo' | 'family') => {
     const allowedImageTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'];
@@ -107,6 +220,358 @@ export default function SettingsPage() {
     setUploading(false);
   };
 
+  const handleOverviewPhotosUpload = async (fileList: FileList | null, replaceIndex?: number) => {
+    const files = Array.from(fileList ?? []);
+    if (!files.length) return;
+    if (overviewQuotes.some(quote => countAdminOverviewQuoteWords(quote.text) > MAX_ADMIN_OVERVIEW_QUOTE_WORDS)) {
+      addToast(language === 'fr'
+        ? 'Chaque citation de photo doit contenir au maximum 15 mots.'
+        : 'Each photo quote can contain no more than 15 words.', 'error');
+      return;
+    }
+    if (replaceIndex !== undefined && files.length !== 1) {
+      addToast(language === 'fr' ? 'Sélectionnez une seule photo à remplacer.' : 'Select one photo to replace.', 'error');
+      return;
+    }
+    const previousPhotos = [...overviewPhotos];
+    const previousPhotoUrl = replaceIndex === undefined ? undefined : previousPhotos[replaceIndex];
+    const previousPhotoLocation = previousPhotoUrl ? getOverviewPhotoStorageLocation(previousPhotoUrl) : null;
+    if (replaceIndex !== undefined && (!previousPhotoUrl || !previousPhotoLocation)) {
+      addToast(language === 'fr'
+        ? 'Impossible de déterminer le chemin de stockage sécurisé de cette photo. Elle n’a pas été remplacée.'
+        : 'Could not determine this photo’s safe storage path. It was not replaced.', 'error');
+      return;
+    }
+    if (replaceIndex !== undefined && !window.confirm(language === 'fr'
+      ? 'Remplacer cette photo et supprimer définitivement l’ancienne du stockage Supabase ? Cette action est irréversible.'
+      : 'Replace this photo and permanently delete the old one from Supabase Storage? This cannot be undone.')) return;
+    if (replaceIndex === undefined && overviewPhotos.length + files.length > 5) {
+      addToast('Choose no more than five overview photos.', 'error');
+      return;
+    }
+    const allowedImageTypes = ['image/png', 'image/jpeg'];
+    const invalidFile = files.find(file => !allowedImageTypes.includes(file.type));
+    if (invalidFile) {
+      addToast(`${invalidFile.name}: ${t('chooseImageTypes')}`, 'error');
+      return;
+    }
+    const oversizedFile = files.find(file => file.size > 3 * 1024 * 1024);
+    if (oversizedFile) {
+      addToast(`${oversizedFile.name}: ${language === 'fr' ? 'La taille maximale est de 3 Mo par photo.' : 'The maximum size is 3 MB per photo.'}`, 'error');
+      return;
+    }
+
+    setUploading(true);
+    const uploadedPaths: string[] = [];
+    try {
+      let uploadedPhotos = [...overviewPhotos];
+      const uploadedQuotes = [...overviewQuotes];
+      if (replaceIndex !== undefined && previousPhotoLocation) {
+        const file = files[0];
+        const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        const replacementPath = `overview-${crypto.randomUUID()}-replacement.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('dashboard-gallery')
+          .upload(replacementPath, file, { cacheControl: '3600', upsert: false });
+        if (uploadError) {
+          addToast(`Unable to upload ${file.name}: ${uploadError.message}`, 'error');
+          return;
+        }
+
+        const { data } = supabase.storage.from('dashboard-gallery').getPublicUrl(replacementPath);
+        uploadedPhotos[replaceIndex] = data.publicUrl;
+        const { error: settingsError } = await supabase.from('settings').upsert([
+          {
+            key: 'admin_overview_photos',
+            value: JSON.stringify(uploadedPhotos),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            key: 'admin_overview_photo_quotes',
+            value: JSON.stringify(uploadedQuotes),
+            updated_at: new Date().toISOString(),
+          },
+        ], { onConflict: 'key' });
+        if (settingsError) {
+          const { error: cleanupError } = await supabase.storage.from('dashboard-gallery').remove([replacementPath]);
+          addToast(`${language === 'fr' ? 'Impossible de mettre à jour la galerie' : 'Unable to update the gallery'}: ${settingsError.message}`, 'error');
+          if (cleanupError) {
+            addToast(`${language === 'fr' ? 'Impossible de supprimer la nouvelle photo du stockage' : 'Unable to remove the new photo from storage'}: ${cleanupError.message}`, 'error');
+          }
+          return;
+        }
+
+        const { error: deleteError } = await supabase.storage
+          .from(previousPhotoLocation.bucket)
+          .remove([previousPhotoLocation.path]);
+        if (deleteError) {
+          const { error: rollbackError } = await supabase.from('settings').upsert([
+            {
+              key: 'admin_overview_photos',
+              value: JSON.stringify(previousPhotos),
+              updated_at: new Date().toISOString(),
+            },
+            {
+              key: 'admin_overview_photo_quotes',
+              value: JSON.stringify(overviewQuotes),
+              updated_at: new Date().toISOString(),
+            },
+          ], { onConflict: 'key' });
+          addToast(`${language === 'fr' ? 'Impossible de supprimer l’ancienne photo du stockage' : 'Unable to delete the old photo from storage'}: ${deleteError.message}`, 'error');
+          if (rollbackError) {
+            setOverviewPhotos(uploadedPhotos);
+            setOverviewQuotes(uploadedQuotes);
+            setSavedOverviewQuotes(uploadedQuotes);
+            setSettings(current => ({
+              ...current,
+              admin_overview_photos: JSON.stringify(uploadedPhotos),
+              admin_overview_photo_quotes: JSON.stringify(uploadedQuotes),
+            }));
+            updateBranding({ adminOverviewPhotoUrls: uploadedPhotos, adminOverviewPhotoQuotes: uploadedQuotes });
+            addToast(`${language === 'fr' ? 'La restauration de la galerie a échoué ; la nouvelle photo reste active' : 'Gallery rollback failed; the replacement photo remains active'}: ${rollbackError.message}`, 'error');
+          } else {
+            const { error: cleanupError } = await supabase.storage.from('dashboard-gallery').remove([replacementPath]);
+            if (cleanupError) {
+              addToast(`${language === 'fr' ? 'Impossible de supprimer la nouvelle photo du stockage' : 'Unable to remove the new photo from storage'}: ${cleanupError.message}`, 'error');
+            }
+          }
+          return;
+        }
+
+        setOverviewPhotos(uploadedPhotos);
+        setOverviewQuotes(uploadedQuotes);
+        setSavedOverviewQuotes(uploadedQuotes);
+        setSettings(current => ({
+          ...current,
+          admin_overview_photos: JSON.stringify(uploadedPhotos),
+          admin_overview_photo_quotes: JSON.stringify(uploadedQuotes),
+        }));
+        updateBranding({ adminOverviewPhotoUrls: uploadedPhotos, adminOverviewPhotoQuotes: uploadedQuotes });
+        addToast(language === 'fr'
+          ? 'Photo remplacée ; l’ancienne a été supprimée du stockage Supabase.'
+          : 'Photo replaced; the old photo was deleted from Supabase Storage.', 'success');
+        return;
+      }
+
+      for (const [index, file] of files.entries()) {
+        const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        const path = `overview-${crypto.randomUUID()}-${index}.${ext}`;
+        const { error } = await supabase.storage
+          .from('dashboard-gallery')
+          .upload(path, file, { cacheControl: '3600', upsert: false });
+        if (error) throw new Error(`Unable to upload ${file.name}: ${error.message}`);
+        uploadedPaths.push(path);
+        const { data } = supabase.storage.from('dashboard-gallery').getPublicUrl(path);
+        if (replaceIndex !== undefined) {
+          uploadedPhotos[replaceIndex] = data.publicUrl;
+        } else {
+          uploadedPhotos = [...uploadedPhotos, data.publicUrl];
+        }
+      }
+
+      const { error: settingsError } = await supabase.from('settings').upsert([
+        {
+          key: 'admin_overview_photos',
+          value: JSON.stringify(uploadedPhotos),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          key: 'admin_overview_photo_quotes',
+          value: JSON.stringify(uploadedQuotes),
+          updated_at: new Date().toISOString(),
+        },
+      ], { onConflict: 'key' });
+      if (settingsError) throw new Error(`Unable to save the overview gallery: ${settingsError.message}`);
+
+      setOverviewPhotos(uploadedPhotos);
+      setOverviewQuotes(uploadedQuotes);
+      setSettings(current => ({
+        ...current,
+        admin_overview_photos: JSON.stringify(uploadedPhotos),
+        admin_overview_photo_quotes: JSON.stringify(uploadedQuotes),
+      }));
+      updateBranding({ adminOverviewPhotoUrls: uploadedPhotos, adminOverviewPhotoQuotes: uploadedQuotes });
+      addToast(language === 'fr' ? 'Galerie enregistrée et tableau de bord mis à jour.' : 'Gallery saved and dashboard updated.', 'success');
+    } catch (error) {
+      if (uploadedPaths.length > 0) {
+        const { error: cleanupError } = await supabase.storage.from('dashboard-gallery').remove(uploadedPaths);
+        if (cleanupError) {
+          addToast(`${language === 'fr' ? 'Impossible de supprimer les photos téléversées après l’échec' : 'Unable to clean up uploaded photos after failure'}: ${cleanupError.message}`, 'error');
+        }
+      }
+      addToast(error instanceof Error ? error.message : String(error), 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleImportCurrentPhoto = async () => {
+    if (overviewPhotos.length > 0) {
+      addToast(language === 'fr'
+        ? 'Supprimez les photos actuelles avant d’importer la photo courante dans les cinq emplacements.'
+        : 'Delete the current gallery photos before importing the current photo into all five slots.', 'error');
+      return;
+    }
+
+    const confirmed = window.confirm(language === 'fr'
+      ? 'Importer la photo actuellement utilisée et en créer cinq copies distinctes dans le stockage Supabase ? Vous pourrez ensuite prévisualiser, remplacer ou supprimer chaque copie.'
+      : 'Import the photo currently in use and create five separate copies in Supabase Storage? You can then preview, replace, or delete each copy.');
+    if (!confirmed) return;
+
+    setUploading(true);
+    const uploadedPaths: string[] = [];
+    try {
+      const response = await fetch(loginFamilyImageUrl || '/Bck.png');
+      if (!response.ok) throw new Error(`Unable to load the current photo: ${response.status}`);
+      const sourcePhoto = await prepareOverviewPhoto(await response.blob());
+      const uploadedUrls: string[] = [];
+      const importedQuotes = [...overviewQuotes];
+      for (let index = 0; index < OVERVIEW_PHOTO_COUNT; index += 1) {
+        const path = `overview-${crypto.randomUUID()}-${index}.jpg`;
+        const { error } = await supabase.storage
+          .from('dashboard-gallery')
+          .upload(path, sourcePhoto, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' });
+        if (error) throw new Error(`Unable to upload photo copy ${index + 1}: ${error.message}`);
+        uploadedPaths.push(path);
+        const { data } = supabase.storage.from('dashboard-gallery').getPublicUrl(path);
+        uploadedUrls.push(data.publicUrl);
+      }
+
+      const { error: settingsError } = await supabase.from('settings').upsert([
+        {
+          key: 'admin_overview_photos',
+          value: JSON.stringify(uploadedUrls),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          key: 'admin_overview_photo_quotes',
+          value: JSON.stringify(importedQuotes),
+          updated_at: new Date().toISOString(),
+        },
+      ], { onConflict: 'key' });
+      if (settingsError) throw new Error(`Unable to save the overview gallery: ${settingsError.message}`);
+
+      setOverviewPhotos(uploadedUrls);
+      setSavedOverviewQuotes(importedQuotes);
+      setSettings(current => ({
+        ...current,
+        admin_overview_photos: JSON.stringify(uploadedUrls),
+        admin_overview_photo_quotes: JSON.stringify(importedQuotes),
+      }));
+      updateBranding({ adminOverviewPhotoUrls: uploadedUrls, adminOverviewPhotoQuotes: importedQuotes });
+      addToast(language === 'fr'
+        ? 'Cinq copies de la photo ont été enregistrées et le tableau de bord a été mis à jour.'
+        : 'Five photo copies were saved and the dashboard was updated.', 'success');
+    } catch (error) {
+      if (uploadedPaths.length > 0) {
+        const { error: cleanupError } = await supabase.storage.from('dashboard-gallery').remove(uploadedPaths);
+        if (cleanupError) {
+          addToast(`${language === 'fr' ? 'Le nettoyage des copies incomplètes a échoué' : 'Unable to clean up incomplete photo copies'}: ${cleanupError.message}`, 'error');
+        }
+      }
+      addToast(error instanceof Error ? error.message : String(error), 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const getOverviewPhotoStorageLocation = (photoUrl: string) => {
+    try {
+      const { pathname } = new URL(photoUrl);
+      const buckets = ['dashboard-gallery', 'login-bg'] as const;
+      for (const bucket of buckets) {
+        const publicBucketPrefix = `/storage/v1/object/public/${bucket}/`;
+        if (!pathname.includes(publicBucketPrefix)) continue;
+        const path = decodeURIComponent(pathname.split(publicBucketPrefix)[1] ?? '');
+        if (path.startsWith('overview-') && !path.includes('..')) return { bucket, path };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleDeleteOverviewPhoto = async (index: number) => {
+    const photoUrl = overviewPhotos[index];
+    if (!photoUrl) return;
+    if (overviewQuotes.some(quote => countAdminOverviewQuoteWords(quote.text) > MAX_ADMIN_OVERVIEW_QUOTE_WORDS)) {
+      addToast(language === 'fr'
+        ? 'Chaque citation de photo doit contenir au maximum 15 mots.'
+        : 'Each photo quote can contain no more than 15 words.', 'error');
+      return;
+    }
+    const message = language === 'fr'
+      ? 'Supprimer définitivement cette photo de la galerie et du stockage Supabase ? Cette action est irréversible.'
+      : 'Permanently delete this photo from the gallery and Supabase Storage? This cannot be undone.';
+    if (!window.confirm(message)) return;
+
+    const storageLocation = getOverviewPhotoStorageLocation(photoUrl);
+    if (!storageLocation) {
+      addToast(language === 'fr'
+        ? 'Impossible de déterminer le chemin de stockage sécurisé de cette photo. Elle n’a pas été supprimée.'
+        : 'Could not determine this photo’s safe storage path. It was not deleted.', 'error');
+      return;
+    }
+
+    const previousPhotos = [...overviewPhotos];
+    const remainingPhotos = previousPhotos.filter((_, photoIndex) => photoIndex !== index);
+    const remainingQuotes = overviewQuotes.filter((_, quoteIndex) => quoteIndex !== index);
+    remainingQuotes.push(...createEmptyOverviewQuotes().slice(0, 1));
+    setUploading(true);
+    try {
+      const { error: settingsError } = await supabase.from('settings').upsert([
+        {
+          key: 'admin_overview_photos',
+          value: JSON.stringify(remainingPhotos),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          key: 'admin_overview_photo_quotes',
+          value: JSON.stringify(remainingQuotes),
+          updated_at: new Date().toISOString(),
+        },
+      ], { onConflict: 'key' });
+      if (settingsError) {
+        addToast(`${language === 'fr' ? 'Impossible de mettre à jour la galerie' : 'Unable to update the gallery'}: ${settingsError.message}`, 'error');
+        return;
+      }
+
+      const { error: storageError } = await supabase.storage.from(storageLocation.bucket).remove([storageLocation.path]);
+      if (storageError) {
+        const { error: rollbackError } = await supabase.from('settings').upsert([
+          {
+            key: 'admin_overview_photos',
+            value: JSON.stringify(previousPhotos),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            key: 'admin_overview_photo_quotes',
+            value: JSON.stringify(overviewQuotes),
+            updated_at: new Date().toISOString(),
+          },
+        ], { onConflict: 'key' });
+        addToast(`${language === 'fr' ? 'Impossible de supprimer la photo du stockage' : 'Unable to delete the photo from storage'}: ${storageError.message}`, 'error');
+        if (rollbackError) {
+          addToast(`${language === 'fr' ? 'La restauration de la galerie a également échoué' : 'Gallery rollback also failed'}: ${rollbackError.message}`, 'error');
+        }
+        return;
+      }
+
+      setOverviewPhotos(remainingPhotos);
+      setOverviewQuotes(remainingQuotes);
+      setSavedOverviewQuotes(remainingQuotes);
+      setSettings(current => ({
+        ...current,
+        admin_overview_photos: JSON.stringify(remainingPhotos),
+        admin_overview_photo_quotes: JSON.stringify(remainingQuotes),
+      }));
+      updateBranding({ adminOverviewPhotoUrls: remainingPhotos, adminOverviewPhotoQuotes: remainingQuotes });
+      addToast(language === 'fr' ? 'Photo supprimée de la galerie et du stockage.' : 'Photo deleted from the gallery and storage.', 'success');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleRemoveLogo = () => {
     setSettings(s => ({ ...s, logo_url: '/iwacu-mark-512.png' }));
     setLogoPreview('/iwacu-mark-512.png');
@@ -122,6 +587,20 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!settings.app_name?.trim()) {
       addToast(t('appNameRequired'), 'error');
+      return;
+    }
+    if (overviewPhotos.length > 0 && overviewPhotos.length < 3) {
+      addToast(language === 'fr' ? 'La galerie doit contenir au moins trois photos.' : 'The gallery must contain at least three photos.', 'error');
+      return;
+    }
+    if (overviewPhotos.length > 5) {
+      addToast(language === 'fr' ? 'La galerie ne peut pas contenir plus de cinq photos.' : 'The gallery can contain no more than five photos.', 'error');
+      return;
+    }
+    if (overviewQuotes.some(quote => countAdminOverviewQuoteWords(quote.text) > MAX_ADMIN_OVERVIEW_QUOTE_WORDS)) {
+      addToast(language === 'fr'
+        ? 'Chaque citation de photo doit contenir au maximum 15 mots.'
+        : 'Each photo quote can contain no more than 15 words.', 'error');
       return;
     }
     setSaving(true);
@@ -153,6 +632,8 @@ export default function SettingsPage() {
 
     const settingsToSave = {
       ...settings,
+      admin_overview_photos: JSON.stringify(overviewPhotos),
+      admin_overview_photo_quotes: JSON.stringify(overviewQuotes),
       custom_payment_methods: JSON.stringify(paymentMethods.map(method => ({
         ...method,
         name: method.name.trim(),
@@ -175,7 +656,10 @@ export default function SettingsPage() {
         staffCardFooterFr: settings.staff_card_footer_fr || DEFAULT_STAFF_CARD_FOOTER_FR,
         loginBackgroundUrl: settings.login_bg_url ?? '',
         loginFamilyImageUrl: settings.login_family_image_url ?? '',
+        adminOverviewPhotoUrls: overviewPhotos,
+        adminOverviewPhotoQuotes: overviewQuotes,
       });
+      setSavedOverviewQuotes(overviewQuotes);
       setSettings(settingsToSave);
       addToast(t('settingsSavedSuccess'), 'success');
     }
@@ -189,15 +673,15 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-5xl">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
-      <div>
+      <div className="max-w-2xl">
         <h1 className="text-2xl font-bold text-slate-900">{t('settingsTitle')}</h1>
         <p className="text-slate-500 text-sm mt-0.5">{t('settingsDescription')}</p>
       </div>
 
-      <div className="space-y-4">
+      <div className="max-w-2xl space-y-4">
         <section className="phone-appearance-card rounded-2xl border border-slate-200 bg-white p-5">
           <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <Smartphone className="h-4 w-4" />
@@ -293,6 +777,11 @@ export default function SettingsPage() {
             </div>
             <div className="sm:col-span-2">
               <Input label={t('propertyEmail')} value={settings.property_email ?? ''} onChange={set('property_email')} placeholder="info@property.com" />
+              <p className="mt-1 text-xs text-slate-500">
+                {language === 'fr'
+                  ? 'Cette adresse sera incluse comme contact sur les factures.'
+                  : 'This address will be included as the contact email on invoices.'}
+              </p>
             </div>
           </div>
         </div>
@@ -398,6 +887,194 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <section className="settings-overview-gallery rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+        <h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-slate-700">
+          <ImageIcon className="h-5 w-5" />
+          {language === 'fr' ? 'Photos du carrousel du tableau de bord' : 'Dashboard carousel photos'}
+        </h3>
+        <p className="mb-5 text-sm text-slate-500">
+          {language === 'fr'
+            ? 'Ajoutez de 3 à 5 photos JPG ou PNG au format horizontal 1200 × 800 px (3 Mo maximum). Écrivez une citation de 15 mots maximum par photo et choisissez sa couleur. Enregistrez les paramètres pour appliquer les citations.'
+            : 'Add 3–5 JPG or PNG photos in 1200 × 800 px landscape (3 MB maximum). Add a quote of up to 15 words to each photo and choose its color. Save settings to apply quotes.'}
+        </p>
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {Array.from({ length: 5 }, (_, index) => {
+            const photo = overviewPhotos[index];
+            return (
+              <div key={index} className={`settings-overview-gallery-slot ${photo ? 'has-photo' : ''}`}>
+                {photo ? (
+                  <>
+                    <img src={photo} alt={`${language === 'fr' ? 'Photo du carrousel' : 'Carousel photo'} ${index + 1}`} />
+                    <span className="settings-overview-gallery-number">{index + 1}</span>
+                    <div className="settings-overview-gallery-quote">
+                      <Textarea
+                        label={language === 'fr' ? `Citation ${index + 1}` : `Photo ${index + 1} quote`}
+                        rows={2}
+                        textareaRef={resizeOverviewQuoteField}
+                        value={overviewQuotes[index]?.text ?? ''}
+                        placeholder={language === 'fr' ? 'Écrivez une courte citation…' : 'Write a short quote…'}
+                        onChange={event => {
+                          resizeOverviewQuoteField(event.currentTarget);
+                          updateOverviewQuote(index, { text: event.target.value });
+                        }}
+                      />
+                      <span className={`settings-overview-gallery-quote-count ${countAdminOverviewQuoteWords(overviewQuotes[index]?.text ?? '') > MAX_ADMIN_OVERVIEW_QUOTE_WORDS ? 'is-over-limit' : ''}`}>
+                        {countAdminOverviewQuoteWords(overviewQuotes[index]?.text ?? '')}/{MAX_ADMIN_OVERVIEW_QUOTE_WORDS} {language === 'fr' ? 'mots max.' : 'words max.'}
+                      </span>
+                      <div
+                        className="settings-overview-quote-colors"
+                        role="group"
+                        aria-label={language === 'fr' ? 'Couleur de la citation' : 'Quote color'}
+                      >
+                        {ADMIN_OVERVIEW_QUOTE_COLORS.map(({ value, hex }) => {
+                          const colorName = language === 'fr'
+                            ? ({ green: 'Vert', black: 'Noir', red: 'Rouge', blue: 'Bleu pur', gray: 'Gris pur' } as const)[value]
+                            : ({ green: 'Green', black: 'Black', red: 'Red', blue: 'Pure blue', gray: 'Pure gray' } as const)[value];
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              className={`settings-overview-quote-color-dot ${overviewQuotes[index]?.color === value ? 'is-selected' : ''}`}
+                              style={{ backgroundColor: hex }}
+                              aria-label={colorName}
+                              aria-pressed={overviewQuotes[index]?.color === value}
+                              title={colorName}
+                              onClick={() => updateOverviewQuote(index, { color: value })}
+                            />
+                          );
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingQuoteIndex !== null || saving || uploading}
+                        onClick={() => { void saveOverviewQuote(index); }}
+                        className={`settings-overview-quote-save ${JSON.stringify(overviewQuotes[index]) === JSON.stringify(savedOverviewQuotes[index]) ? 'is-saved' : ''}`}
+                      >
+                        {JSON.stringify(overviewQuotes[index]) === JSON.stringify(savedOverviewQuotes[index])
+                          ? <Check className="h-3 w-3" />
+                          : <Save className="h-3 w-3" />}
+                        {savingQuoteIndex === index
+                          ? (language === 'fr' ? 'Enregistrement…' : 'Saving…')
+                          : JSON.stringify(overviewQuotes[index]) === JSON.stringify(savedOverviewQuotes[index])
+                            ? (language === 'fr' ? 'Enregistrée' : 'Saved')
+                            : (language === 'fr' ? 'Enregistrer la citation' : 'Save quote')}
+                      </button>
+                    </div>
+                    <div className="settings-overview-gallery-actions">
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => setOverviewPhotoPreview(photo)}
+                        className="settings-overview-gallery-action is-view"
+                      >
+                        <Eye className="h-2.5 w-2.5" />
+                        {language === 'fr' ? 'Aperçu' : 'Preview'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => {
+                          overviewPhotoReplaceIndex.current = index;
+                          overviewPhotoReplaceRef.current?.click();
+                        }}
+                        className="settings-overview-gallery-action is-replace"
+                      >
+                        <Upload className="h-2.5 w-2.5" />
+                        {language === 'fr' ? 'Remplacer' : 'Replace'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => { void handleDeleteOverviewPhoto(index); }}
+                        className="settings-overview-gallery-action is-delete"
+                      >
+                        <Trash2 className="h-2.5 w-2.5" />
+                        {language === 'fr' ? 'Supprimer' : 'Delete'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={uploading || overviewPhotos.length >= 5}
+                    onClick={() => overviewPhotosFileRef.current?.click()}
+                    className="settings-overview-gallery-empty"
+                  >
+                    <ImageIcon className="h-7 w-7" />
+                    <span>{language === 'fr' ? `Emplacement ${index + 1}` : `Photo slot ${index + 1}`}</span>
+                    <span className="settings-overview-gallery-empty-action">{language === 'fr' ? 'Ajouter' : 'Add photo'}</span>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="settings-overview-gallery-add"
+          disabled={uploading || overviewPhotos.length >= 5}
+          icon={<Upload className="h-4 w-4" />}
+          onClick={() => overviewPhotosFileRef.current?.click()}
+        >
+          {language === 'fr' ? 'Galerie' : 'Gallery'}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={uploading || overviewPhotos.length > 0}
+          className="ml-2"
+          icon={<ImageIcon className="h-4 w-4" />}
+          onClick={() => { void handleImportCurrentPhoto(); }}
+        >
+          {language === 'fr' ? 'Importer la photo actuelle ×5' : 'Import current photo ×5'}
+        </Button>
+        <input
+          ref={overviewPhotosFileRef}
+          type="file"
+          accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+          multiple
+          className="hidden"
+          onChange={event => {
+            void handleOverviewPhotosUpload(event.target.files);
+            event.target.value = '';
+          }}
+        />
+        <input
+          ref={overviewPhotoReplaceRef}
+          type="file"
+          accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+          className="hidden"
+          onChange={event => {
+            const index = overviewPhotoReplaceIndex.current;
+            overviewPhotoReplaceIndex.current = null;
+            if (index !== null) void handleOverviewPhotosUpload(event.target.files, index);
+            event.target.value = '';
+          }}
+        />
+      </section>
+
+      {overviewPhotoPreview && (
+        <div
+          className="settings-overview-preview-backdrop"
+          role="presentation"
+          onClick={() => setOverviewPhotoPreview(null)}
+        >
+          <div
+            className="settings-overview-preview"
+            role="dialog"
+            aria-modal="true"
+            aria-label={language === 'fr' ? 'Aperçu de la photo' : 'Photo preview'}
+            onClick={event => event.stopPropagation()}
+          >
+            <img src={overviewPhotoPreview} alt={language === 'fr' ? 'Aperçu de la photo du carrousel' : 'Dashboard carousel photo preview'} />
+            <Button variant="outline" size="sm" onClick={() => setOverviewPhotoPreview(null)}>
+              {language === 'fr' ? 'Fermer' : 'Close'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-end">
         <Button loading={saving} icon={<Save className="w-4 h-4" />} onClick={handleSave} size="lg">

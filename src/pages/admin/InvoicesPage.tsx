@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, Plus, Pencil, Printer, Trash2 } from 'lucide-react';
+import { CalendarDays, Mail, Plus, Pencil, Printer, Trash2 } from 'lucide-react';
 import { supabase, Tenant, UtilityInvoice } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import Button from '@/components/ui/Button';
@@ -15,6 +15,7 @@ import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
 import { getTenantsDueForInvoice } from '@/lib/invoiceDue';
 import { normalizePhoneNumber } from '@/lib/phone';
+import { CustomPaymentMethod, parseCustomPaymentMethods } from '@/lib/paymentMethods';
 
 type InvoiceForm = {
   tenant_id: string;
@@ -37,18 +38,6 @@ const emptyForm: InvoiceForm = {
 };
 
 const invoiceSelect = '*, tenants(id, full_name, tenant_code, user_id, phone, email, houses(house_number)), houses(house_number)';
-
-function GmailIcon({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none">
-      <path d="M3.5 7.2v10.3c0 .8.6 1.4 1.4 1.4h2.4V9.3L3.5 6.5v.7Z" fill="#4285F4" />
-      <path d="M16.7 18.9h2.4c.8 0 1.4-.6 1.4-1.4V7.2l-3.8 2.1v9.6Z" fill="#34A853" />
-      <path d="M3.5 7.2 12 13.4l8.5-6.2v-.7c0-1.2-1.4-1.9-2.4-1.2L12 10.1 5.9 5.3c-1-.7-2.4 0-2.4 1.2v.7Z" fill="#EA4335" />
-      <path d="M3.5 7.2v.1l3.8 2.8V5.9L5.9 5.3c-1-.7-2.4 0-2.4 1.2v.7Z" fill="#C5221F" />
-      <path d="m16.7 5.9 1.4-.6c1-.7 2.4 0 2.4 1.2v.7l-3.8 2.8V5.9Z" fill="#FBBC04" />
-    </svg>
-  );
-}
 
 function AndroidMessagesIcon({ className }: { className?: string }) {
   return (
@@ -85,6 +74,9 @@ export default function InvoicesPage() {
   const [messageInvoice, setMessageInvoice] = useState<UtilityInvoice | null>(null);
   const [messageBody, setMessageBody] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [propertyEmail, setPropertyEmail] = useState('');
+  const [paymentSettings, setPaymentSettings] = useState<Record<string, string>>({});
+  const [customPaymentMethods, setCustomPaymentMethods] = useState<CustomPaymentMethod[]>([]);
   const [deleting, setDeleting] = useState<UtilityInvoice | null>(null);
   const [form, setForm] = useState<InvoiceForm>({ ...emptyForm });
 
@@ -132,6 +124,37 @@ export default function InvoicesPage() {
   }, [addToast, language, profile?.role]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    supabase.from('settings').select('key, value').in('key', [
+      'property_email',
+      'bank_name',
+      'account_name',
+      'account_number',
+      'mobile_money_number',
+      'payment_reference',
+      'custom_payment_methods',
+    ]).then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        addToast(`${language === 'fr' ? 'Impossible de charger les informations de paiement' : 'Unable to load payment details'}: ${error.message}`, 'error');
+        return;
+      }
+      const settings = Object.fromEntries((data ?? []).map(setting => [setting.key, setting.value?.trim() ?? '']));
+      setPaymentSettings(settings);
+      setPropertyEmail(settings.property_email ?? '');
+      try {
+        setCustomPaymentMethods(parseCustomPaymentMethods(settings.custom_payment_methods));
+      } catch (caught) {
+        addToast(
+          `${language === 'fr' ? 'Modes de paiement enregistrés invalides' : 'Saved payment methods are invalid'}: ${caught instanceof Error ? caught.message : String(caught)}`,
+          'error',
+        );
+      }
+    });
+    return () => { active = false; };
+  }, [addToast, language]);
 
   const setField = (key: keyof InvoiceForm) =>
     (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -203,6 +226,20 @@ export default function InvoicesPage() {
     const balanceDue = invoice.status === 'paid'
       ? 0
       : Math.max(0, Number(invoice.total_balance_due ?? rentBalance + waterBalance + electricityBalance));
+    const paymentDetails = [
+      paymentSettings.bank_name && `${t('bankName')}: ${paymentSettings.bank_name}`,
+      paymentSettings.account_name && `${t('accountName')}: ${paymentSettings.account_name}`,
+      paymentSettings.account_number && `${t('accountNumber')}: ${paymentSettings.account_number}`,
+      paymentSettings.mobile_money_number && `${t('mobileMoneyNumber')}: ${paymentSettings.mobile_money_number}`,
+      paymentSettings.payment_reference && `${t('paymentReference')}: ${paymentSettings.payment_reference}`,
+      ...customPaymentMethods.map(method => `${method.name}: ${method.instructions}`),
+    ].filter((detail): detail is string => Boolean(detail));
+    const paymentInstructions = paymentDetails.length
+      ? [
+        language === 'fr' ? 'INFORMATIONS DE PAIEMENT' : 'PAYMENT DETAILS',
+        ...paymentDetails,
+      ]
+      : [];
 
     if (language === 'fr') {
       return [
@@ -222,6 +259,7 @@ export default function InvoicesPage() {
         `Électricité : ${fmt(appliedElectricity)}`,
         `Solde restant : ${fmt(balanceDue)}`,
         `Date limite de paiement : ${dueDate}`,
+        ...(paymentInstructions.length ? ['', ...paymentInstructions] : []),
         '',
         'Pour toute question concernant cette facture, veuillez nous contacter.',
         'Cordialement,',
@@ -246,11 +284,18 @@ export default function InvoicesPage() {
       `Electricity: ${fmt(appliedElectricity)}`,
       `Outstanding balance: ${fmt(balanceDue)}`,
       `Payment due date: ${dueDate}`,
+      ...(paymentInstructions.length ? ['', ...paymentInstructions] : []),
       '',
       'Please contact us if you have any questions about this invoice.',
       'Kind regards,',
       'Property Management',
     ].join('\n');
+  };
+
+  const createInvoiceEmailMessage = (invoice: UtilityInvoice) => {
+    const message = createInvoiceMessage(invoice);
+    if (!propertyEmail) return message;
+    return `${message}\n\n${language === 'fr' ? 'E-mail de contact' : 'Contact email'}: ${propertyEmail}`;
   };
 
   const openInvoiceMessage = (invoice: UtilityInvoice) => {
@@ -613,13 +658,13 @@ export default function InvoicesPage() {
                   </a>
                   <a
                     href={viewing.tenants?.email
-                      ? `mailto:${viewing.tenants.email}?subject=${encodeURIComponent(`${t('invoice')} ${viewing.invoice_number}`)}&body=${encodeURIComponent(message)}`
+                      ? `mailto:${viewing.tenants.email}?subject=${encodeURIComponent(`${t('invoice')} ${viewing.invoice_number}`)}&body=${encodeURIComponent(createInvoiceEmailMessage(viewing))}`
                       : undefined}
                     aria-disabled={!viewing.tenants?.email}
                     title={viewing.tenants?.email ? viewing.tenants.email : (language === 'fr' ? 'Adresse e-mail indisponible' : 'Email address unavailable')}
                     className={`${linkClasses} invoice-share-email ${viewing.tenants?.email ? '' : disabledLinkClasses}`}
                   >
-                    <GmailIcon className="h-5 w-5" />
+                    <Mail className="h-4 w-4" aria-hidden="true" />
                     Email
                   </a>
                   <Button

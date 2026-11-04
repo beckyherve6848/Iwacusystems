@@ -7,6 +7,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { ADMIN_OVERVIEW_QUOTE_COLORS } from '@/lib/adminOverviewQuotes';
 import DashboardWelcomeHero from '@/components/layout/DashboardWelcomeHero';
 import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
 import { getTenantsDueForInvoice, getTenantsNotDueForInvoice } from '@/lib/invoiceDue';
@@ -137,14 +138,63 @@ function AdminOverviewDiagram({
   centerLabel: string;
   language: string;
 }) {
-  const { loginFamilyImageUrl } = useTheme();
+  const { loginFamilyImageUrl, adminOverviewPhotoUrls, adminOverviewPhotoQuotes } = useTheme();
   const ringRef = useRef<SVGGElement | null>(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [carouselTransitionEnabled, setCarouselTransitionEnabled] = useState(true);
   const rotationRef = useRef(0);
   const lastPointerAngleRef = useRef<number | null>(null);
   const draggingRef = useRef(false);
   const draggedRef = useRef(false);
   const lastCenterTapRef = useRef(0);
   const spinAnimationRef = useRef<Animation | null>(null);
+  const defaultPhoto = loginFamilyImageUrl || '/Bck.png';
+  const carouselPhotos = adminOverviewPhotoUrls.length > 0
+    ? adminOverviewPhotoUrls
+    : Array.from({ length: 5 }, () => defaultPhoto);
+  const carouselTrackPhotos = [
+    carouselPhotos[carouselPhotos.length - 1],
+    ...carouselPhotos,
+    carouselPhotos[0],
+  ];
+  const activeCarouselIndex = ((carouselIndex % carouselPhotos.length) + carouselPhotos.length) % carouselPhotos.length;
+  const activeQuote = adminOverviewPhotoQuotes[activeCarouselIndex];
+  const quoteColor = ADMIN_OVERVIEW_QUOTE_COLORS.find(color => color.value === activeQuote?.color)?.hex ?? '#008000';
+
+  useEffect(() => {
+    if (carouselPhotos.length < 2) return;
+    const timer = window.setInterval(() => {
+      setCarouselIndex(index => index + 1);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [carouselPhotos.length]);
+
+  useEffect(() => {
+    setCarouselIndex(0);
+    setCarouselTransitionEnabled(false);
+    const frame = window.requestAnimationFrame(() => setCarouselTransitionEnabled(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [carouselPhotos.length]);
+
+  const handleCarouselTransitionEnd = () => {
+    if (carouselIndex >= carouselPhotos.length) {
+      setCarouselTransitionEnabled(false);
+      setCarouselIndex(0);
+      window.requestAnimationFrame(() => setCarouselTransitionEnabled(true));
+    } else if (carouselIndex < 0) {
+      setCarouselTransitionEnabled(false);
+      setCarouselIndex(carouselPhotos.length - 1);
+      window.requestAnimationFrame(() => setCarouselTransitionEnabled(true));
+    }
+  };
+
+  const showPreviousPhoto = () => setCarouselIndex(index => index - 1);
+  const showNextPhoto = () => setCarouselIndex(index => index + 1);
+  const showPhoto = (index: number) => {
+    setCarouselTransitionEnabled(false);
+    setCarouselIndex(index);
+    window.requestAnimationFrame(() => setCarouselTransitionEnabled(true));
+  };
 
   const spinRingOnce = () => {
     if (!ringRef.current || spinAnimationRef.current) return;
@@ -239,18 +289,37 @@ function AdminOverviewDiagram({
   };
 
   return (
-    <section className="phone-overview-card relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] sm:p-6">
-      <div className="pointer-events-none absolute inset-0 z-0 md:hidden" aria-hidden="true">
-        <img src={loginFamilyImageUrl || '/Bck.png'} alt="" className="h-full w-full object-cover object-center" />
-        <div className="phone-overview-gradient absolute inset-0 bg-gradient-to-br from-slate-950/90 via-slate-900/75 to-slate-800/90" />
+    <section className="phone-overview-card relative isolate overflow-hidden rounded-none border border-green-500 bg-white p-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] sm:p-6">
+      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+        <img src={loginFamilyImageUrl || '/Bck.png'} alt="" className="phone-overview-background h-full w-full object-cover object-center" />
+        <div className="phone-overview-gradient absolute inset-0" />
       </div>
-      <div className="relative z-10 mb-4">
-        <h2 className="phone-overview-heading text-base font-semibold text-slate-900">{centerLabel}</h2>
-        <p className="phone-overview-description mt-1 text-xs text-slate-500">
+      <div className="phone-overview-copy relative z-10 mb-4">
+        <h2 className="phone-overview-heading text-base font-semibold text-white">{centerLabel}</h2>
+        <p className="phone-overview-description mt-1 text-xs text-slate-100">
           {language === 'fr' ? 'Sélectionnez une section pour ouvrir sa page.' : 'Select a section to open its admin page.'}
         </p>
       </div>
-      <div className="relative z-10 mx-auto w-full max-w-[320px]">
+      <div className="phone-overview-layout relative z-10">
+        <aside className="phone-overview-quotes hidden lg:flex" aria-label={language === 'fr' ? 'Citations sur le logement' : 'Property management quotes'}>
+          <p className="phone-overview-side-title">{language === 'fr' ? 'Le logement, avec soin' : 'Better homes, better living'}</p>
+          {(
+            language === 'fr'
+              ? [
+                '« Un logement accueillant commence par une gestion attentive. »',
+                '« Prendre soin des lieux, c’est prendre soin des personnes. »',
+                '« Chaque maison mérite attention, confiance et respect. »',
+              ]
+              : [
+                '“A welcoming home begins with thoughtful management.”',
+                '“Caring for a place means caring for the people in it.”',
+                '“Every home deserves attention, trust, and respect.”',
+              ]
+          ).map(quote => (
+            <blockquote key={quote} className="phone-overview-quote">{quote}</blockquote>
+          ))}
+        </aside>
+        <div className="mx-auto w-full max-w-[320px]">
         <svg
           viewBox="0 0 400 400"
           role="group"
@@ -333,6 +402,77 @@ function AdminOverviewDiagram({
             </text>
           </g>
         </svg>
+        </div>
+        <aside className="phone-overview-carousel" aria-label={language === 'fr' ? 'Photos de la propriété' : 'Property photo carousel'}>
+          <div className="phone-overview-carousel-heading">
+            <h3>{language === 'fr' ? 'Nos espaces' : 'Our spaces'}</h3>
+            <p>{language === 'fr' ? 'Des lieux où il fait bon vivre' : 'Places made for living well'}</p>
+          </div>
+          <div className="phone-overview-photo-frame">
+            <div
+              className={`phone-overview-photo-track ${carouselTransitionEnabled ? 'is-animated' : ''}`}
+              style={{
+                width: `${carouselTrackPhotos.length * 100}%`,
+                transform: `translateX(-${(carouselIndex + 1) * (100 / carouselTrackPhotos.length)}%)`,
+              }}
+              onTransitionEnd={handleCarouselTransitionEnd}
+            >
+              {carouselTrackPhotos.map((photo, index) => (
+                <div
+                  key={`${photo}-${index}`}
+                  className="phone-overview-photo-slide"
+                  style={{ width: `${100 / carouselTrackPhotos.length}%` }}
+                >
+                  <img
+                    src={photo}
+                    alt={language === 'fr' ? 'Photo de la propriété' : 'Property'}
+                    draggable={false}
+                    onContextMenu={event => event.preventDefault()}
+                  />
+                </div>
+              ))}
+            </div>
+            {carouselPhotos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  aria-label={language === 'fr' ? 'Photo précédente' : 'Previous photo'}
+                  onClick={showPreviousPhoto}
+                  className="phone-overview-carousel-arrow left-2"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={language === 'fr' ? 'Photo suivante' : 'Next photo'}
+                  onClick={showNextPhoto}
+                  className="phone-overview-carousel-arrow right-2"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </>
+            )}
+          </div>
+          {activeQuote?.text.trim() && (
+            <p className="phone-overview-photo-quote" style={{ color: quoteColor }} aria-live="polite">
+              “{activeQuote.text}”
+            </p>
+          )}
+          {carouselPhotos.length > 1 && (
+            <div className="phone-overview-carousel-dots" aria-label={`${carouselPhotos.length} photos`}>
+              {carouselPhotos.map((photo, index) => (
+                <button
+                  key={`${photo}-${index}`}
+                  type="button"
+                  aria-label={`${language === 'fr' ? 'Afficher la photo' : 'Show photo'} ${index + 1}`}
+                  aria-current={index === activeCarouselIndex}
+                  onClick={() => showPhoto(index)}
+                  className={`phone-overview-carousel-dot ${index === activeCarouselIndex ? 'is-active' : ''}`}
+                />
+              ))}
+            </div>
+          )}
+        </aside>
       </div>
     </section>
   );
@@ -799,18 +939,20 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         <button
           type="button"
           onClick={() => onNavigate('invoices')}
-          className="flex w-full items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-3 text-left shadow-sm transition-colors hover:bg-red-100 sm:gap-4 sm:p-5"
+          className="grid w-full grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-xl border border-red-300 bg-white p-3 text-left shadow-sm transition-colors hover:bg-red-50 sm:flex sm:gap-4 sm:p-4"
         >
-          <AlertCircle className="h-10 w-10 shrink-0 text-red-600 sm:h-12 sm:w-12" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center text-red-600 sm:h-11 sm:w-11">
+            <AlertCircle className="h-7 w-7" />
+          </span>
           <span className="min-w-0 flex-1">
-            <span className="block font-semibold text-red-800">
+            <span className="block text-base font-bold leading-tight text-red-800 sm:text-lg">
               {stats.unpaidInvoices} {language === 'fr' ? 'factures impayées' : 'unpaid invoices'}
             </span>
-            <span className="mt-1 block text-sm text-red-700">
-              {language === 'fr' ? 'Consultez les factures impayées ou partiellement payées.' : 'Review unpaid or partially paid invoices.'}
+            <span className="mt-1 block text-xs leading-snug text-red-700 sm:text-sm">
+              {language === 'fr' ? 'Consultez les factures à régulariser.' : 'Review invoices that need attention.'}
             </span>
           </span>
-          <span className="shrink-0 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white">
+          <span className="col-start-2 inline-flex w-fit items-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white shadow-sm sm:ml-auto">
             {language === 'fr' ? 'Voir les factures' : 'View invoices'}
           </span>
         </button>

@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import StaffIdentityCard from '@/components/identity/StaffIdentityCard';
 import { calculateOutstandingInvoiceBalance } from '@/lib/invoiceBalances';
+import RoleDashboardOverview, { RoleOverviewItem } from '@/components/dashboard/RoleDashboardOverview';
 
 interface DashboardStats {
   properties: number;
@@ -124,6 +125,15 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
     { label: labels.visitors, value: stats.visitors, icon: UserCheck, color: 'text-violet-700 bg-violet-50' },
   ];
 
+  const overviewItems: RoleOverviewItem[] = [
+    { label: language === 'fr' ? 'Maisons' : 'Houses', value: String(stats.properties), page: 'houses', color: '#2563eb' },
+    { label: language === 'fr' ? 'Locataires' : 'Tenants', value: String(stats.tenants), page: 'tenants', color: '#7c3aed' },
+    { label: language === 'fr' ? 'Factures' : 'Invoices', value: String(stats.unpaidInvoices), page: 'invoices', color: '#059669' },
+    { label: language === 'fr' ? 'Entretien' : 'Maint.', value: String(stats.maintenance), page: 'maintenance', color: '#dc2626' },
+    { label: language === 'fr' ? 'Visiteurs' : 'Visitors', value: String(stats.visitors), page: 'visitors', color: '#0891b2' },
+    { label: language === 'fr' ? 'Rapports' : 'Reports', value: language === 'fr' ? 'Ouvrir' : 'Open', page: 'reports', color: '#475569' },
+  ];
+
   return (
     <div className="dashboard-content flex flex-col gap-4 sm:gap-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -131,22 +141,32 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
         title={labels.title}
         subtitle={labels.subtitle}
       />
+      <RoleDashboardOverview
+        items={overviewItems}
+        onNavigate={onNavigate}
+        title={language === 'fr' ? 'Votre aperçu' : 'Your Overview'}
+        centerLabel={language === 'fr' ? 'Gestion' : 'Manager'}
+        centerSubLabel={language === 'fr' ? 'Tableau' : 'Dashboard'}
+        language={language}
+      />
       {stats.unpaidInvoices > 0 && (
         <button
           type="button"
           onClick={() => onNavigate('invoices')}
-          className="flex w-full items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-3 text-left shadow-sm transition-colors hover:bg-red-100 sm:gap-4 sm:p-5"
+          className="grid w-full grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-xl border border-red-300 bg-white p-3 text-left shadow-sm transition-colors hover:bg-red-50 sm:flex sm:gap-4 sm:p-4"
         >
-          <AlertCircle className="h-10 w-10 shrink-0 text-red-600 sm:h-12 sm:w-12" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center text-red-600 sm:h-11 sm:w-11">
+            <AlertCircle className="h-7 w-7" />
+          </span>
           <span className="min-w-0 flex-1">
-            <span className="block font-semibold text-red-800">
+            <span className="block text-base font-bold leading-tight text-red-800 sm:text-lg">
               {stats.unpaidInvoices} {language === 'fr' ? 'factures impayées' : 'unpaid invoices'}
             </span>
-            <span className="mt-1 block text-sm text-red-700">
-              {language === 'fr' ? 'Consultez les factures impayées ou partiellement payées.' : 'Review unpaid or partially paid invoices.'}
+            <span className="mt-1 block text-xs leading-snug text-red-700 sm:text-sm">
+              {language === 'fr' ? 'Consultez les factures à régulariser.' : 'Review invoices that need attention.'}
             </span>
           </span>
-          <span className="shrink-0 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white">
+          <span className="col-start-2 inline-flex w-fit items-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white shadow-sm sm:ml-auto">
             {language === 'fr' ? 'Voir les factures' : 'View invoices'}
           </span>
         </button>

@@ -300,9 +300,10 @@ export function Select({
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
+  textareaRef?: React.Ref<HTMLTextAreaElement>;
 }
 
-export function Textarea({ label, error, className = '', id, style, ...props }: TextareaProps) {
+export function Textarea({ label, error, className = '', id, style, textareaRef, ...props }: TextareaProps) {
   const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
   return (
     <div className="flex flex-col gap-1.5">
@@ -313,6 +314,7 @@ export function Textarea({ label, error, className = '', id, style, ...props }: 
       )}
       <textarea
         id={inputId}
+        ref={textareaRef}
         style={{ ...fieldBase, borderColor: error ? '#ef4444' : undefined, ...style }}
         className={`w-full py-2.5 px-4 placeholder-slate-400 focus:outline-none resize-none ${className}`}
         onFocus={e => { e.currentTarget.style.borderColor = '#111827'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(17,24,39,0.08)'; }}

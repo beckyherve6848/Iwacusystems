@@ -1,5 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import {
+  AdminOverviewPhotoQuote,
+  createEmptyOverviewQuotes,
+  parseAdminOverviewPhotoQuotes,
+} from '@/lib/adminOverviewQuotes';
 
 type Language = 'en' | 'fr';
 export type Currency = 'KSh' | 'BIF' | 'USD' | 'EUR' | 'Frw' | 'Ugx' | 'Tsh' | 'Cdf' | 'Dhs' | 'R' | 'ZK' | 'SR';
@@ -38,7 +43,9 @@ interface ThemeContextValue {
   staffCardFooterFr: string;
   loginBackgroundUrl: string;
   loginFamilyImageUrl: string;
-  updateBranding: (branding: Partial<Pick<ThemeContextValue, 'appName' | 'appLogoUrl' | 'propertyPhone' | 'propertyAddress' | 'staffCardFooter' | 'staffCardFooterFr' | 'loginBackgroundUrl' | 'loginFamilyImageUrl'>>) => void;
+  adminOverviewPhotoUrls: string[];
+  adminOverviewPhotoQuotes: AdminOverviewPhotoQuote[];
+  updateBranding: (branding: Partial<Pick<ThemeContextValue, 'appName' | 'appLogoUrl' | 'propertyPhone' | 'propertyAddress' | 'staffCardFooter' | 'staffCardFooterFr' | 'loginBackgroundUrl' | 'loginFamilyImageUrl' | 'adminOverviewPhotoUrls' | 'adminOverviewPhotoQuotes'>>) => void;
 }
 
 export const DEFAULT_STAFF_CARD_FOOTER = 'If found, return this ID card to the Property Management Office at {address}.\nIf lost, contact Property Management immediately using the official contact details: {phone}.';
@@ -1213,6 +1220,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [staffCardFooterFr, setStaffCardFooterFr] = useState(DEFAULT_STAFF_CARD_FOOTER_FR);
   const [loginBackgroundUrl, setLoginBackgroundUrl] = useState('');
   const [loginFamilyImageUrl, setLoginFamilyImageUrl] = useState('');
+  const [adminOverviewPhotoUrls, setAdminOverviewPhotoUrls] = useState<string[]>([]);
+  const [adminOverviewPhotoQuotes, setAdminOverviewPhotoQuotes] = useState<AdminOverviewPhotoQuote[]>(createEmptyOverviewQuotes);
 
   useEffect(() => {
     supabase.from('settings').select('key, value').in('key', [
@@ -1224,6 +1233,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       'staff_card_footer_fr',
       'login_bg_url',
       'login_family_image_url',
+      'admin_overview_photos',
+      'admin_overview_photo_quotes',
     ]).then(({ data, error }) => {
       if (error) {
         console.error('Unable to load public branding settings:', error.message);
@@ -1238,6 +1249,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (settings.staff_card_footer_fr) setStaffCardFooterFr(settings.staff_card_footer_fr);
       if (settings.login_bg_url) setLoginBackgroundUrl(settings.login_bg_url);
       if (settings.login_family_image_url) setLoginFamilyImageUrl(settings.login_family_image_url);
+      if (settings.admin_overview_photos) {
+        try {
+          const photos: unknown = JSON.parse(settings.admin_overview_photos);
+          if (!Array.isArray(photos) || photos.length > 5 || !photos.every(photo => typeof photo === 'string')) {
+            throw new Error('Overview photos must be a JSON array of up to five URLs.');
+          }
+          setAdminOverviewPhotoUrls(photos);
+        } catch (error) {
+          console.error('Unable to parse admin overview photos:', error);
+        }
+      }
+      try {
+        setAdminOverviewPhotoQuotes(
+          parseAdminOverviewPhotoQuotes(settings.admin_overview_photo_quotes
+            ? JSON.parse(settings.admin_overview_photo_quotes)
+            : undefined),
+        );
+      } catch (error) {
+        console.error('Unable to parse admin overview photo quotes:', error);
+      }
     });
   }, []);
 
@@ -1315,6 +1346,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (branding.staffCardFooterFr !== undefined) setStaffCardFooterFr(branding.staffCardFooterFr || DEFAULT_STAFF_CARD_FOOTER_FR);
     if (branding.loginBackgroundUrl !== undefined) setLoginBackgroundUrl(branding.loginBackgroundUrl);
     if (branding.loginFamilyImageUrl !== undefined) setLoginFamilyImageUrl(branding.loginFamilyImageUrl);
+    if (branding.adminOverviewPhotoUrls !== undefined) setAdminOverviewPhotoUrls(branding.adminOverviewPhotoUrls);
+    if (branding.adminOverviewPhotoQuotes !== undefined) setAdminOverviewPhotoQuotes(branding.adminOverviewPhotoQuotes);
   };
 
   useEffect(() => {
@@ -1345,7 +1378,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       currencyRatesError,
       refreshCurrencyRates,
       fmt,
-      appName, appLogoUrl, propertyPhone, propertyAddress, staffCardFooter, staffCardFooterFr, loginBackgroundUrl, loginFamilyImageUrl, updateBranding,
+      appName, appLogoUrl, propertyPhone, propertyAddress, staffCardFooter, staffCardFooterFr, loginBackgroundUrl, loginFamilyImageUrl, adminOverviewPhotoUrls, adminOverviewPhotoQuotes, updateBranding,
     }}>
       {children}
     </ThemeContext.Provider>

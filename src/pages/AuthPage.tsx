@@ -75,7 +75,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
     const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     root.classList.add('auth-screen');
     document.body.style.backgroundColor = '#000000';
-    if (isPhoneViewport) themeColor?.setAttribute('content', '#000000');
+    themeColor?.setAttribute('content', '#000000');
     return () => {
       root.classList.remove('auth-screen');
       document.body.style.backgroundColor = '';
@@ -319,6 +319,39 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
           letter-spacing: normal;
           line-height: 1.2;
         }
+        @media (max-width: 1023px) {
+          .auth-layout {
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding-top: max(0.5rem, env(safe-area-inset-top));
+            padding-right: max(0.5rem, env(safe-area-inset-right));
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+            padding-left: max(0.5rem, env(safe-area-inset-left));
+            justify-content: center;
+          }
+          .auth-layout--register {
+            justify-content: flex-start;
+          }
+          .auth-layout--register .auth-form-card {
+            flex: none;
+            animation: none;
+          }
+          .auth-layout--register .auth-powered-link {
+            position: relative;
+            bottom: auto;
+            left: auto;
+            transform: none;
+            margin: 0 auto;
+          }
+          .auth-form-card {
+            animation: none;
+          }
+          .auth-form-panel {
+            max-height: none;
+            overflow-y: visible;
+            overscroll-behavior: contain;
+          }
+        }
         @media (min-width: 1024px) {
           .auth-layout {
             height: 100vh;
@@ -404,7 +437,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
         }} />
 
         {/* Two-panel layout */}
-        <div className="auth-layout relative z-10 min-h-screen min-h-[100dvh] flex flex-col lg:flex-row items-center justify-center gap-4 p-2 min-[400px]:gap-6 min-[400px]:p-3 sm:p-4 lg:p-10">
+        <div className={`auth-layout relative z-10 min-h-screen min-h-[100dvh] flex flex-col lg:flex-row items-center justify-center gap-4 p-2 min-[400px]:gap-6 min-[400px]:p-3 sm:p-4 lg:p-10${mode === 'register' ? ' auth-layout--register' : ''}`}>
 
           {/* ─── LEFT PANEL: Branding (55%) ─── */}
           <div
@@ -885,7 +918,7 @@ export default function AuthPage({ onSuccess }: AuthPageProps) {
             href="https://devburundi.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="absolute bottom-3 left-1/2 z-20 w-max max-w-[calc(100%-2rem)] -translate-x-1/2 text-center text-[11px] text-white/40 transition-colors hover:text-red-500 active:text-red-500 focus-visible:text-red-500 lg:left-[27.5%]"
+            className="auth-powered-link absolute bottom-3 left-1/2 z-20 w-max max-w-[calc(100%-2rem)] -translate-x-1/2 text-center text-[11px] text-white/40 transition-colors hover:text-red-500 active:text-red-500 focus-visible:text-red-500 lg:left-[27.5%]"
           >
             Powered by Devburundi Digital and Marketing Agency
           </a>
