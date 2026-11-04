@@ -24,7 +24,14 @@ import {
 } from '@/lib/phoneThemeMode';
 
 const MAX_OVERVIEW_PHOTO_SIZE = 3 * 1024 * 1024;
+const OVERVIEW_PHOTO_WIDTH = 1200;
+const OVERVIEW_PHOTO_HEIGHT = 800;
 const OVERVIEW_PHOTO_COUNT = 5;
+
+type OverviewPhotoFormat = {
+  contentType: 'image/jpeg' | 'image/png';
+  extension: 'jpg' | 'png';
+};
 
 function resizeOverviewQuoteField(element: HTMLTextAreaElement | null) {
   if (!element) return;
@@ -32,24 +39,47 @@ function resizeOverviewQuoteField(element: HTMLTextAreaElement | null) {
   element.style.height = `${element.scrollHeight + 2}px`;
 }
 
-async function prepareOverviewPhoto(blob: Blob): Promise<Blob> {
-  if (blob.size <= MAX_OVERVIEW_PHOTO_SIZE && ['image/jpeg', 'image/png'].includes(blob.type)) return blob;
+async function validateOverviewPhoto(blob: Blob, language: string): Promise<OverviewPhotoFormat> {
+  const isFrench = language === 'fr';
+  if (blob.size > MAX_OVERVIEW_PHOTO_SIZE) {
+    throw new Error(isFrench ? 'La taille maximale est de 3 Mo par photo.' : 'Photo must be 3 MB or smaller.');
+  }
+  const signature = new Uint8Array(await blob.slice(0, 8).arrayBuffer());
+  const isPng = signature.length === 8
+    && signature[0] === 0x89
+    && signature[1] === 0x50
+    && signature[2] === 0x4e
+    && signature[3] === 0x47
+    && signature[4] === 0x0d
+    && signature[5] === 0x0a
+    && signature[6] === 0x1a
+    && signature[7] === 0x0a;
+  const isJpeg = signature.length >= 3
+    && signature[0] === 0xff
+    && signature[1] === 0xd8
+    && signature[2] === 0xff;
+  const format: OverviewPhotoFormat | null = isPng
+    ? { contentType: 'image/png', extension: 'png' }
+    : isJpeg
+      ? { contentType: 'image/jpeg', extension: 'jpg' }
+      : null;
+  if (!format || (blob.type && blob.type !== format.contentType)) {
+    throw new Error(isFrench ? 'La photo doit être une véritable image JPG ou PNG.' : 'Photo must be a genuine JPG or PNG image.');
+  }
 
-  const image = await createImageBitmap(blob);
+  let image: ImageBitmap;
   try {
-    const scale = Math.min(1, 1500 / Math.max(image.width, image.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Unable to prepare the current photo for the gallery.');
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    for (const quality of [0.86, 0.75, 0.64, 0.52]) {
-      const prepared = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-      if (prepared && prepared.size <= MAX_OVERVIEW_PHOTO_SIZE) return prepared;
+    image = await createImageBitmap(blob);
+  } catch {
+    throw new Error(isFrench ? 'La photo JPG ou PNG est invalide ou illisible.' : 'Photo is not a valid, readable JPG or PNG image.');
+  }
+  try {
+    if (image.width !== OVERVIEW_PHOTO_WIDTH || image.height !== OVERVIEW_PHOTO_HEIGHT) {
+      throw new Error(isFrench
+        ? `La photo doit mesurer exactement ${OVERVIEW_PHOTO_WIDTH} × ${OVERVIEW_PHOTO_HEIGHT} px au format horizontal.`
+        : `Photo must be exactly ${OVERVIEW_PHOTO_WIDTH} × ${OVERVIEW_PHOTO_HEIGHT} px in landscape.`);
     }
-    throw new Error('The current photo could not be reduced below the 3 MB limit.');
+    return format;
   } finally {
     image.close();
   }
@@ -151,6 +181,12 @@ export default function SettingsPage() {
 
   const saveOverviewQuote = async (index: number) => {
     const quote = overviewQuotes[index];
+    if (overviewPhotos.length > 0 && overviewPhotos.length < 3) {
+      addToast(language === 'fr'
+        ? 'Ajoutez au moins trois photos à la galerie avant d’enregistrer les citations.'
+        : 'Add at least three photos to the gallery before saving quotes.', 'error');
+      return;
+    }
     if (!quote || countAdminOverviewQuoteWords(quote.text) > MAX_ADMIN_OVERVIEW_QUOTE_WORDS) {
       addToast(language === 'fr'
         ? 'La citation doit contenir au maximum 15 mots.'
@@ -246,19 +282,28 @@ export default function SettingsPage() {
       ? 'Remplacer cette photo et supprimer définitivement l’ancienne du stockage Supabase ? Cette action est irréversible.'
       : 'Replace this photo and permanently delete the old one from Supabase Storage? This cannot be undone.')) return;
     if (replaceIndex === undefined && overviewPhotos.length + files.length > 5) {
-      addToast('Choose no more than five overview photos.', 'error');
+      addToast(language === 'fr'
+        ? 'La galerie ne peut pas contenir plus de cinq photos.'
+        : 'The gallery can contain no more than five photos.', 'error');
       return;
     }
-    const allowedImageTypes = ['image/png', 'image/jpeg'];
-    const invalidFile = files.find(file => !allowedImageTypes.includes(file.type));
-    if (invalidFile) {
-      addToast(`${invalidFile.name}: ${t('chooseImageTypes')}`, 'error');
+    const resultingPhotoCount = replaceIndex === undefined
+      ? overviewPhotos.length + files.length
+      : overviewPhotos.length;
+    if (resultingPhotoCount > 0 && resultingPhotoCount < 3) {
+      addToast(language === 'fr'
+        ? 'Ajoutez au moins trois photos avant d’enregistrer la galerie.'
+        : 'Add at least three photos before saving the gallery.', 'error');
       return;
     }
-    const oversizedFile = files.find(file => file.size > 3 * 1024 * 1024);
-    if (oversizedFile) {
-      addToast(`${oversizedFile.name}: ${language === 'fr' ? 'La taille maximale est de 3 Mo par photo.' : 'The maximum size is 3 MB per photo.'}`, 'error');
-      return;
+    const validatedFiles: { file: File; format: OverviewPhotoFormat }[] = [];
+    for (const file of files) {
+      try {
+        validatedFiles.push({ file, format: await validateOverviewPhoto(file, language) });
+      } catch (error) {
+        addToast(`${file.name}: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        return;
+      }
     }
 
     setUploading(true);
@@ -267,12 +312,15 @@ export default function SettingsPage() {
       let uploadedPhotos = [...overviewPhotos];
       const uploadedQuotes = [...overviewQuotes];
       if (replaceIndex !== undefined && previousPhotoLocation) {
-        const file = files[0];
-        const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-        const replacementPath = `overview-${crypto.randomUUID()}-replacement.${ext}`;
+        const { file, format } = validatedFiles[0];
+        const replacementPath = `overview-${crypto.randomUUID()}-replacement.${format.extension}`;
         const { error: uploadError } = await supabase.storage
           .from('dashboard-gallery')
-          .upload(replacementPath, file, { cacheControl: '3600', upsert: false });
+          .upload(replacementPath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: format.contentType,
+          });
         if (uploadError) {
           addToast(`Unable to upload ${file.name}: ${uploadError.message}`, 'error');
           return;
@@ -353,12 +401,15 @@ export default function SettingsPage() {
         return;
       }
 
-      for (const [index, file] of files.entries()) {
-        const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-        const path = `overview-${crypto.randomUUID()}-${index}.${ext}`;
+      for (const [index, { file, format }] of validatedFiles.entries()) {
+        const path = `overview-${crypto.randomUUID()}-${index}.${format.extension}`;
         const { error } = await supabase.storage
           .from('dashboard-gallery')
-          .upload(path, file, { cacheControl: '3600', upsert: false });
+          .upload(path, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: format.contentType,
+          });
         if (error) throw new Error(`Unable to upload ${file.name}: ${error.message}`);
         uploadedPaths.push(path);
         const { data } = supabase.storage.from('dashboard-gallery').getPublicUrl(path);
@@ -423,14 +474,15 @@ export default function SettingsPage() {
     try {
       const response = await fetch(loginFamilyImageUrl || '/Bck.png');
       if (!response.ok) throw new Error(`Unable to load the current photo: ${response.status}`);
-      const sourcePhoto = await prepareOverviewPhoto(await response.blob());
+      const sourcePhoto = await response.blob();
+      const format = await validateOverviewPhoto(sourcePhoto, language);
       const uploadedUrls: string[] = [];
       const importedQuotes = [...overviewQuotes];
       for (let index = 0; index < OVERVIEW_PHOTO_COUNT; index += 1) {
-        const path = `overview-${crypto.randomUUID()}-${index}.jpg`;
+        const path = `overview-${crypto.randomUUID()}-${index}.${format.extension}`;
         const { error } = await supabase.storage
           .from('dashboard-gallery')
-          .upload(path, sourcePhoto, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' });
+          .upload(path, sourcePhoto, { cacheControl: '3600', upsert: false, contentType: format.contentType });
         if (error) throw new Error(`Unable to upload photo copy ${index + 1}: ${error.message}`);
         uploadedPaths.push(path);
         const { data } = supabase.storage.from('dashboard-gallery').getPublicUrl(path);
@@ -895,8 +947,8 @@ export default function SettingsPage() {
         </h3>
         <p className="mb-5 text-sm text-slate-500">
           {language === 'fr'
-            ? 'Ajoutez de 3 à 5 photos JPG ou PNG au format horizontal 1200 × 800 px (3 Mo maximum). Écrivez une citation de 15 mots maximum par photo et choisissez sa couleur. Enregistrez les paramètres pour appliquer les citations.'
-            : 'Add 3–5 JPG or PNG photos in 1200 × 800 px landscape (3 MB maximum). Add a quote of up to 15 words to each photo and choose its color. Save settings to apply quotes.'}
+            ? 'Ajoutez de 3 à 5 photos JPG ou PNG de 1200 × 800 px exactement au format horizontal (3 Mo maximum). Écrivez une citation de 15 mots maximum par photo et choisissez sa couleur. Enregistrez les paramètres pour appliquer les citations.'
+            : 'Add 3–5 JPG or PNG photos exactly 1200 × 800 px in landscape (3 MB maximum). Add a quote of up to 15 words to each photo and choose its color. Save settings to apply quotes.'}
         </p>
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {Array.from({ length: 5 }, (_, index) => {

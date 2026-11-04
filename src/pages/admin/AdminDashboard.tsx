@@ -148,6 +148,7 @@ function AdminOverviewDiagram({
   const draggedRef = useRef(false);
   const lastCenterTapRef = useRef(0);
   const spinAnimationRef = useRef<Animation | null>(null);
+  const returnAnimationRef = useRef<Animation | null>(null);
   const defaultPhoto = loginFamilyImageUrl || '/Bck.png';
   const carouselPhotos = adminOverviewPhotoUrls.length > 0
     ? adminOverviewPhotoUrls
@@ -196,37 +197,66 @@ function AdminOverviewDiagram({
     window.requestAnimationFrame(() => setCarouselTransitionEnabled(true));
   };
 
-  const spinRingOnce = () => {
-    if (!ringRef.current || spinAnimationRef.current) return;
-    const startRotation = rotationRef.current;
-    const endRotation = startRotation + 360;
+  const toggleRingSpin = () => {
     const ring = ringRef.current;
+    if (!ring) return;
     ring.style.transformBox = 'view-box';
     ring.style.transformOrigin = '50% 50%';
+    if (spinAnimationRef.current) {
+      const elapsed = Number(spinAnimationRef.current.currentTime ?? 0) % 1800;
+      const currentRotation = rotationRef.current + (elapsed / 1800) * 360;
+      const targetRotation = Math.round(currentRotation / 360) * 360;
+      const spinningAnimation = spinAnimationRef.current;
+      spinAnimationRef.current = null;
+      spinningAnimation.cancel();
+      rotationRef.current = currentRotation;
+      if (returnAnimationRef.current) {
+        returnAnimationRef.current.cancel();
+      }
+      if (Math.abs(targetRotation - currentRotation) < 0.1) {
+        rotationRef.current = 0;
+        ring.style.transform = 'rotate(0deg)';
+        return;
+      }
+      const returnAnimation = ring.animate(
+        [{ transform: `rotate(${currentRotation}deg)` }, { transform: `rotate(${targetRotation}deg)` }],
+        { duration: 450, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+      );
+      returnAnimationRef.current = returnAnimation;
+      returnAnimation.onfinish = () => {
+        if (returnAnimationRef.current !== returnAnimation) return;
+        rotationRef.current = 0;
+        ring.style.transform = 'rotate(0deg)';
+        returnAnimationRef.current = null;
+      };
+      returnAnimation.oncancel = () => {
+        if (returnAnimationRef.current === returnAnimation) returnAnimationRef.current = null;
+      };
+      return;
+    }
+
+    if (returnAnimationRef.current) {
+      returnAnimationRef.current.cancel();
+      returnAnimationRef.current = null;
+    }
+    const startRotation = rotationRef.current;
     ring.style.transform = `rotate(${startRotation}deg)`;
     const animation = ring.animate(
-      [
-        { transform: `rotate(${startRotation}deg)` },
-        { transform: `rotate(${endRotation}deg)` },
-      ],
-      { duration: 900, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+      [{ transform: `rotate(${startRotation}deg)` }, { transform: `rotate(${startRotation + 360}deg)` }],
+      { duration: 1800, easing: 'linear', iterations: Infinity },
     );
     spinAnimationRef.current = animation;
-    animation.onfinish = () => {
-      rotationRef.current = endRotation;
-      ring.style.transform = `rotate(${endRotation}deg)`;
-      spinAnimationRef.current = null;
-    };
     animation.oncancel = () => {
-      spinAnimationRef.current = null;
+      if (spinAnimationRef.current === animation) spinAnimationRef.current = null;
     };
   };
 
   const getPointerAngle = (event: React.PointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const centerX = bounds.left + bounds.width / 2;
-    const centerY = bounds.top + bounds.height / 2;
-    return Math.atan2(event.clientY - centerY, event.clientX - centerX) * (180 / Math.PI);
+    return Math.atan2(
+      event.clientY - bounds.top - bounds.height / 2,
+      event.clientX - bounds.left - bounds.width / 2,
+    ) * (180 / Math.PI);
   };
 
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -237,7 +267,7 @@ function AdminOverviewDiagram({
         const now = performance.now();
         if (now - lastCenterTapRef.current <= 350) {
           lastCenterTapRef.current = 0;
-          spinRingOnce();
+          toggleRingSpin();
         } else {
           lastCenterTapRef.current = now;
         }
@@ -250,7 +280,7 @@ function AdminOverviewDiagram({
       const now = performance.now();
       if (now - lastCenterTapRef.current <= 350) {
         lastCenterTapRef.current = 0;
-        spinRingOnce();
+        toggleRingSpin();
       } else {
         lastCenterTapRef.current = now;
       }
@@ -264,8 +294,7 @@ function AdminOverviewDiagram({
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (!draggingRef.current || lastPointerAngleRef.current === null) return;
-    if (spinAnimationRef.current) return;
+    if (!draggingRef.current || lastPointerAngleRef.current === null || spinAnimationRef.current) return;
     const angle = getPointerAngle(event);
     let delta = angle - lastPointerAngleRef.current;
     if (delta > 180) delta -= 360;
@@ -384,12 +413,12 @@ function AdminOverviewDiagram({
             data-spin-center
             role="button"
             tabIndex={0}
-            aria-label={language === 'fr' ? 'Appuyez deux fois ou appuyez sur Entrée pour faire tourner la roue' : 'Double-tap or press Enter to spin the wheel once'}
+            aria-label={language === 'fr' ? 'Appuyez deux fois ou appuyez sur Entrée pour démarrer ou arrêter la roue' : 'Double-tap or press Enter to start or stop the wheel'}
             className="cursor-pointer"
             onKeyDown={event => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                spinRingOnce();
+                toggleRingSpin();
               }
             }}
           >

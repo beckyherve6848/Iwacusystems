@@ -1149,11 +1149,6 @@
     background: linear-gradient(135deg, rgba(20, 83, 45, 0.78), rgba(15, 23, 42, 0.58), rgba(21, 128, 61, 0.65));
   }
 
-  .phone-overview-card:active {
-    transform: scale(0.99);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-  }
-
   .phone-overview-segment {
     transform-box: fill-box;
     transform-origin: center;
@@ -3784,7 +3779,7 @@
 
 .phone-overview-carousel {
   width: min(100%, 360px);
-  margin: 1rem auto 0;
+  margin: 0.5rem auto 0;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.8);
   background: rgba(255, 255, 255, 0.96);
@@ -3954,6 +3949,11 @@
     gap: clamp(1.25rem, 2.5vw, 2.5rem);
   }
 
+  .phone-overview-layout--carousel-hidden {
+    grid-template-columns: minmax(0, 320px);
+    justify-content: center;
+  }
+
   .phone-overview-quotes {
     flex-direction: column;
     gap: 0.75rem;
@@ -3980,11 +3980,13 @@
   }
 
   .phone-overview-carousel {
+    margin: 0 auto;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.8);
     background: rgba(255, 255, 255, 0.96);
     padding: 0.75rem;
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+    transform: translateY(-0.5rem);
   }
 
   .phone-overview-carousel-heading {

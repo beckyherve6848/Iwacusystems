@@ -17,47 +17,13 @@ interface RoleDashboardOverviewProps {
   centerLabel: string;
   centerSubLabel: string;
   language: string;
+  showCarousel?: boolean;
 }
 
-function ringSectorPath(index: number, count: number, outerRadius: number, innerRadius: number) {
-  const startAngle = (index * 360) / count - 90 - 180 / count;
-  const endAngle = startAngle + 360 / count;
-  const point = (radius: number, angle: number) => {
-    const radians = (angle * Math.PI) / 180;
-    return { x: 200 + radius * Math.cos(radians), y: 200 + radius * Math.sin(radians) };
-  };
-  const outerStart = point(outerRadius, startAngle);
-  const outerEnd = point(outerRadius, endAngle);
-  const innerEnd = point(innerRadius, endAngle);
-  const innerStart = point(innerRadius, startAngle);
-
-  return [
-    `M ${outerStart.x} ${outerStart.y}`,
-    `A ${outerRadius} ${outerRadius} 0 0 1 ${outerEnd.x} ${outerEnd.y}`,
-    `L ${innerEnd.x} ${innerEnd.y}`,
-    `A ${innerRadius} ${innerRadius} 0 0 0 ${innerStart.x} ${innerStart.y}`,
-    'Z',
-  ].join(' ');
-}
-
-export default function RoleDashboardOverview({
-  items,
-  onNavigate,
-  title,
-  centerLabel,
-  centerSubLabel,
-  language,
-}: RoleDashboardOverviewProps) {
+export function RoleDashboardCarousel({ language }: { language: string }) {
   const { loginFamilyImageUrl, adminOverviewPhotoUrls, adminOverviewPhotoQuotes } = useTheme();
-  const ringRef = useRef<SVGGElement | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [carouselTransitionEnabled, setCarouselTransitionEnabled] = useState(true);
-  const rotationRef = useRef(0);
-  const lastPointerAngleRef = useRef<number | null>(null);
-  const draggingRef = useRef(false);
-  const draggedRef = useRef(false);
-  const lastCenterTapRef = useRef(0);
-  const spinAnimationRef = useRef<Animation | null>(null);
   const defaultPhoto = loginFamilyImageUrl || '/Bck.png';
   const carouselPhotos = adminOverviewPhotoUrls.length > 0
     ? adminOverviewPhotoUrls
@@ -102,25 +68,156 @@ export default function RoleDashboardOverview({
     window.requestAnimationFrame(() => setCarouselTransitionEnabled(true));
   };
 
-  const spinRingOnce = () => {
-    if (!ringRef.current || spinAnimationRef.current) return;
-    const startRotation = rotationRef.current;
-    const endRotation = startRotation + 360;
+  return (
+    <aside className="phone-overview-carousel" aria-label={language === 'fr' ? 'Photos de la propriété' : 'Property photo carousel'}>
+      <div className="phone-overview-carousel-heading">
+        <h3>{language === 'fr' ? 'Nos espaces' : 'Our spaces'}</h3>
+        <p>{language === 'fr' ? 'Des lieux où il fait bon vivre' : 'Places made for living well'}</p>
+      </div>
+      <div className="phone-overview-photo-frame">
+        <div
+          className={`phone-overview-photo-track ${carouselTransitionEnabled ? 'is-animated' : ''}`}
+          style={{
+            width: `${carouselTrackPhotos.length * 100}%`,
+            transform: `translateX(-${(carouselIndex + 1) * (100 / carouselTrackPhotos.length)}%)`,
+          }}
+          onTransitionEnd={handleCarouselTransitionEnd}
+        >
+          {carouselTrackPhotos.map((photo, index) => (
+            <div key={`${photo}-${index}`} className="phone-overview-photo-slide" style={{ width: `${100 / carouselTrackPhotos.length}%` }}>
+              <img
+                src={photo}
+                alt={language === 'fr' ? 'Photo de la propriété' : 'Property'}
+                draggable={false}
+                onContextMenu={event => event.preventDefault()}
+              />
+            </div>
+          ))}
+        </div>
+        {carouselPhotos.length > 1 && (
+          <>
+            <button type="button" aria-label={language === 'fr' ? 'Photo précédente' : 'Previous photo'} onClick={() => setCarouselIndex(index => index - 1)} className="phone-overview-carousel-arrow left-2">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button type="button" aria-label={language === 'fr' ? 'Photo suivante' : 'Next photo'} onClick={() => setCarouselIndex(index => index + 1)} className="phone-overview-carousel-arrow right-2">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </>
+        )}
+      </div>
+      {activeQuote?.text.trim() && (
+        <p className="phone-overview-photo-quote" style={{ color: quoteColor }} aria-live="polite">“{activeQuote.text}”</p>
+      )}
+      {carouselPhotos.length > 1 && (
+        <div className="phone-overview-carousel-dots" aria-label={`${carouselPhotos.length} photos`}>
+          {carouselPhotos.map((photo, index) => (
+            <button
+              key={`${photo}-${index}`}
+              type="button"
+              aria-label={`${language === 'fr' ? 'Afficher la photo' : 'Show photo'} ${index + 1}`}
+              aria-current={index === activeCarouselIndex}
+              onClick={() => showPhoto(index)}
+              className={`phone-overview-carousel-dot ${index === activeCarouselIndex ? 'is-active' : ''}`}
+            />
+          ))}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function ringSectorPath(index: number, count: number, outerRadius: number, innerRadius: number) {
+  const startAngle = (index * 360) / count - 90 - 180 / count;
+  const endAngle = startAngle + 360 / count;
+  const point = (radius: number, angle: number) => {
+    const radians = (angle * Math.PI) / 180;
+    return { x: 200 + radius * Math.cos(radians), y: 200 + radius * Math.sin(radians) };
+  };
+  const outerStart = point(outerRadius, startAngle);
+  const outerEnd = point(outerRadius, endAngle);
+  const innerEnd = point(innerRadius, endAngle);
+  const innerStart = point(innerRadius, startAngle);
+
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerRadius} ${outerRadius} 0 0 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${innerRadius} ${innerRadius} 0 0 0 ${innerStart.x} ${innerStart.y}`,
+    'Z',
+  ].join(' ');
+}
+
+export default function RoleDashboardOverview({
+  items,
+  onNavigate,
+  title,
+  centerLabel,
+  centerSubLabel,
+  language,
+  showCarousel = true,
+}: RoleDashboardOverviewProps) {
+  const { loginFamilyImageUrl } = useTheme();
+  const ringRef = useRef<SVGGElement | null>(null);
+  const rotationRef = useRef(0);
+  const lastPointerAngleRef = useRef<number | null>(null);
+  const draggingRef = useRef(false);
+  const draggedRef = useRef(false);
+  const lastCenterTapRef = useRef(0);
+  const spinAnimationRef = useRef<Animation | null>(null);
+  const returnAnimationRef = useRef<Animation | null>(null);
+
+  const toggleRingSpin = () => {
     const ring = ringRef.current;
+    if (!ring) return;
     ring.style.transformBox = 'view-box';
     ring.style.transformOrigin = '50% 50%';
+    if (spinAnimationRef.current) {
+      const elapsed = Number(spinAnimationRef.current.currentTime ?? 0) % 1800;
+      const currentRotation = rotationRef.current + (elapsed / 1800) * 360;
+      const targetRotation = Math.round(currentRotation / 360) * 360;
+      const spinningAnimation = spinAnimationRef.current;
+      spinAnimationRef.current = null;
+      spinningAnimation.cancel();
+      rotationRef.current = currentRotation;
+      if (returnAnimationRef.current) {
+        returnAnimationRef.current.cancel();
+      }
+      if (Math.abs(targetRotation - currentRotation) < 0.1) {
+        rotationRef.current = 0;
+        ring.style.transform = 'rotate(0deg)';
+        return;
+      }
+      const returnAnimation = ring.animate(
+        [{ transform: `rotate(${currentRotation}deg)` }, { transform: `rotate(${targetRotation}deg)` }],
+        { duration: 450, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+      );
+      returnAnimationRef.current = returnAnimation;
+      returnAnimation.onfinish = () => {
+        if (returnAnimationRef.current !== returnAnimation) return;
+        rotationRef.current = 0;
+        ring.style.transform = 'rotate(0deg)';
+        returnAnimationRef.current = null;
+      };
+      returnAnimation.oncancel = () => {
+        if (returnAnimationRef.current === returnAnimation) returnAnimationRef.current = null;
+      };
+      return;
+    }
+
+    if (returnAnimationRef.current) {
+      returnAnimationRef.current.cancel();
+      returnAnimationRef.current = null;
+    }
+    const startRotation = rotationRef.current;
     ring.style.transform = `rotate(${startRotation}deg)`;
     const animation = ring.animate(
-      [{ transform: `rotate(${startRotation}deg)` }, { transform: `rotate(${endRotation}deg)` }],
-      { duration: 900, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+      [{ transform: `rotate(${startRotation}deg)` }, { transform: `rotate(${startRotation + 360}deg)` }],
+      { duration: 1800, easing: 'linear', iterations: Infinity },
     );
     spinAnimationRef.current = animation;
-    animation.onfinish = () => {
-      rotationRef.current = endRotation;
-      ring.style.transform = `rotate(${endRotation}deg)`;
-      spinAnimationRef.current = null;
+    animation.oncancel = () => {
+      if (spinAnimationRef.current === animation) spinAnimationRef.current = null;
     };
-    animation.oncancel = () => { spinAnimationRef.current = null; };
   };
 
   const getPointerAngle = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -139,7 +236,7 @@ export default function RoleDashboardOverview({
         const now = performance.now();
         if (now - lastCenterTapRef.current <= 350) {
           lastCenterTapRef.current = 0;
-          spinRingOnce();
+          toggleRingSpin();
         } else {
           lastCenterTapRef.current = now;
         }
@@ -152,7 +249,7 @@ export default function RoleDashboardOverview({
       const now = performance.now();
       if (now - lastCenterTapRef.current <= 350) {
         lastCenterTapRef.current = 0;
-        spinRingOnce();
+        toggleRingSpin();
       } else {
         lastCenterTapRef.current = now;
       }
@@ -197,7 +294,7 @@ export default function RoleDashboardOverview({
           {language === 'fr' ? 'Sélectionnez une section pour ouvrir sa page.' : 'Select a section to open its page.'}
         </p>
       </div>
-      <div className="phone-overview-layout relative z-10">
+      <div className={`phone-overview-layout relative z-10 ${showCarousel ? '' : 'phone-overview-layout--carousel-hidden'}`}>
         <aside className="phone-overview-quotes hidden lg:flex" aria-label={language === 'fr' ? 'Citations sur le logement' : 'Property management quotes'}>
           <p className="phone-overview-side-title">{language === 'fr' ? 'Le logement, avec soin' : 'Better homes, better living'}</p>
           {(language === 'fr'
@@ -273,12 +370,12 @@ export default function RoleDashboardOverview({
               data-spin-center
               role="button"
               tabIndex={0}
-              aria-label={language === 'fr' ? 'Appuyez deux fois ou appuyez sur Entrée pour faire tourner la roue' : 'Double-tap or press Enter to spin the wheel once'}
+              aria-label={language === 'fr' ? 'Appuyez deux fois ou appuyez sur Entrée pour démarrer ou arrêter la roue' : 'Double-tap or press Enter to start or stop the wheel'}
               className="cursor-pointer"
               onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
-                  spinRingOnce();
+                  toggleRingSpin();
                 }
               }}
             >
@@ -288,70 +385,7 @@ export default function RoleDashboardOverview({
             </g>
           </svg>
         </div>
-        <aside className="phone-overview-carousel" aria-label={language === 'fr' ? 'Photos de la propriété' : 'Property photo carousel'}>
-          <div className="phone-overview-carousel-heading">
-            <h3>{language === 'fr' ? 'Nos espaces' : 'Our spaces'}</h3>
-            <p>{language === 'fr' ? 'Des lieux où il fait bon vivre' : 'Places made for living well'}</p>
-          </div>
-          <div className="phone-overview-photo-frame">
-            <div
-              className={`phone-overview-photo-track ${carouselTransitionEnabled ? 'is-animated' : ''}`}
-              style={{
-                width: `${carouselTrackPhotos.length * 100}%`,
-                transform: `translateX(-${(carouselIndex + 1) * (100 / carouselTrackPhotos.length)}%)`,
-              }}
-              onTransitionEnd={handleCarouselTransitionEnd}
-            >
-              {carouselTrackPhotos.map((photo, index) => (
-                <div key={`${photo}-${index}`} className="phone-overview-photo-slide" style={{ width: `${100 / carouselTrackPhotos.length}%` }}>
-                  <img
-                    src={photo}
-                    alt={language === 'fr' ? 'Photo de la propriété' : 'Property'}
-                    draggable={false}
-                    onContextMenu={event => event.preventDefault()}
-                  />
-                </div>
-              ))}
-            </div>
-            {carouselPhotos.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  aria-label={language === 'fr' ? 'Photo précédente' : 'Previous photo'}
-                  onClick={() => setCarouselIndex(index => index - 1)}
-                  className="phone-overview-carousel-arrow left-2"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={language === 'fr' ? 'Photo suivante' : 'Next photo'}
-                  onClick={() => setCarouselIndex(index => index + 1)}
-                  className="phone-overview-carousel-arrow right-2"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </>
-            )}
-          </div>
-          {activeQuote?.text.trim() && (
-            <p className="phone-overview-photo-quote" style={{ color: quoteColor }} aria-live="polite">“{activeQuote.text}”</p>
-          )}
-          {carouselPhotos.length > 1 && (
-            <div className="phone-overview-carousel-dots" aria-label={`${carouselPhotos.length} photos`}>
-              {carouselPhotos.map((photo, index) => (
-                <button
-                  key={`${photo}-${index}`}
-                  type="button"
-                  aria-label={`${language === 'fr' ? 'Afficher la photo' : 'Show photo'} ${index + 1}`}
-                  aria-current={index === activeCarouselIndex}
-                  onClick={() => showPhoto(index)}
-                  className={`phone-overview-carousel-dot ${index === activeCarouselIndex ? 'is-active' : ''}`}
-                />
-              ))}
-            </div>
-          )}
-        </aside>
+        {showCarousel && <RoleDashboardCarousel language={language} />}
       </div>
     </section>
   );

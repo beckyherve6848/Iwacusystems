@@ -33,7 +33,7 @@ export default function DashboardWelcomeHero({ title, subtitle, action }: Dashbo
   const fullName = profile?.full_name?.trim() || String(user?.user_metadata?.full_name ?? '').trim();
   const greetingText = fullName ? `${greeting}, ${fullName}` : greeting;
   return (
-    <section className="relative isolate -mx-2 -mt-2 min-h-[160px] overflow-hidden rounded-3xl bg-slate-950 shadow-[0_8px_20px_rgba(15,23,42,0.22)] sm:mx-0 sm:mt-0 sm:min-h-[220px] sm:shadow-[0_12px_32px_rgba(15,23,42,0.14)]">
+    <section className="relative isolate -mx-2 -mt-4 min-h-[160px] overflow-hidden rounded-3xl bg-slate-950 shadow-[0_8px_20px_rgba(15,23,42,0.22)] sm:mx-0 sm:-mt-6 sm:min-h-[220px] sm:shadow-[0_12px_32px_rgba(15,23,42,0.14)] lg:-mt-8">
       {imageVisible && (
         <img
           src={imageSrc}
