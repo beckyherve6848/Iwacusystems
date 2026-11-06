@@ -27,6 +27,23 @@
   border-top-color: #62666c !important;
 }
 
+.monthly-income-point {
+  cursor: pointer;
+  outline: none;
+}
+
+.monthly-income-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 160ms ease, filter 160ms ease;
+}
+
+.monthly-income-point:hover .monthly-income-dot,
+.monthly-income-point:focus-visible .monthly-income-dot {
+  transform: scale(1.55);
+  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 45%));
+}
+
 @layer base {
   html {
     color-scheme: light;

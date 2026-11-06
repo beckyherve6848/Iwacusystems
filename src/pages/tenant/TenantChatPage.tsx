@@ -8,6 +8,7 @@ import ToastContainer from '@/components/ui/ToastContainer';
 import { useChatPresence } from '@/hooks/useChatPresence';
 import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 import { Select } from '@/components/ui/Input';
+import { CHAT_MESSAGES_READ_EVENT } from '@/lib/chatEvents';
 
 interface ChatMessage {
   id: string;
@@ -413,6 +414,7 @@ export default function TenantChatPage({ onNavigate }: { onNavigate: (page: stri
           return;
         }
 
+        window.dispatchEvent(new Event(CHAT_MESSAGES_READ_EVENT));
         const updated = new Map((data ?? []).map(message => [message.id, message.read_at]));
         setMessages(previous => previous.map(message => updated.has(message.id)
           ? { ...message, read_at: updated.get(message.id) ?? readAt }

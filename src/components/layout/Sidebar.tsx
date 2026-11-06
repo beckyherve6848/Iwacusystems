@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
 import { supabase } from '@/lib/supabase';
+import { CHAT_MESSAGES_READ_EVENT } from '@/lib/chatEvents';
 
 interface SidebarProps {
   currentPage: string;
@@ -120,11 +121,15 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch, collapsed
     };
 
     void loadUnreadChatCount();
+    window.addEventListener(CHAT_MESSAGES_READ_EVENT, loadUnreadChatCount);
     const channel = supabase
       .channel(`sidebar-chat-unread-${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, loadUnreadChatCount)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      window.removeEventListener(CHAT_MESSAGES_READ_EVENT, loadUnreadChatCount);
+      void supabase.removeChannel(channel);
+    };
   }, [profile?.id, profile?.role]);
 
   useEffect(() => {

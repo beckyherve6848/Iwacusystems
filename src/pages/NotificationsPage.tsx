@@ -9,6 +9,7 @@ import Input, { Select, Textarea } from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
+import { NOTIFICATIONS_CHANGED_EVENT } from '@/lib/notificationEvents';
 
 const typeIcons: Record<string, React.ReactNode> = {
   info:    <Info className="w-4 h-4 text-blue-400" />,
@@ -56,6 +57,8 @@ export default function NotificationsPage() {
   const [form, setForm] = useState({ ...emptyForm });
   const [sending, setSending] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [maintenanceNotificationToDelete, setMaintenanceNotificationToDelete] = useState<Notification | null>(null);
+  const [deletingMaintenanceNotification, setDeletingMaintenanceNotification] = useState(false);
   const { toasts, addToast, removeToast } = useToast();
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -252,6 +255,38 @@ export default function NotificationsPage() {
     addToast(language === 'fr' ? 'Supprimé' : 'Deleted', 'success');
   };
 
+  const handleDeleteMaintenanceNotification = async () => {
+    const requestId = maintenanceNotificationToDelete?.maintenance_request_id;
+    if (!requestId) return;
+    setDeletingMaintenanceNotification(true);
+    const { error } = await supabase.rpc('delete_maintenance_request_notifications', {
+      p_maintenance_request_id: requestId,
+    });
+    if (error) {
+      addToast(
+        error.code === 'PGRST202'
+          ? (language === 'fr'
+            ? 'La migration de suppression des notifications d’entretien n’est pas encore appliquée dans Supabase.'
+            : 'The maintenance-notification deletion migration has not been applied in Supabase yet.')
+          : error.message,
+        'error',
+      );
+      setDeletingMaintenanceNotification(false);
+      return;
+    }
+
+    setNotifications(current => current.filter(notification => notification.maintenance_request_id !== requestId));
+    setMaintenanceNotificationToDelete(null);
+    setDeletingMaintenanceNotification(false);
+    window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
+    addToast(
+      language === 'fr'
+        ? 'La notification a été supprimée pour tous les destinataires.'
+        : 'The notification was permanently deleted for all recipients.',
+      'success',
+    );
+  };
+
   const unread = notifications.filter(n => !n.is_read).length;
 
   return (
@@ -270,7 +305,7 @@ export default function NotificationsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {!isAdmin && unread > 0 && (
+          {unread > 0 && (
             <Button variant="ghost" size="sm" icon={<CheckCheck className="w-4 h-4" />} onClick={markAllRead}>
               {t('markAllRead')}
             </Button>
@@ -294,29 +329,6 @@ export default function NotificationsPage() {
         <div className="space-y-3">
           {announcements.length === 0 && (
             <div className="notification-empty-state dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
-              <div style={{ width: '100%', maxWidth: 600, margin: '0 auto', padding: '20px 0', backgroundColor: '#f9f9f9' }}>
-                <hr style={{ border: 0, borderTop: '3px solid #007a37', margin: '0 auto 40px', width: '85%' }} />
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '40px 0' }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#007a37"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ width: 80, height: 80 }}
-                    aria-hidden="true"
-                  >
-                    <path d="M11 5L6 9H3v6h3l5 4V5z" />
-                    <path d="M6 15v3a1 1 0 0 0 1 1h1" />
-                    <path d="M15.5 8.5a4 4 0 0 1 0 7" />
-                    <path d="M18.5 6a7.5 7.5 0 0 1 0 12" />
-                    <path d="M21.5 3.5a11 11 0 0 1 0 17" />
-                  </svg>
-                </div>
-                <hr style={{ border: 0, borderTop: '3px solid #007a37', margin: '40px auto 0', width: '85%' }} />
-              </div>
               <p className="text-slate-500">
                 {language === 'fr' ? "Aucune notification envoyée pour l'instant" : 'No notifications sent yet'}
               </p>
@@ -382,9 +394,14 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {/* Tenant: personal notifications */}
-      {!isAdmin && !loading && (
+      {/* Personal notifications */}
+      {!loading && (
         <div className="space-y-2">
+          {isAdmin && (
+            <h2 className="text-sm font-semibold text-slate-700">
+              {language === 'fr' ? 'Notifications reçues' : 'Received notifications'}
+            </h2>
+          )}
           {notifications.length === 0 && (
             <div className="notification-empty-state dark-theme-surface rounded-2xl p-12 text-center" style={panelStyle}>
               <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
@@ -416,6 +433,20 @@ export default function NotificationsPage() {
                   {!n.is_read && (
                     <div className="w-2 h-2 rounded-full mt-1.5 ml-auto"
                       style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.6)' }} />
+                  )}
+                  {isAdmin && n.maintenance_request_id && (
+                    <button
+                      type="button"
+                      aria-label={language === 'fr' ? 'Supprimer cette notification pour tous' : 'Delete this notification for everyone'}
+                      title={language === 'fr' ? 'Supprimer pour tous' : 'Delete for everyone'}
+                      onClick={event => {
+                        event.stopPropagation();
+                        setMaintenanceNotificationToDelete(n);
+                      }}
+                      className="mt-2 rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -461,6 +492,38 @@ export default function NotificationsPage() {
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={() => setDeleteId(null)}>{t('cancel')}</Button>
           <Button variant="danger" onClick={handleDelete}>{t('delete')}</Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!maintenanceNotificationToDelete}
+        onClose={() => {
+          if (!deletingMaintenanceNotification) setMaintenanceNotificationToDelete(null);
+        }}
+        title={language === 'fr' ? 'Supprimer pour tous les destinataires' : 'Delete for all recipients'}
+        size="sm"
+      >
+        <p className="mb-6 text-slate-700">
+          {language === 'fr'
+            ? 'Cette action supprimera définitivement cette notification de la base de données pour tous les destinataires. La demande d’entretien elle-même ne sera pas supprimée.'
+            : 'This permanently deletes this notification from the database for every recipient. The maintenance request itself will not be deleted.'}
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button
+            variant="ghost"
+            disabled={deletingMaintenanceNotification}
+            onClick={() => setMaintenanceNotificationToDelete(null)}
+          >
+            {t('cancel')}
+          </Button>
+          <Button
+            variant="danger"
+            loading={deletingMaintenanceNotification}
+            icon={<Trash2 className="h-4 w-4" />}
+            onClick={handleDeleteMaintenanceNotification}
+          >
+            {language === 'fr' ? 'Supprimer pour tous' : 'Delete for everyone'}
+          </Button>
         </div>
       </Modal>
     </div>

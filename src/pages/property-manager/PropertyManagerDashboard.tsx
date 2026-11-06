@@ -7,14 +7,16 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/hooks/useToast';
 import ToastContainer from '@/components/ui/ToastContainer';
 import StaffIdentityCard from '@/components/identity/StaffIdentityCard';
-import { calculateOutstandingInvoiceBalance } from '@/lib/invoiceBalances';
+import { calculateInvoiceChargeBalances } from '@/lib/invoiceBalances';
 import RoleDashboardOverview, { RoleOverviewItem } from '@/components/dashboard/RoleDashboardOverview';
 
 interface DashboardStats {
   properties: number;
   occupied: number;
+  vacant: number;
   tenants: number;
   collected: number;
+  pendingPayments: number;
   outstanding: number;
   unpaidInvoices: number;
   maintenance: number;
@@ -22,7 +24,7 @@ interface DashboardStats {
 }
 
 const initialStats: DashboardStats = {
-  properties: 0, occupied: 0, tenants: 0, collected: 0, outstanding: 0, unpaidInvoices: 0, maintenance: 0, visitors: 0,
+  properties: 0, occupied: 0, vacant: 0, tenants: 0, collected: 0, pendingPayments: 0, outstanding: 0, unpaidInvoices: 0, maintenance: 0, visitors: 0,
 };
 
 export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (page: string) => void }) {
@@ -35,36 +37,53 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
 
   useEffect(() => {
     const load = async () => {
-      const [houseResult, tenantResult, paymentResult, invoiceResult, invoiceBalanceResult, utilityPaymentResult, maintenanceResult, visitorResult] = await Promise.all([
+      const [houseResult, tenantResult, paymentResult, invoiceBalanceResult, utilityPaymentResult, maintenanceResult, visitorResult] = await Promise.all([
         supabase.from('houses').select('id, status'),
         supabase.from('tenants').select('id, status'),
-        supabase.from('payments').select('amount_due, amount_paid, rent_paid_amount, status'),
-        supabase.from('utility_invoices').select('id', { count: 'exact', head: true }).in('status', ['unpaid', 'partial']),
-        supabase.from('utility_invoices').select('id, tenant_id, rent_month, rent_balance, water_amount, electricity_amount'),
+        supabase.from('payments').select('amount_due, amount_paid, rent_paid_amount, status, tenant_id, rent_month'),
+        supabase.from('utility_invoices').select('id, status, tenant_id, rent_month, rent_balance, water_amount, electricity_amount'),
         supabase.from('payments').select('tenant_id, rent_month, water_paid_amount, electricity_paid_amount'),
         supabase.from('maintenance_requests').select('id, status').not('status', 'in', '(completed,rejected)'),
         supabase.from('visitors').select('id, status').eq('status', 'inside'),
       ]);
-      const error = houseResult.error ?? tenantResult.error ?? paymentResult.error ?? invoiceResult.error
-        ?? invoiceBalanceResult.error ?? utilityPaymentResult.error ?? maintenanceResult.error ?? visitorResult.error;
+      const invoiceError = invoiceBalanceResult.error ?? utilityPaymentResult.error;
+      if (invoiceError) {
+        addToast(`Unable to load invoice dashboard metrics: ${invoiceError.message}`, 'error');
+      } else {
+        const invoices = invoiceBalanceResult.data ?? [];
+        const invoiceBalances = calculateInvoiceChargeBalances(invoices, utilityPaymentResult.data ?? []);
+        const unpaidInvoices = invoices.filter(invoice =>
+          invoice.status !== 'paid' || (invoiceBalances.get(invoice.id)?.total_balance_due ?? 0) > 0
+        ).length;
+        const outstanding = [...invoiceBalances.values()].reduce((total, balance) => total + balance.total_balance_due, 0);
+        setStats(previous => ({ ...previous, unpaidInvoices, outstanding }));
+      }
+
+      const error = houseResult.error ?? tenantResult.error ?? paymentResult.error ?? maintenanceResult.error ?? visitorResult.error;
       if (error) {
         addToast(`Unable to load dashboard metrics: ${error.message}`, 'error');
       } else {
         const houses = houseResult.data ?? [];
         const tenants = tenantResult.data ?? [];
         const payments = paymentResult.data ?? [];
+        const pendingBillingPeriods = new Set(
+          payments
+            .filter(payment => payment.status === 'pending' || payment.status === 'overdue')
+            .map(payment => `${payment.tenant_id}:${String(payment.rent_month).slice(0, 7)}`),
+        );
         const maintenance = maintenanceResult.data ?? [];
         const visitors = visitorResult.data ?? [];
-        setStats({
+        setStats(previous => ({
+          ...previous,
           properties: houses.length,
           occupied: houses.filter(house => house.status === 'occupied').length,
+          vacant: houses.filter(house => house.status === 'vacant').length,
           tenants: tenants.filter(tenant => tenant.status === 'active').length,
           collected: payments.reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0),
-          outstanding: calculateOutstandingInvoiceBalance(invoiceBalanceResult.data ?? [], utilityPaymentResult.data ?? []),
-          unpaidInvoices: invoiceResult.count ?? 0,
+          pendingPayments: pendingBillingPeriods.size,
           maintenance: maintenance.length,
           visitors: visitors.length,
-        });
+        }));
       }
       setLoading(false);
     };
@@ -72,6 +91,8 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
     const channel = supabase
       .channel('property-manager-invoice-status')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'utility_invoices' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => { void load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance_requests' }, () => { void load(); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [addToast]);
@@ -112,14 +133,16 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
   }, [profile, addToast]);
 
   const labels = language === 'fr'
-    ? { title: 'Tableau de bord', subtitle: 'Aperçu des maisons qui vous sont attribuées', properties: 'Maisons attribuées', occupied: 'Maisons occupées', tenants: 'Locataires actifs', collected: 'Loyers encaissés', outstanding: 'Solde total restant', maintenance: 'Maintenances ouvertes', visitors: 'Visiteurs présents' }
-    : { title: 'Property Manager Dashboard', subtitle: 'Overview of houses assigned to you', properties: 'Assigned Houses', occupied: 'Occupied Houses', tenants: 'Active Tenants', collected: 'Rent Collected', outstanding: 'Outstanding Balance', maintenance: 'Open Maintenance', visitors: 'Visitors Inside' };
+    ? { title: 'Tableau de bord', subtitle: 'Aperçu des maisons qui vous sont attribuées', properties: 'Maisons attribuées', occupied: 'Maisons occupées', vacant: 'Maisons vacantes', tenants: 'Locataires actifs', collected: 'Loyers encaissés', pendingPayments: 'Paiements en attente', outstanding: 'Solde total restant', maintenance: 'Maintenances ouvertes', visitors: 'Visiteurs présents' }
+    : { title: 'Property Manager Dashboard', subtitle: 'Overview of houses assigned to you', properties: 'Assigned Houses', occupied: 'Occupied Houses', vacant: 'Vacant Houses', tenants: 'Active Tenants', collected: 'Rent Collected', pendingPayments: 'Pending Payments', outstanding: 'Outstanding Balance', maintenance: 'Open Maintenance', visitors: 'Visitors Inside' };
 
   const cards = [
     { label: labels.properties, value: stats.properties, icon: Building2, color: 'text-emerald-700 bg-emerald-50' },
-    { label: labels.occupied, value: `${stats.occupied} / ${stats.properties}`, icon: Building2, color: 'text-slate-700 bg-slate-100' },
+    { label: labels.occupied, value: stats.occupied, icon: Building2, color: 'text-slate-700 bg-slate-100' },
+    { label: labels.vacant, value: stats.vacant, icon: Building2, color: 'text-amber-700 bg-amber-50' },
     { label: labels.tenants, value: stats.tenants, icon: Users, color: 'text-blue-700 bg-blue-50' },
     { label: labels.collected, value: fmt(stats.collected), icon: Wallet, color: 'text-emerald-700 bg-emerald-50', money: true },
+    { label: labels.pendingPayments, value: stats.pendingPayments, icon: Wallet, color: 'text-red-700 bg-red-50' },
     { label: labels.outstanding, value: fmt(stats.outstanding), icon: AlertCircle, color: 'text-red-700 bg-red-50', money: true },
     { label: labels.maintenance, value: stats.maintenance, icon: Wrench, color: 'text-amber-700 bg-amber-50' },
     { label: labels.visitors, value: stats.visitors, icon: UserCheck, color: 'text-violet-700 bg-violet-50' },
@@ -128,6 +151,7 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
   const overviewItems: RoleOverviewItem[] = [
     { label: language === 'fr' ? 'Maisons' : 'Houses', value: String(stats.properties), page: 'houses', color: '#2563eb' },
     { label: language === 'fr' ? 'Locataires' : 'Tenants', value: String(stats.tenants), page: 'tenants', color: '#7c3aed' },
+    { label: labels.pendingPayments, value: String(stats.pendingPayments), page: 'payments', color: '#dc2626' },
     { label: language === 'fr' ? 'Factures' : 'Invoices', value: String(stats.unpaidInvoices), page: 'invoices', color: '#059669' },
     { label: language === 'fr' ? 'Entretien' : 'Maint.', value: String(stats.maintenance), page: 'maintenance', color: '#dc2626' },
     { label: language === 'fr' ? 'Visiteurs' : 'Visitors', value: String(stats.visitors), page: 'visitors', color: '#0891b2' },
@@ -149,6 +173,24 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
         centerSubLabel={language === 'fr' ? 'Tableau' : 'Dashboard'}
         language={language}
       />
+      <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
+      {profile && <StaffIdentityCard profile={profile} assignedProperties={assignedProperties} showIdentityDocument={false} />}
+      <section aria-label={labels.title} className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+        {cards.map(card => {
+          const Icon = card.icon;
+          return (
+            <article key={card.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-5">
+              <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-full sm:mb-4 sm:h-10 sm:w-10 ${card.color}`}>
+                <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.8} />
+              </div>
+              <p className={`break-words font-bold tracking-tight ${card.label === labels.collected ? 'phone-dashboard-collected' : 'text-slate-900'} ${card.money ? 'money-value text-sm sm:text-lg' : 'text-xl sm:text-2xl'}`}>
+                {loading ? '—' : card.value}
+              </p>
+              <p className="mt-1 text-[11px] font-medium leading-4 text-slate-500 sm:text-sm sm:leading-5">{card.label}</p>
+            </article>
+          );
+        })}
+      </section>
       {stats.unpaidInvoices > 0 && (
         <button
           type="button"
@@ -171,24 +213,6 @@ export default function PropertyManagerDashboard({ onNavigate }: { onNavigate: (
           </span>
         </button>
       )}
-      <div className="-mx-4 -mt-4 space-y-4 rounded-t-3xl bg-slate-200 px-4 pb-4 pt-5 sm:mx-0 sm:mt-0 sm:space-y-6 sm:rounded-none sm:bg-transparent sm:p-0">
-      {profile && <StaffIdentityCard profile={profile} assignedProperties={assignedProperties} showIdentityDocument={false} />}
-      <section aria-label={labels.title} className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
-        {cards.map(card => {
-          const Icon = card.icon;
-          return (
-            <article key={card.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-5">
-              <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-full sm:mb-4 sm:h-10 sm:w-10 ${card.color}`}>
-                <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.8} />
-              </div>
-              <p className={`break-words font-bold tracking-tight ${card.label === labels.collected ? 'phone-dashboard-collected' : 'text-slate-900'} ${card.money ? 'money-value text-sm sm:text-lg' : 'text-xl sm:text-2xl'}`}>
-                {loading ? '—' : card.value}
-              </p>
-              <p className="mt-1 text-[11px] font-medium leading-4 text-slate-500 sm:text-sm sm:leading-5">{card.label}</p>
-            </article>
-          );
-        })}
-      </section>
       <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-5">
         <h2 className="font-semibold text-slate-900">{language === 'fr' ? 'Accès rapide' : 'Quick access'}</h2>
         <div className="mt-4 flex flex-wrap gap-2">

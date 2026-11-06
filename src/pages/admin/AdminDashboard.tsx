@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Home, Users, TrendingUp, AlertCircle, Wallet, CalendarDays, ChevronLeft, ChevronRight,
-  UserCheck, Wrench, ArrowUpRight, CheckCircle2,
+  UserCheck, UserRound, Wrench, ArrowUpRight, CheckCircle2,
   Building2, StickyNote
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -508,22 +508,37 @@ function AdminOverviewDiagram({
 }
 
 function LineChart({ data, noDataLabel, fmtCurrency }: { data: { month: string; amount: number }[]; noDataLabel: string; fmtCurrency: (n: number) => string }) {
+  const [activePoint, setActivePoint] = useState<number | null>(null);
   if (!data.length) return <p className="text-slate-400 text-sm text-center py-8">{noDataLabel}</p>;
-  const max = Math.max(...data.map(d => d.amount), 1);
-  const w = 100;
-  const h = 100;
-  const step = data.length > 1 ? w / (data.length - 1) : 0;
-  const points = data.map((d, i) => ({ x: i * step, y: h - (d.amount / max) * (h - 10) - 4 }));
+  const maxAmount = Math.max(...data.map(d => d.amount), 0);
+  const chartMax = maxAmount || 1;
+  const chartHeight = 100;
+  const top = 5;
+  const bottom = 91;
+  const points = data.map((d, i) => ({
+    x: data.length > 1 ? ((i + 0.5) / data.length) * 100 : 50,
+    y: bottom - (d.amount / chartMax) * (bottom - top),
+  }));
   const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const areaD = pathD + ` L ${points[points.length - 1].x} ${h} L ${points[0].x} ${h} Z`;
   return (
     <div className="w-full">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-40 overflow-visible">
+      <div className="flex h-44 w-full">
+        <div className="flex w-[76px] shrink-0 flex-col justify-between pb-[9%] pr-2 pt-[2%] text-right">
+          {[4, 3, 2, 1, 0].map(tick => (
+            <span key={tick} className="truncate text-[9px] leading-none text-slate-500" title={fmtCurrency(Math.round((tick / 4) * maxAmount))}>
+              {fmtCurrency(Math.round((tick / 4) * maxAmount))}
+            </span>
+          ))}
+        </div>
+        <div className="relative min-w-0 flex-1">
+          <svg
+            viewBox={`0 0 100 ${chartHeight}`}
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Monthly rent collected, plotted by month and amount"
+            className="h-full w-full overflow-visible"
+          >
         <defs>
-          <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(16,185,129,0.25)" />
-            <stop offset="100%" stopColor="rgba(16,185,129,0)" />
-          </linearGradient>
           <pattern id="incomeNetwork" width="34" height="30" patternUnits="userSpaceOnUse">
             <path
               d="M0 4L12 10L23 2M12 10L7 25L23 18L34 27M23 2L23 18M0 4L7 25"
@@ -540,18 +555,76 @@ function LineChart({ data, noDataLabel, fmtCurrency }: { data: { month: string; 
           </pattern>
         </defs>
         <rect x="0" y="0" width="100" height="100" fill="url(#incomeNetwork)" />
-        <path d={areaD} fill="url(#lineGrad)" />
-        <path d={pathD} fill="none" stroke="#10b981" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        {[0, 1, 2, 3, 4].map(tick => {
+          const y = bottom - (tick / 4) * (bottom - top);
+          return (
+          <line
+            key={tick}
+            x1="0"
+            y1={y}
+            x2="100"
+            y2={y}
+            stroke="#64748b"
+            strokeOpacity={tick === 0 ? '0.55' : '0.22'}
+            strokeWidth={tick === 0 ? '1.2' : '0.7'}
+            vectorEffect="non-scaling-stroke"
+          />
+          );
+        })}
+        <line x1="0" y1={top} x2="0" y2={bottom} stroke="#64748b" strokeOpacity="0.55" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
+        <path d={pathD} fill="none" stroke="#111827" strokeOpacity="0.16" strokeWidth="4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={pathD} fill="none" stroke="#111827" strokeWidth="2.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#10b981" stroke="#fff" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+          <g
+            key={i}
+            className="monthly-income-point"
+            tabIndex={0}
+            role="button"
+            aria-label={`${data[i].month}: ${fmtCurrency(data[i].amount)}`}
+            aria-pressed={activePoint === i}
+            onMouseEnter={() => setActivePoint(i)}
+            onMouseLeave={() => setActivePoint(current => current === i ? null : current)}
+            onFocus={() => setActivePoint(i)}
+            onBlur={() => setActivePoint(current => current === i ? null : current)}
+            onClick={() => setActivePoint(current => current === i ? null : i)}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setActivePoint(current => current === i ? null : i);
+              }
+            }}
+          >
+            <circle cx={p.x} cy={p.y} r="5" fill="transparent" />
+            <circle
+              className="monthly-income-dot"
+              cx={p.x}
+              cy={p.y}
+              r="1.8"
+              fill={data[i].amount <= 0
+                ? '#eab308'
+                : data[i].amount === maxAmount
+                  ? '#16a34a'
+                  : '#dc2626'}
+              stroke="#fff"
+              strokeWidth="0.9"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
         ))}
-      </svg>
-      <div className="flex items-end justify-between mt-2 px-1">
+          </svg>
+          {activePoint !== null && (
+            <div
+              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white shadow-lg"
+              style={{ left: `${points[activePoint].x}%`, top: `${points[activePoint].y}%` }}
+            >
+              {data[activePoint].month}: {fmtCurrency(data[activePoint].amount)}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="ml-[76px] grid grid-cols-12 border-t border-slate-200 pt-2">
         {data.map((d, i) => (
-          <div key={i} className="flex flex-col items-center gap-0.5" style={{ flex: 1 }}>
-            <span className="text-[10px] font-semibold text-slate-700 hidden sm:block">{fmtCurrency(d.amount)}</span>
-            <span className="text-[10px] text-slate-400">{d.month}</span>
-          </div>
+          <span key={i} className={`text-center text-[9px] font-medium transition-colors sm:text-[10px] ${activePoint === i ? 'text-slate-900' : 'text-slate-500'}`}>{d.month}</span>
         ))}
       </div>
     </div>
@@ -631,8 +704,9 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
     async function load() {
       const currentRequestId = ++requestId;
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      const chartYear = new Date().getFullYear();
 
-      const [houses, activeTenantCount, family, recentPayments, visitors, maintenance, maintenanceCount, visitorsTodayCount] = await Promise.all([
+      const [houses, activeTenantCount, family, recentPayments, visitors, maintenance, maintenanceCount, visitorsTodayCount, incomePayments] = await Promise.all([
         supabase.from('houses').select('id, status, monthly_rent'),
         supabase.from('tenants').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('tenant_family').select('id', { count: 'exact', head: true }),
@@ -641,12 +715,16 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
         supabase.from('maintenance_requests').select('id, title, priority, status, tenants(full_name), houses(house_number), created_at').order('created_at', { ascending: false }).limit(5),
         supabase.from('maintenance_requests').select('id', { count: 'exact', head: true }).neq('status', 'completed').neq('status', 'rejected'),
         supabase.from('visitors').select('id', { count: 'exact', head: true }).gte('time_in', todayStart.toISOString()),
+        supabase.from('payments')
+          .select('amount_paid, payment_date')
+          .gte('payment_date', `${chartYear}-01-01`)
+          .lt('payment_date', `${chartYear + 1}-01-01`),
       ]);
 
       if (cancelled || currentRequestId !== requestId) return;
       const summaryErrors = [
         houses.error, activeTenantCount.error, family.error, recentPayments.error, visitors.error,
-        maintenance.error, maintenanceCount.error, visitorsTodayCount.error,
+        maintenance.error, maintenanceCount.error, visitorsTodayCount.error, incomePayments.error,
       ].filter((error): error is NonNullable<typeof error> => error !== null);
       if (summaryErrors.length) {
         console.error('Unable to load all admin dashboard summary data:', summaryErrors.map(error => error.message).join('; '));
@@ -725,18 +803,18 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           ).length;
 
       const monthlyMap: Record<string, number> = {};
-      paymentData.forEach(p => {
-        if (!p.rent_month) return;
-        const key = p.rent_month.slice(0, 7);
+      (incomePayments.data ?? []).forEach(p => {
+        if (!p.payment_date) return;
+        const key = p.payment_date.slice(0, 7);
         monthlyMap[key] = (monthlyMap[key] ?? 0) + Number(p.amount_paid);
       });
-      const monthlyIncome = Object.entries(monthlyMap)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-6)
-        .map(([k, v]) => ({
-          month: new Date(k + '-01').toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US', { month: 'short' }),
-          amount: v,
-        }));
+      const monthlyIncome = Array.from({ length: 12 }, (_, monthIndex) => {
+        const key = `${chartYear}-${String(monthIndex + 1).padStart(2, '0')}`;
+        return {
+          month: new Date(chartYear, monthIndex, 1).toLocaleString(language === 'fr' ? 'fr-FR' : 'en-US', { month: 'short' }),
+          amount: monthlyMap[key] ?? 0,
+        };
+      });
 
       setStats(previous => {
         const next = {
@@ -764,6 +842,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
       .channel('admin-dashboard-invoice-status')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'utility_invoices' }, scheduleLoad)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, scheduleLoad)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance_requests' }, scheduleLoad)
       .subscribe();
     return () => {
       cancelled = true;
@@ -1022,7 +1101,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-slate-900 font-semibold text-sm sm:text-base">{t('monthlyIncome')}</h3>
-              <p className="text-slate-400 text-xs">{t('last6months')}</p>
+              <p className="text-slate-400 text-xs">{t('monthlyIncomeSubtitle')} · {new Date().getFullYear()}</p>
             </div>
           </div>
           <LineChart data={stats.monthlyIncome} noDataLabel={t('noDataYet')} fmtCurrency={fmt} />
@@ -1153,8 +1232,8 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
             {stats.recentPayments.length === 0 && <p className="text-slate-400 text-sm">{t('noPaymentsYet')}</p>}
             {stats.recentPayments.map(p => (
               <div key={p.id} className="dashboard-activity-row flex items-center gap-3 border-t border-slate-100 py-2.5 first:border-t-0 first:pt-0 last:pb-0">
-                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 shrink-0">
-                  <Wallet className="h-4 w-4 text-red-600" />
+                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 shrink-0">
+                  <UserRound className="h-4 w-4 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-sm font-medium text-slate-900">{(p.tenants as any)?.full_name ?? 'Unknown'}</p>
@@ -1189,8 +1268,8 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
             {stats.recentVisitors.length === 0 && <p className="text-slate-400 text-sm">{t('noVisitorsYet')}</p>}
             {stats.recentVisitors.map(v => (
               <div key={v.id} className="dashboard-activity-row flex items-center gap-3 border-t border-slate-100 py-2.5 first:border-t-0 first:pt-0 last:pb-0">
-                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 shrink-0">
-                  <UserCheck className="h-4 w-4 text-red-600" />
+                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 shrink-0">
+                  <UserRound className="h-4 w-4 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-sm font-medium text-slate-900">{v.visitor_name}</p>
@@ -1219,8 +1298,8 @@ export default function AdminDashboard({ onNavigate }: { onNavigate: (p: string)
             {stats.recentMaintenance.length === 0 && <p className="text-slate-400 text-sm">{t('noRequestsYet')}</p>}
             {stats.recentMaintenance.map(m => (
               <div key={m.id} className="dashboard-activity-row flex items-center gap-3 border-t border-slate-100 py-2.5 first:border-t-0 first:pt-0 last:pb-0">
-                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 shrink-0">
-                  <Wrench className="h-4 w-4 text-red-600" />
+                <div className="dashboard-activity-icon flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 shrink-0">
+                  <UserRound className="h-4 w-4 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-sm font-medium text-slate-900">{m.title}</p>

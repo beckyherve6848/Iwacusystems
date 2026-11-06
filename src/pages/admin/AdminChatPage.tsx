@@ -13,6 +13,7 @@ import ToastContainer from '@/components/ui/ToastContainer';
 import Modal from '@/components/ui/Modal';
 import { useChatPresence } from '@/hooks/useChatPresence';
 import WhatsAppIcon from '@/components/ui/WhatsAppIcon';
+import { CHAT_MESSAGES_READ_EVENT } from '@/lib/chatEvents';
 
 interface Conversation {
   id: string;
@@ -577,6 +578,7 @@ export default function AdminChatPage() {
           addToast(error.message, 'error');
           return;
         }
+        window.dispatchEvent(new Event(CHAT_MESSAGES_READ_EVENT));
         const updated = new Map((data ?? []).map(message => [message.id,
           isAdmin && activeConv?.conversation_type === 'manager_tenant'
             ? message.admin_read_at

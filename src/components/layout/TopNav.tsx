@@ -3,6 +3,7 @@ import { ArrowRight, Bell, Search, Menu, DollarSign, UserRound, X, Moon, Sun } f
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme, CURRENCY_SYMBOLS, Currency } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import { NOTIFICATIONS_CHANGED_EVENT } from '@/lib/notificationEvents';
 import {
   getThemeModeForCurrentDevice,
   PHONE_THEME_MODE_EVENT,
@@ -181,11 +182,15 @@ export default function TopNav({ onMenuToggle, onNavigate, onPrefetch }: TopNavP
         .eq('is_read', false)
         .then(({ count }) => setUnreadCount(count ?? 0));
     load();
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, load);
     const channel = supabase
       .channel('topnav-notifs')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, load)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, load);
+      void supabase.removeChannel(channel);
+    };
   }, [profile]);
 
   useEffect(() => {
